@@ -11,6 +11,8 @@
 /.vs
 /cppcheck-*.xml
 /build
+/tools/dll_plugin1/out/
+/tools/ppa_stub/out/
 /MinGW
 /Win32
 /x64

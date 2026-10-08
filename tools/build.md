@@ -137,6 +137,10 @@ git clone --recurse-submodules https://github.com/sakura-editor/sakura.git
 git submodule update --init --recursive
 ```
 
+チーム用リポジトリにソースを移す場合は、`.gitmodules`だけでなく、サブモジュールのコミットを指すGitの登録（gitlink）も保持してください。
+`git submodule status`が何も表示しない場合は、この登録が欠落しています。その状態では上記コマンドでも依存ソースを取得できず、`vcpkg.props`が見つからないという`MSB4019`エラーになります。
+サブモジュール登録を含む修正をコミット・共有した後、各メンバーが上記コマンドを実行してください。
+
 サブモジュールを取得すると、Visual Studioまたは`build-sln.bat`による初回ビルド時にvcpkgが自動で初期化され、必要な外部ライブラリが取得・ビルドされます。
 通常は`bootstrap-vcpkg.bat`を手動実行する必要はありません。
 うまくいかない場合、`sakura.sln`があるフォルダーで以下を試してください。
