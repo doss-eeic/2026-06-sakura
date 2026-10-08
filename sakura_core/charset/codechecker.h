@@ -1,0 +1,436 @@
+﻿/*!	@file
+	@brief 文字コード認識・判別支援関数ライブラリ
+
+	@author Sakura-Editor collaborators
+	@date 1998/03/06 新規作成
+	@date 2006/03/06 名称変更（旧名：文字コード定数の定義）
+	@date 2007/03/19 名称改定（旧名：文字コード認識ライブラリ）
+*/
+/*
+	Copyright (C) 1998-2001, Norio Nakatani
+	Copyright (C) 2006, D. S. Koba, genta
+	Copyright (C) 2007
+	Copyright (C) 2018-2022, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+#ifndef SAKURA_CODECHECKER_62A18A31_2ECD_47B6_AEE1_38EDDAD3FF2B_H_
+#define SAKURA_CODECHECKER_62A18A31_2ECD_47B6_AEE1_38EDDAD3FF2B_H_
+#pragma once
+
+#include "_main/global.h"
+#include "convert/convert_util2.h"
+#include "basis/primitive.h"
+
+/*!
+	内部的に認識する文字集合
+*/
+enum ECharSet {
+	CHARSET_BINARY,					//!< 任意値
+	CHARSET_ASCII7,					//!< 7ビット ASCII 文字  (ISO/IEC 646 IRV)
+	CHARSET_JIS_HANKATA,			//!< 日本語の半角カタカナ文字  (JIS X 0201)
+	CHARSET_JIS_ZENKAKU,			//!< 日本語の全角文字  (JIS X 0208 ＋ MS 拡張文字)
+	CHARSET_JIS_SUPPLEMENTAL,		//!< 日本語の補助漢字文字  (JIS X 0213)
+	CHARSET_UNI_NORMAL,			//!< サロゲート領域を除いたユニコード文字
+	CHARSET_UNI_SURROG,			//!< ユニコードのサロゲート領域にある文字
+	CHARSET_BINARY2,			//!< 文字列断片(継続用)
+	/*
+		＊ CHARSET_JIS_SUPPLEMENTAL は、JIS_ZENKAKU と一部重なり合うため
+		　 あまりご利益がなさそうだが、一応知られているもの。
+		＊　CHARSET_BINARY は文字集合ではない集合。
+	*/
+};
+
+/*!
+	JIS コードのエスケープシーケンスたち
+
+	@note 順番変えると危険
+*/
+enum EJisEscseq {
+	JISESC_UNKNOWN,
+	JISESC_ASCII,
+	JISESC_JISX0201Latin,
+	JISESC_JISX0201Latin_OLD,
+	JISESC_JISX0201Katakana,
+	JISESC_JISX0208_1978,
+	JISESC_JISX0208_1983,
+	JISESC_JISX0208_1990,
+
+	/*
+		符号化文字集合       16進表現            文字列表現
+		------------------------------------------------------------
+		JIS C 6226-1978      1b 24 40            ESC $ @
+		JIS X 0208-1983      1b 24 42            ESC $ B
+		JIS X 0208-1990      1b 26 40 1b 24 42   ESC & @ ESC $ B
+		JIS X 0212-1990      1b 24 28 44         ESC $ ( D
+		JIS X 0213:2000 1面  1b 24 28 4f         ESC $ ( O
+		JIS X 0213:2004 1面  1b 24 28 51         ESC $ ( Q
+		JIS X 0213:2000 2面  1b 24 28 50         ESC $ ( P
+		JIS X 0201 ラテン    1b 28 4a            ESC ( J
+		JIS X 0201 ラテン    1b 28 48            ESC ( H         歴史的 [*]
+		JIS X 0201 片仮名    1b 28 49            ESC ( I
+		ISO/IEC 646 IRV      1b 28 42            ESC ( B
+
+		  [*] 歴史的な理由により出現したエスケープシーケンス．
+		      JIS X 0201の指示としては使用すべきでない．
+
+		出展：http://www.asahi-net.or.jp/~wq6k-yn/code/
+		参考：http://homepage2.nifty.com/zaco/code/
+	*/
+};
+
+/*!
+	内部的に認識する JIS エスケープシーケンスの種類
+*/
+enum EMyJisEscseq {
+	MYJISESC_NONE,
+	MYJISESC_ASCII7,
+	MYJISESC_HANKATA,
+	MYJISESC_ZENKAKU,
+	MYJISESC_UNKNOWN,
+};
+
+/* ------------------------------------------------------------------------
+      データ表と変換補助
+   ------------------------------------------------------------------------
+
+*/
+
+// UTF7 文字を判別するテーブル
+extern const char TABLE_IsUtf7Direct[];
+#if 0  // 未使用
+// JIS コードのエスケープシーケンス文字列データ
+extern const int TABLE_JISESCLEN[];
+extern const char* TABLE_JISESCDATA[];
+#endif
+
+// Unicode 判別関係
+
+/*!
+	Unicode の Noncharacter を確認
+
+	参考資料：http://unicode.org/versions/Unicode4.0.0/ch15.pdf
+*/
+inline bool IsUnicodeNoncharacter( const wchar32_t wc )
+{
+	wchar32_t wc_ = wc & 0xffff;
+
+	if( wc_ == 0xfffe || wc_ == 0xffff ){
+		return true;
+	}
+	if( wc >= 0xfdd0 && wc <= 0xfdef ){
+		return true;
+	}
+	return false;
+}
+
+/* ------------------------------------------------------------------------
+      文字コード判別支援
+   ------------------------------------------------------------------------
+
+*/
+
+#define CHARCODE__IS_SJIS_ZEN1(x) ((unsigned int)((x) ^ 0x20) - 0xa1 < 0x3c)
+#define CHARCODE__IS_SJIS_ZEN2(x) (0x40 <= (x) && (x) <= 0xfc && (x) != 0x7f)
+#define CHARCODE__IS_EUCJP_ZEN1(x) ( 0xa1 <= (x) && (x) <= 0xfe )
+#define CHARCODE__IS_EUCJP_ZEN2(x) ( 0xa1 <= (x) && (x) <= 0xfe )
+#define CHARCODE__IS_EUCJP_HANKATA2(x) ( 0xa1 <= (x) && (x) <= 0xdf )
+#define CHARCODE__IS_JIS(x) ( 0x21 <= (x) && (x) <= 0x7e )
+
+//! 7bit ASCII か
+template< typename Tchar >
+inline bool IsAscii7( const Tchar c ){
+	unsigned int c_ = c;
+	return ( c_ < 0x80 );
+}
+//! SJIS 全角文字 1 バイト目か
+inline bool IsSjisZen1( const char c ){
+	return CHARCODE__IS_SJIS_ZEN1(static_cast<unsigned char>(c));
+}
+//! SJIS 全角文字 2 バイト目か
+inline bool IsSjisZen2( const char c ){
+	return CHARCODE__IS_SJIS_ZEN2(static_cast<unsigned char>(c));
+}
+//! SJIS 全角文字か
+inline bool IsSjisZen( const char* pC ){
+	return ( CHARCODE__IS_SJIS_ZEN1(static_cast<unsigned char>(pC[0]))
+		&& CHARCODE__IS_SJIS_ZEN2(static_cast<unsigned char>(pC[1])) );
+}
+
+inline bool _IS_SJIS_1(unsigned char c)
+{
+	return IsSjisZen1(static_cast<char>(c));
+}
+inline bool _IS_SJIS_2(unsigned char c)
+{
+	return IsSjisZen2(static_cast<char>(c));
+}
+inline bool _IS_SJIS_1(char c)
+{
+	return IsSjisZen1(c);
+}
+inline bool _IS_SJIS_2(char c)
+{
+	return IsSjisZen2(c);
+}
+inline int my_iskanji1( int c )
+{
+	return IsSjisZen1(static_cast<char>(c & 0x00ff));
+}
+inline int my_iskanji2( int c )
+{
+	return IsSjisZen2(static_cast<char>(c & 0x00ff));
+}
+
+//! SJIS 半角カタカナか
+inline bool IsSjisHankata( const char c ){
+	return ( 0xa1 <= static_cast<unsigned char>(c) && static_cast<unsigned char>(c) <= 0xdf );
+}
+//! EUCJP 全角文字 1 バイト目か
+inline bool IsEucjpZen1( const char c ){
+	return CHARCODE__IS_EUCJP_ZEN1(static_cast<unsigned char>(c));
+}
+//! EUCJP 全角文字 2 バイト目か
+inline bool IsEucjpZen2( const char c ){
+	return CHARCODE__IS_EUCJP_ZEN2(static_cast<unsigned char>(c));
+}
+//! EUCJP 全角文字か
+inline bool IsEucjpZen( const char* pC ){
+	return ( CHARCODE__IS_EUCJP_ZEN1(static_cast<unsigned char>(pC[0]))
+		&& CHARCODE__IS_EUCJP_ZEN2(static_cast<unsigned char>(pC[1])) );
+}
+inline bool IsEucZen_hirakata( const char* pC ){
+	unsigned char c0 = pC[0];
+	unsigned char c1 = pC[1];
+	return ( (c0 == 0xa4 && (c1 >= 0xa1 && c1 <= 0xf3))
+	      || (c0 == 0xa5 && (c1 >= 0xa1 && c1 <= 0xf6)) );
+}
+//! EUCJP 全角文字　補助漢字か
+inline bool IsEucjpSupplemtal( const char* pC){
+	return ( static_cast<unsigned char>(pC[0]) == 0x8f
+	      && CHARCODE__IS_EUCJP_ZEN1(static_cast<unsigned char>(pC[1]))
+	      && CHARCODE__IS_EUCJP_ZEN2(static_cast<unsigned char>(pC[2])) );
+}
+//! EUCJP 半角カタカナ文字 2 バイト目か  added by genta
+inline bool IsEucjpHankata2( const char c ){
+	return CHARCODE__IS_EUCJP_HANKATA2(static_cast<unsigned char>(c));
+}
+//! EUCJP 半角カタカナ文字か
+inline bool IsEucjpHankata( const char *pC ){
+	return ( static_cast<unsigned char>(pC[0]) == 0x8e && CHARCODE__IS_EUCJP_HANKATA2(static_cast<unsigned char>(pC[1])) );
+}
+//! ISO-2022-JP(JIS) か
+inline bool IsJis( const char c ){
+	return CHARCODE__IS_JIS(static_cast<unsigned char>(c));
+}
+//! ISO-2022-JP(JIS) 半角カタカナ文字か
+inline bool IsJisHankata( const char c ){
+	return ( 0x21 <= static_cast<unsigned char>(c) && static_cast<unsigned char>(c) <= 0x7e );
+}
+//! ISO-2022-JP(JIS) 全角文字か
+inline bool IsJisZen( const char* pC ){
+	return ( CHARCODE__IS_JIS(static_cast<unsigned char>(pC[0]))
+		&& CHARCODE__IS_JIS(static_cast<unsigned char>(pC[1])) );
+}
+
+#undef CHARCODE__IS_SJIS_ZEN1
+#undef CHARCODE__IS_SJIS_ZEN2
+#undef CHARCODE__IS_EUCJP_ZEN1
+#undef CHARCODE__IS_EUCJP_ZEN2
+#undef CHARCODE__IS_EUCJP_HANKATA2
+#undef CHARCODE__IS_JIS
+
+//! UTF16 上位サロゲートか
+inline bool IsUtf16SurrogHi( const wchar_t wc ){
+//	return ( 0xd800 <= wc && wc <= 0xdbff );
+	return ( (static_cast<unsigned short>(wc) & 0xfc00) == 0xd800 );
+}
+//! UTF16 下位サロゲート文字か
+inline bool IsUtf16SurrogLow( const wchar_t wc ){
+//	return ( 0xdc00 <= wc && wc <= 0xdfff );
+	return ( (static_cast<unsigned short>(wc) & 0xfc00) == 0xdc00 );
+}
+//! UtF-8版 上位サロゲートか
+inline bool IsUtf8SurrogHi( const char* pS ) {
+	const unsigned char* ps = reinterpret_cast<const unsigned char*>( pS );
+	if( (ps[0] & 0xff) == 0xed && (ps[1] & 0xf0) == 0xa0 ){
+		return true;
+	}
+	return false;
+}
+//! UtF-8版 下位サロゲートか
+inline bool IsUtf8SurrogLow( const char* pS ) {
+	const unsigned char* ps = reinterpret_cast<const unsigned char*>( pS );
+	if( (ps[0] & 0xff) == 0xed && (ps[1] & 0xf0) == 0xb0 ){
+		return true;
+	}
+	return false;
+}
+//! UTF-7 Set D の文字か
+template< typename CHAR_TYPE >
+inline bool IsUtf7SetD( const CHAR_TYPE c ){
+	unsigned int c_ = c;
+	return ( c_ < 0x80 && TABLE_IsUtf7Direct[c_] == 1 );
+}
+//! UTF-7 Set O の文字か
+template< typename CHAR_TYPE >
+inline bool IsUtf7SetO( const CHAR_TYPE c ){
+	unsigned int c_ = c;
+	return ( c_ < 0x80 && TABLE_IsUtf7Direct[c_] == 2 );
+}
+//! UTF-7 で直接エンコードされ得る文字か
+template< typename CHAR_TYPE >
+inline bool IsUtf7Direct( const CHAR_TYPE c ){
+	return IsUtf7SetD( c ) || IsUtf7SetO( c );
+	// 2012.11.08 Set O も読み込めるように
+}
+
+//! UTF-7 Set B (Modified BASE64) の文字か
+template< class CHAR_TYPE >
+inline bool IsBase64( const CHAR_TYPE c ){
+	unsigned int c_ = c;
+	return (c_ < 0x80 && (int)TABLE_BASE64CharToValue[c_] < 64)? true : false;
+}
+
+inline bool IsBinaryOnSurrogate( const wchar_t wc ){
+	int wc_ = wc;
+	return ( 0xdc00 <= wc_ && wc_ <= 0xdcff );
+}
+
+//! 高位サロゲートエリアか？	from ssrc_2004-06-05wchar00703b	2008/5/15 Uchi
+inline bool IsUTF16High( wchar_t c ){
+	return IsUtf16SurrogHi(c);
+}
+//! 下位サロゲートエリアか？	from ssrc_2004-06-05wchar00703b	2008/5/15 Uchi
+inline bool IsUTF16Low( wchar_t c ){
+	return IsUtf16SurrogLow(c);
+}
+
+/*!
+ * 文字列がサロゲートペアで始まっているか判定する
+ */
+inline bool IsSurrogatePair(std::wstring_view text) {
+	return 2 <= text.length() && IsUTF16High(text[0]) && IsUTF16Low(text[1]);
+}
+
+/*!
+ * UTF16文字列の先頭1文字をUTF32コードポイントに変換する
+ *
+ * @return 文字列の先頭1文字のコードポイント
+ */
+inline
+_Success_(return != 0)
+char32_t ConvertToUtf32(std::wstring_view text) {
+	if (text.empty()) {
+		return 0;
+	}
+	if (IsSurrogatePair(text)) {
+		return 0x10000 + ((text[0] & 0x3ff) << 10) + (text[1] & 0x3ff);
+	}
+	if (const auto ch = text[0];
+		!(ch & 0xfc00))
+	{
+		return ch;
+	}
+	return 0;
+}
+
+/*!
+ * 文字列がIVSの異体字セレクタで始まっているか判定する
+ */
+inline bool IsVariationSelector(std::wstring_view text) {
+	return (2 <= text.size()) && (text[0] == 0xDB40) && (0xDD00 <= text[1]) && (text[1] <= 0xDDEF);
+}
+
+//! 上位バイトと下位バイトを交換 (主に UTF-16 LE/BE 向け)
+inline unsigned short _SwapHLByte( const unsigned short wc ){
+	unsigned short wc1 = static_cast<unsigned short>( (static_cast<unsigned int>(wc) << 8) & 0x0000ffff );
+	unsigned short wc2 = static_cast<unsigned short>( (static_cast<unsigned int>(wc) >> 8) & 0x0000ffff );
+	return (wc1 | wc2);
+}
+
+/*
+	文字長の推測
+*/
+//
+// ---- データ入力用
+//
+//! SJIS の文字長を推測
+inline int GuessSjisCharsz( const char uc ){
+	if( IsSjisZen1(uc) ){ return 2; }
+	return 1;
+}
+//! UTF-16 の文字長を推測（組み合わせ文字列の考慮なし）
+inline int GuessUtf16Charsz( const wchar_t wc ){
+	if( IsUtf16SurrogHi(wc) ){ return 2; }
+	return 1;
+}
+//! UTF-8 の文字長を推測（組み合わせ文字列の考慮なし）
+inline int GuessUtf8Charsz( const char uc_ ){
+	unsigned char uc = uc_;
+	if( (uc & 0xe0) == 0xc0 ){ return 2; }
+	if( (uc & 0xf0) == 0xe0 ){ return 3; }
+	if( (uc & 0xf8) == 0xf0 ){ return 4; }
+	return 1;
+}
+//! CESU-8 の文字長を推測
+inline int GuessCesu8Charsz( const char uc_ ){
+	unsigned char uc = uc_;
+	if( (uc & 0xe0) == 0xc0 ){ return 2; }
+	if( (uc & 0xf0) == 0xe0 ){ return 6; }
+	return 1;
+}
+//! EUCJP の文字長を推測
+inline int GuessEucjpCharsz( const char uc_ ){
+	unsigned char uc = uc_;
+	if( uc == 0x8f ){ return 3; }
+	if( uc == 0x8e || IsEucjpZen1(static_cast<char>(uc)) ){ return 2; }
+	return 1;
+}
+
+/*
+	文字長検査
+*/
+/* --- ローカル文字コードチェック */
+int CheckSjisChar( const char* pS, size_t nLen, ECharSet* );
+int CheckEucjpChar( const char* pS, size_t nLen, ECharSet* );
+int DetectJisEscseq( const char* pS, size_t nLen, EMyJisEscseq* ); // JIS エスケープシーケンス検出器
+int _CheckJisAnyPart( const char* pS, size_t nLen, const char **ppNextChar, EMyJisEscseq *peNextEsc, int *pnErrorCount, const int nType );
+enum EJisChecker{
+	JISCHECK_ASCII7,
+	JISCHECK_HANKATA,
+	JISCHECK_ZENKAKU,
+	JISCHECK_UNKNOWN = -1,
+};
+
+inline int CheckJisAscii7Part( const char *pS, size_t nLen,
+		const char **ppNextChar, EMyJisEscseq *peNextEsc, int *pnErrorCount )
+	{ return _CheckJisAnyPart( pS, nLen, ppNextChar, peNextEsc, pnErrorCount, JISCHECK_ASCII7 ); }
+inline int CheckJisHankataPart( const char *pS, size_t nLen,
+		const char **ppNextChar, EMyJisEscseq *peNextEsc, int *pnErrorCount )
+	{ return _CheckJisAnyPart( pS, nLen, ppNextChar, peNextEsc, pnErrorCount, JISCHECK_HANKATA ); }
+inline int CheckJisZenkakuPart( const char *pS, size_t nLen,
+		const char **ppNextChar, EMyJisEscseq *peNextEsc, int *pnErrorCount )
+	{ return _CheckJisAnyPart( pS, nLen, ppNextChar, peNextEsc, pnErrorCount, JISCHECK_ZENKAKU ); }
+inline int CheckJisUnknownPart( const char *pS, size_t nLen,
+		const char **ppNextChar, EMyJisEscseq *peNextEsc, int *pnErrorCount )
+	{ return _CheckJisAnyPart( pS, nLen, ppNextChar, peNextEsc, pnErrorCount, JISCHECK_UNKNOWN ); }
+
+// _CheckUtf16Char のオプション定義
+#define UC_NONCHARACTER 1  //!< 非文字を不正文字とする
+// CheckUtf7BPart のオプション定義
+#define UC_LOOSE 0x02
+
+/* --- Unicode 系コードチェック */
+int _CheckUtf16Char( const wchar_t* pS, size_t nLen, ECharSet*, const int nOption, const bool bBigEndian );
+inline int CheckUtf16leChar( const wchar_t* pS, size_t nLen, ECharSet* e, const int o ) { return _CheckUtf16Char( pS, nLen, e, o, false ); }
+inline int CheckUtf16beChar( const wchar_t* pS, size_t nLen, ECharSet* e, const int o ) { return _CheckUtf16Char( pS, nLen, e, o, true ); }
+
+int CheckUtf8Char( const char* pS, size_t nLen, ECharSet*, const bool bAllow4byteCode, const int nOption );
+int CheckUtf8Char2( const char* pS, size_t nLen, ECharSet*, const bool bAllow4byteCode, const int nOption );
+int CheckCesu8Char( const char* pS, size_t nLen, ECharSet*, const int nOption );
+// UTF-7 フォーマットチェック
+int CheckUtf7DPart( const char* pS, size_t nLen, const char **ppNextChar, bool *pbError );
+int CheckUtf7BPart( const char* pS, size_t nLen, const char **ppNextChar, bool *pbError, const int nOption, bool *pbNoAddPoint = nullptr );
+
+#endif /* SAKURA_CODECHECKER_62A18A31_2ECD_47B6_AEE1_38EDDAD3FF2B_H_ */

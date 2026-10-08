@@ -1,0 +1,80 @@
+﻿/*!	@file
+	@brief 表示用文字列等の取得
+
+	機能名，機能分類，機能番号などの変換．設定画面での表示用文字列を用意する．
+
+	@author genta
+	@date Oct. 1, 2001
+*/
+/*
+	Copyright (C) 2001, genta
+	Copyright (C) 2002, aroka
+	Copyright (C) 2007, ryoji
+	Copyright (C) 2018-2022, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+
+#ifndef SAKURA_CFUNCLOOKUP_9470508D_849D_463F_B507_7843D4D85B4A_H_
+#define SAKURA_CFUNCLOOKUP_9470508D_849D_463F_B507_7843D4D85B4A_H_
+#pragma once
+
+#include <Windows.h>
+#include "_main/global.h"
+#include "config/maxdata.h"
+#include "func/Funccode.h"
+struct MacroRec;// 2007.11.02 ryoji
+struct CommonSetting;// 2002/2/10 aroka
+
+//! マクロ情報
+struct MacroRec {
+	WCHAR	m_szName[MACRONAME_MAX];	//!< 表示名
+	WCHAR	m_szFile[_MAX_PATH+1];	//!< ファイル名(ディレクトリを含まない)
+	bool	m_bReloadWhenExecute;	//	実行時に読み込みなおすか（デフォルトon）
+	
+	bool IsEnabled() const { return m_szFile[0] != L'\0'; }
+	const WCHAR* GetTitle() const { return m_szName[0] == L'\0' ? m_szFile: m_szName; }	// 2007.11.02 ryoji 追加
+};
+
+/*!
+	@brief 表示用文字列等の取得
+
+	機能，機能分類と位置，機能番号，文字列などの対応を集約する．
+*/
+class CFuncLookup {
+
+public:
+	//	Oct. 15, 2001 genta 引数追加
+	// 2007.11.02 ryoji 引数変更（CSMacroMgr->MacroRec）
+//	CFuncLookup( HINSTANCE hInst, MacroRec* pMacroRec, CommonSetting* pCom )
+//		: m_pMacroRec( pMacroRec ), m_pCommon( pCom ) {}
+	CFuncLookup() : m_pMacroRec( nullptr ){}
+
+	void Init( MacroRec* pMacroRec, CommonSetting* pCom ){
+		m_pMacroRec = pMacroRec;
+		m_pCommon = pCom;
+	}
+
+	EFunctionCode Pos2FuncCode( int category, int position, bool bGetUnavailable = true ) const;	// 2007.10.31 ryoji bGetUnavailableパラメータ追加
+	bool Pos2FuncName( int category, int position, WCHAR* ptr, size_t size ) const;
+	bool Funccode2Name( int funccode, WCHAR* ptr, size_t size ) const ;
+	const WCHAR* Category2Name( int category ) const;
+	const WCHAR* Custmenu2Name( int index, LPWSTR buf, size_t size ) const;
+
+	void SetCategory2Combo( HWND hComboBox ) const ;
+	void SetListItem( HWND hListBox, int category ) const;
+	
+	int GetCategoryCount(void) const {
+		return nsFuncCode::nFuncKindNum + 3;	//分類＋外部マクロ＋カスタムメニュー＋プラグイン
+	}
+	
+	int GetItemCount(int category) const;
+
+private:
+	MacroRec* m_pMacroRec;	//!< マクロ情報	// 2007.11.02 ryoji メンバ変更（CSMacroMgr->MacroRec）
+	
+	CommonSetting* m_pCommon;	//! 共通設定データ領域へのポインタ
+};
+
+/* [EOF] */
+#endif /* SAKURA_CFUNCLOOKUP_9470508D_849D_463F_B507_7843D4D85B4A_H_ */

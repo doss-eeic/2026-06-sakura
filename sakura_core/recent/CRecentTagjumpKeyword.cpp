@@ -1,0 +1,53 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+
+#include "StdAfx.h"
+#include "CRecentTagjumpKeyword.h"
+#include "config/maxdata.h"
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           生成                              //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+CRecentTagjumpKeyword::CRecentTagjumpKeyword()
+{
+	Create(
+		GetShareData()->m_sTagJump.m_aTagJumpKeywords.dataPtr(),
+		GetShareData()->m_sTagJump.m_aTagJumpKeywords.dataPtr()->GetBufferCount(),
+		&GetShareData()->m_sTagJump.m_aTagJumpKeywords._GetSizeRef(),
+		nullptr,
+		MAX_TAGJUMP_KEYWORD,
+		nullptr
+	);
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                      オーバーライド                         //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+/*
+	アイテムの比較要素を取得する。
+
+	@note	取得後のポインタはユーザー管理の構造体にキャストして参照してください。
+*/
+const WCHAR* CRecentTagjumpKeyword::GetItemText( int nIndex ) const
+{
+	return *GetItem(nIndex);
+}
+
+bool CRecentTagjumpKeyword::DataToReceiveType( LPCWSTR* dst, const CTagjumpKeywordString* src ) const
+{
+	*dst = *src;
+	return true;
+}
+
+int CRecentTagjumpKeyword::CompareItem( const CTagjumpKeywordString* p1, LPCWSTR p2 ) const
+{
+	return wcscmp(*p1,p2);
+}
+

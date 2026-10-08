@@ -1,0 +1,11 @@
+/githash.h
+/githash.h.tmp
+/Funccode_define.h
+/Funccode_enum.h
+
+# MinGW files
+/sakura.exe
+*.d
+*.o
+*.utf8
+/StdAfx.h.gch

@@ -1,0 +1,641 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+#include "StdAfx.h"
+#include "parse/CWordParse.h"
+
+#include "charset/charcode.h"
+#include "charset/codechecker.h"
+#include "mem/CNativeW.h"
+
+#include <string_view>
+
+using namespace std::literals::string_view_literals;
+
+//@@@ 2001.06.23 N.Nakatani
+/*!
+	@brief 現在位置の単語の範囲を調べる staticメンバ
+	@author N.Nakatani
+	@retval true	成功 現在位置のデータは「単語」と認識する。
+	@retval false	失敗 現在位置のデータは「単語」とは言いきれない気がする。
+*/
+bool CWordParse::WhereCurrentWord_2(
+	const wchar_t*	pLine,			//!< [in]  調べるメモリ全体の先頭アドレス
+	size_t			cchLine,		//!< [in]  調べるメモリ全体の有効長
+	size_t			index,			//!< [in]  調査開始地点:pLineからの相対的な位置
+	bool			bEnableExtEol,	//!< [in]  Unicode改行文字を改行とみなすかどうか
+	CLogicInt*		pnIdxFrom,		//!< [out] 単語が見つかった場合は、単語の先頭インデックスを返す。
+	CLogicInt*		pnIdxTo,		//!< [out] 単語が見つかった場合は、単語の終端の次のバイトの先頭インデックスを返す。
+	CNativeW*		pcmcmWord,		//!< [out] 単語が見つかった場合は、現在単語を切り出して指定されたCMemoryオブジェクトに格納する。情報が不要な場合はNULLを指定する。
+	CNativeW*		pcmcmWordLeft	//!< [out] 単語が見つかった場合は、現在単語の左に位置する単語を切り出して指定されたCMemoryオブジェクトに格納する。情報が不要な場合はNULLを指定する。
+)
+{
+	using namespace WCODE;
+
+	CLogicInt nLineLen(cchLine);
+	CLogicInt nIdx(index);
+
+	*pnIdxFrom = nIdx;
+	*pnIdxTo = nIdx;
+
+	if( nullptr == pLine ){
+		return false;
+	}
+	if( nIdx >= nLineLen ){
+		return false;
+	}
+
+	// 現在位置の文字の種類によっては選択不可
+	if( WCODE::IsLineDelimiter(pLine[nIdx], bEnableExtEol) ){
+		return false;
+	}
+
+	// 現在位置の文字の種類を調べる
+	ECharKind nCharKind = WhatKindOfChar( pLine, nLineLen, nIdx );
+
+	// 文字種類が変わるまで前方へサーチ
+	CLogicInt	nIdxNext = nIdx;
+	CLogicInt	nCharChars = CLogicInt(&pLine[nIdxNext] - CNativeW::GetCharPrev( pLine, nLineLen, &pLine[nIdxNext] ));
+	while( nCharChars > 0 ){
+		CLogicInt	nIdxNextPrev = nIdxNext;
+		nIdxNext -= nCharChars;
+		ECharKind	nCharKindNext = WhatKindOfChar( pLine, nLineLen, nIdxNext );
+
+		ECharKind nCharKindMerge = WhatKindOfTwoChars( nCharKindNext, nCharKind );
+		if( nCharKindMerge == CK_NULL ){
+			nIdxNext = nIdxNextPrev;
+			break;
+		}
+		nCharKind = nCharKindMerge;
+		nCharChars = CLogicInt(&pLine[nIdxNext] - CNativeW::GetCharPrev( pLine, nLineLen, &pLine[nIdxNext] ));
+	}
+	*pnIdxFrom = nIdxNext;
+
+	if( nullptr != pcmcmWordLeft ){
+		pcmcmWordLeft->SetString( &pLine[*pnIdxFrom], nIdx - *pnIdxFrom );
+	}
+
+	// 文字種類が変わるまで後方へサーチ
+	nIdxNext = nIdx;
+	nCharChars = CNativeW::GetSizeOfChar( pLine, nLineLen, nIdxNext ); // 2005-09-02 D.S.Koba GetSizeOfChar
+	while( nCharChars > 0 ){
+		nIdxNext += nCharChars;
+		ECharKind	nCharKindNext = WhatKindOfChar( pLine, nLineLen, nIdxNext );
+
+		ECharKind nCharKindMerge = WhatKindOfTwoChars( nCharKindNext, nCharKind );
+		if( nCharKindMerge == CK_NULL ){
+			break;
+		}
+		nCharKind = nCharKindMerge;
+		nCharChars = CNativeW::GetSizeOfChar( pLine, nLineLen, nIdxNext ); // 2005-09-02 D.S.Koba GetSizeOfChar
+	}
+	*pnIdxTo = nIdxNext;
+
+	if( nullptr != pcmcmWord ){
+		pcmcmWord->SetString( &pLine[*pnIdxFrom], *pnIdxTo - *pnIdxFrom );
+	}
+	return true;
+}
+
+//! 識別子に使用可能な文字かどうか
+inline bool isCSymbol(wchar_t c)
+{
+	//return
+	//	(c==L'_') ||
+	//	(c>=L'0' && c<=L'9') ||
+	//	(c>=L'A' && c<=L'Z') ||
+	//	(c>=L'a' && c<=L'z');
+	return c < gm_keyword_char.size() && gm_keyword_char[c] == CK_CSYM;
+}
+
+//! 全角版、識別子に使用可能な文字かどうか
+inline bool isCSymbolZen(wchar_t c)
+{
+	return
+		(c==L'＿') ||
+		(c>=L'０' && c<=L'９') ||
+		(c>=L'Ａ' && c<=L'Ｚ') ||
+		(c>=L'ａ' && c<=L'ｚ');
+}
+
+//! 現在位置の文字の種類を調べる
+ECharKind CWordParse::WhatKindOfChar(
+	const wchar_t*	pData,
+	size_t			cchData,
+	size_t			index
+)
+{
+	using namespace WCODE;
+
+	auto pDataLen = int(cchData);
+	auto nIdx = int(index);
+
+	ECharKind ret = CK_NULL;
+	if(const auto nCharChars = CNativeW::GetSizeOfChar(pData, pDataLen, nIdx);
+		nCharChars == 1)
+	{
+		wchar_t c=pData[nIdx];
+
+		//今までの半角
+		if( c<gm_keyword_char.size() ) return (ECharKind)gm_keyword_char[c];
+		//if( c == CR              )return CK_CR;
+		//if( c == LF              )return CK_LF;
+		//if( c == TAB             )return CK_TAB;	// タブ
+		//if( IsControlCode(c)     )return CK_CTRL;	// 制御文字
+		//if( c == SPACE           )return CK_SPACE;	// 半角スペース
+		//if( isCSymbol(c)         )return CK_CSYM;	// 識別子に使用可能な文字 (半角英数字、半角アンダースコア)
+		if( IsHankakuKatakana(c) )return CK_KATA;	// 半角のカタカナ
+		if( 0x00C0 <= c && c < 0x0180 && c != 0x00D7 && c != 0x00F7 )return CK_LATIN;
+													// ラテン１補助、ラテン拡張のうちアルファベット風のもの（×÷を除く）
+		//if( c == L'#'|| c == L'$' || c == L'@'|| c == L'\\' )return CK_UDEF;	// ユーザー定義
+
+		//その他
+		if( IsZenkakuSpace(c)    )return CK_ZEN_SPACE;	// 全角スペース
+		if( c==L'ー'             )return CK_ZEN_NOBASU;	// 伸ばす記号 'ー'
+		if( c==L'゛' || c==L'゜' )return CK_ZEN_DAKU;	// 全角濁点 「゛゜」
+		if( isCSymbolZen(c)      )return CK_ZEN_CSYM;	// 全角版、識別子に使用可能な文字 
+		if( IsZenkakuKigou(c)    )return CK_ZEN_KIGO;	// 全角の記号
+		if( IsHiragana(c)        )return CK_HIRA;		// ひらがな
+		if( IsZenkakuKatakana(c) )return CK_ZEN_KATA;	// 全角カタカナ
+		if( IsGreek(c)           )return CK_GREEK;		// ギリシャ文字
+		if( IsCyrillic(c)        )return CK_ZEN_ROS;	// ロシア文字
+		if( IsBoxDrawing(c)      )return CK_ZEN_SKIGO;	// 全角の特殊記号
+
+		//未分類
+		if( IsHankaku(c) )return CK_ETC;	// 半角のその他
+		else return CK_ZEN_ETC;				// 全角のその他(漢字など)
+	}
+	else if( nCharChars == 2 ){
+		// サロゲートペア 2008/7/8 Uchi
+		if (IsUTF16High(pData[nIdx]) && IsUTF16Low(pData[nIdx+1])) {
+			int		nCode = 0x10000 + ((pData[nIdx] & 0x3FF)<<10) + (pData[nIdx+1] & 0x3FF);	// コードポイント
+			if (nCode >= 0x20000 && nCode <= 0x2FFFF) {	// CJKV 拡張予約域 Ext-B/Ext-C...
+				return CK_ZEN_ETC;				// 全角のその他(漢字など)
+			}
+		}
+		return CK_ETC;	// 半角のその他
+	}
+	// IVS（正字 + 異体字セレクタ）
+	else if (nCharChars == 3 &&
+		IsVariationSelector(std::wstring_view(pData + nIdx + 1, pDataLen - (nIdx + 1))))
+	{
+		ret = CK_ZEN_ETC;				// 全角のその他(漢字など)
+	}
+
+	return ret;
+}
+
+//! 二つの文字を結合したものの種類を調べる
+ECharKind CWordParse::WhatKindOfTwoChars( ECharKind kindPre, ECharKind kindCur )
+{
+	if( kindPre == kindCur )return kindCur;			// 同種ならその種別を返す
+
+	// 全角長音・全角濁点は前後の全角ひらがな・全角カタカナに引きずられる
+	if( ( kindPre == CK_ZEN_NOBASU || kindPre == CK_ZEN_DAKU ) &&
+		( kindCur == CK_ZEN_KATA   || kindCur == CK_HIRA     ) )return kindCur;
+	if( ( kindCur == CK_ZEN_NOBASU || kindCur == CK_ZEN_DAKU ) &&
+		( kindPre == CK_ZEN_KATA   || kindPre == CK_HIRA     ) )return kindPre;
+	// 全角濁点、全角長音の連続は、とりあえず同種の文字とみなす
+	if( ( kindPre == CK_ZEN_NOBASU || kindPre == CK_ZEN_DAKU ) &&
+		( kindCur == CK_ZEN_NOBASU || kindCur == CK_ZEN_DAKU ) )return kindCur;
+
+	if( kindPre == CK_LATIN )kindPre = CK_CSYM;		// ラテン系文字はアルファベットとみなす
+	if( kindCur == CK_LATIN )kindCur = CK_CSYM;
+	if( kindPre == CK_UDEF )kindPre = CK_ETC;		// ユーザー定義文字はその他の半角とみなす
+	if( kindCur == CK_UDEF )kindCur = CK_ETC;
+	if( kindPre == CK_CTRL )kindPre = CK_ETC;		// 制御文字はその他の半角とみなす
+	if( kindCur == CK_CTRL )kindCur = CK_ETC;
+
+	if( kindPre == kindCur )return kindCur;			// 同種ならその種別を返す
+
+	return CK_NULL;									// それ以外なら二つの文字は別種
+}
+
+//! 二つの文字を結合したものの種類を調べる
+ECharKind CWordParse::WhatKindOfTwoChars4KW( ECharKind kindPre, ECharKind kindCur )
+{
+	if( kindPre == kindCur )return kindCur;			// 同種ならその種別を返す
+
+	// 全角長音・全角濁点は前後の全角ひらがな・全角カタカナに引きずられる
+	if( ( kindPre == CK_ZEN_NOBASU || kindPre == CK_ZEN_DAKU ) &&
+		( kindCur == CK_ZEN_KATA   || kindCur == CK_HIRA     ) )return kindCur;
+	if( ( kindCur == CK_ZEN_NOBASU || kindCur == CK_ZEN_DAKU ) &&
+		( kindPre == CK_ZEN_KATA   || kindPre == CK_HIRA     ) )return kindPre;
+	// 全角濁点、全角長音の連続は、とりあえず同種の文字とみなす
+	if( ( kindPre == CK_ZEN_NOBASU || kindPre == CK_ZEN_DAKU ) &&
+		( kindCur == CK_ZEN_NOBASU || kindCur == CK_ZEN_DAKU ) )return kindCur;
+
+	if( kindPre == CK_LATIN )kindPre = CK_CSYM;		// ラテン系文字はアルファベットとみなす
+	if( kindCur == CK_LATIN )kindCur = CK_CSYM;
+	if( kindPre == CK_UDEF )kindPre = CK_CSYM;		// ユーザー定義文字はアルファベットとみなす
+	if( kindCur == CK_UDEF )kindCur = CK_CSYM;
+	if( kindPre == CK_CTRL )kindPre = CK_CTRL;		// 制御文字はそのまま制御文字とみなす
+	if( kindCur == CK_CTRL )kindCur = CK_CTRL;
+
+	if( kindPre == kindCur )return kindCur;			// 同種ならその種別を返す
+
+	return CK_NULL;									// それ以外なら二つの文字は別種
+}
+
+/*!	次の単語の先頭を探す
+	pLine（長さ：nLineLen）の文字列から単語を探す。
+	探し始める位置はnIdxで指定。方向は後方に限定。単語の両端で止まらない（関係ないから）
+*/
+bool CWordParse::SearchNextWordPosition(
+	const wchar_t*	pLine,
+	size_t			cchLine,
+	size_t			index,			//	桁数
+	CLogicInt*		pnColumnNew,	//	見つかった位置
+	BOOL			bStopsBothEnds	//	単語の両端で止まる
+)
+{
+	CLogicInt nLineLen(cchLine);
+	CLogicInt nIdx(index);
+
+	// 文字種類が変わるまで後方へサーチ
+	// 空白とタブは無視する
+
+	// 現在位置の文字の種類を調べる
+	ECharKind nCharKind = WhatKindOfChar( pLine, nLineLen, nIdx );
+
+	CLogicInt nIdxNext = nIdx;
+	// 2005-09-02 D.S.Koba GetSizeOfChar
+	CLogicInt nCharChars = CNativeW::GetSizeOfChar( pLine, nLineLen, nIdxNext );
+	while( nCharChars > 0 ){
+		nIdxNext += nCharChars;
+		ECharKind nCharKindNext = WhatKindOfChar( pLine, nLineLen, nIdxNext );
+		// 空白とタブは無視する
+		if( nCharKindNext == CK_TAB || nCharKindNext == CK_SPACE ){
+			if ( bStopsBothEnds && nCharKind != nCharKindNext ){
+				*pnColumnNew = nIdxNext;
+				return true;
+			}
+			nCharKind = nCharKindNext;
+		}
+		else {
+			ECharKind nCharKindMerge = WhatKindOfTwoChars( nCharKind, nCharKindNext );
+			if( nCharKindMerge == CK_NULL ){
+				*pnColumnNew = nIdxNext;
+				return true;
+			}
+			nCharKind = nCharKindMerge;
+		}
+		// 2005-09-02 D.S.Koba GetSizeOfChar
+		nCharChars = CNativeW::GetSizeOfChar( pLine, nLineLen, nIdxNext );
+	}
+	return false;
+}
+
+/*!	次の単語の先頭を探す
+	pLine（長さ：nLineLen）の文字列から単語を探す。
+	探し始める位置はnIdxで指定。方向は後方に限定。単語の両端で止まらない（関係ないから）
+*/
+bool CWordParse::SearchNextWordPosition4KW(
+	const wchar_t*	pLine,
+	size_t			cchLine,
+	size_t			index,			//	桁数
+	CLogicInt*		pnColumnNew,	//	見つかった位置
+	BOOL			bStopsBothEnds	//	単語の両端で止まる
+)
+{
+	CLogicInt nLineLen(cchLine);
+	CLogicInt nIdx(index);
+
+	// 文字種類が変わるまで後方へサーチ
+	// 空白とタブは無視する
+
+	// 現在位置の文字の種類を調べる
+	ECharKind nCharKind = WhatKindOfChar( pLine, nLineLen, nIdx );
+
+	CLogicInt nIdxNext = nIdx;
+	// 2005-09-02 D.S.Koba GetSizeOfChar
+	CLogicInt nCharChars = CNativeW::GetSizeOfChar( pLine, nLineLen, nIdxNext );
+	while( nCharChars > 0 ){
+		nIdxNext += nCharChars;
+		ECharKind nCharKindNext = WhatKindOfChar( pLine, nLineLen, nIdxNext );
+		// 空白とタブは無視する
+		if( nCharKindNext == CK_TAB || nCharKindNext == CK_SPACE ){
+			if ( bStopsBothEnds && nCharKind != nCharKindNext ){
+				*pnColumnNew = nIdxNext;
+				return true;
+			}
+			nCharKind = nCharKindNext;
+		}
+		else {
+			ECharKind nCharKindMerge = WhatKindOfTwoChars4KW( nCharKind, nCharKindNext );
+			if( nCharKindMerge == CK_NULL ){
+				*pnColumnNew = nIdxNext;
+				return true;
+			}
+			nCharKind = nCharKindMerge;
+		}
+		// 2005-09-02 D.S.Koba GetSizeOfChar
+		nCharChars = CNativeW::GetSizeOfChar( pLine, nLineLen, nIdxNext );
+	}
+	return false;
+}
+
+bool CWordParse::SearchPrevWordPosition(
+	const wchar_t* pLine,
+	size_t cchLine,
+	size_t index,
+	CLogicInt* pnColumnNew,
+	BOOL bStopsBothEnds
+)
+{
+	CLogicInt nLineLen(cchLine);
+	CLogicInt nIdx(index);
+
+	/* 現在位置の文字の種類を調べる */
+	ECharKind	nCharKind = CWordParse::WhatKindOfChar( pLine, nLineLen, nIdx );
+	if( nIdx == 0 ){
+		return false;
+	}
+
+	/* 文字種類が変わるまで前方へサーチ */
+	/* 空白とタブは無視する */
+	int		nCount = 0;
+	CLogicInt	nIdxNext = nIdx;
+	CLogicInt	nCharChars = CLogicInt(&pLine[nIdxNext] - CNativeW::GetCharPrev( pLine, nLineLen, &pLine[nIdxNext] ));
+	while( nCharChars > 0 ){
+		CLogicInt		nIdxNextPrev = nIdxNext;
+		nIdxNext -= nCharChars;
+		ECharKind nCharKindNext = CWordParse::WhatKindOfChar( pLine, nLineLen, nIdxNext );
+
+		ECharKind nCharKindMerge = CWordParse::WhatKindOfTwoChars( nCharKindNext, nCharKind );
+		if( nCharKindMerge == CK_NULL ){
+			/* サーチ開始位置の文字が空白またはタブの場合 */
+			if( nCharKind == CK_TAB	|| nCharKind == CK_SPACE ){
+				if ( bStopsBothEnds && nCount ){
+					nIdxNext = nIdxNextPrev;
+					break;
+				}
+				nCharKindMerge = nCharKindNext;
+			}else{
+				if( nCount == 0){
+					nCharKindMerge = nCharKindNext;
+				}else{
+					nIdxNext = nIdxNextPrev;
+					break;
+				}
+			}
+		}
+		nCharKind = nCharKindMerge;
+		nCharChars = CLogicInt(&pLine[nIdxNext] - CNativeW::GetCharPrev( pLine, nLineLen, &pLine[nIdxNext] ));
+		++nCount;
+	}
+	*pnColumnNew = nIdxNext;
+	return true;
+}
+
+struct _url_table_t {
+	constexpr explicit _url_table_t(
+		std::wstring_view schema,
+		bool with_double_slash_ = true
+	) noexcept
+		: name(schema)
+		, with_double_slash(with_double_slash_)
+	{
+	}
+
+	/*! @brief このエントリがメールアドレスのものかどうか */
+	constexpr bool is_mail() const noexcept { return L"mailto" == name; }
+
+	/*! @brief このエントリの長さ（schema + "://" の長さ） */
+	constexpr size_t length() const noexcept { return name.length() + (with_double_slash ? 3 : 1); }
+
+	constexpr bool match(
+		std::wstring_view line
+	) const noexcept
+	{
+		if (line.length() < length() ||
+			!line.starts_with(name))
+		{
+			return false;
+		}
+
+		line = line.substr(name.size());
+
+		if (!with_double_slash) {
+			return line.starts_with(L":"sv);
+		}
+
+		return line.starts_with(L"://"sv);
+	}
+
+	std::wstring_view	name;
+	bool				with_double_slash;
+};
+
+/* アルファベット順 */
+constexpr std::array url_table = {
+	_url_table_t{ L"file" }, /* 1 */
+	_url_table_t{ L"ftp" }, /* 2 */
+	_url_table_t{ L"gopher" }, /* 3 */
+	_url_table_t{ L"http" }, /* 4 */
+	_url_table_t{ L"https" }, /* 5 */
+	_url_table_t{ L"mailto", false }, /* 6 */
+	_url_table_t{ L"news", false }, /* 7 */
+	_url_table_t{ L"nntp" }, /* 8 */
+	_url_table_t{ L"prospero" }, /* 9 */
+	_url_table_t{ L"telnet" }, /* 10 */
+	_url_table_t{ L"tp" }, /* 11 */
+	_url_table_t{ L"ttp" }, /* 12 */
+	_url_table_t{ L"wais" }, /* 13 */
+	_url_table_t{ L"{", false }  /* 14 */  /* '{' is 'z'+1 : terminate */
+};
+
+constexpr auto get_index_of(std::wstring_view urlHeader)
+{
+	const auto it = std::ranges::find_if(url_table, [&urlHeader](const _url_table_t& v) { return v.name == urlHeader; } );
+	return static_cast<char>(std::distance(url_table.begin(), it));
+}
+
+// テーブルの保守性を高めるための定義
+constexpr auto urF = get_index_of(L"file") + 1;
+constexpr auto urG = get_index_of(L"gopher") + 1;
+constexpr auto urH = get_index_of(L"http") + 1;
+constexpr auto urM = get_index_of(L"mailto") + 1;
+constexpr auto urN = get_index_of(L"news") + 1;
+constexpr auto urP = get_index_of(L"prospero") + 1;
+constexpr auto urT = get_index_of(L"telnet") + 1;
+constexpr auto urW = get_index_of(L"wais") + 1;
+
+constexpr char url_char[] = {
+// clang-format off
+	/* +0  +1  +2  +3  +4  +5  +6  +7  +8  +9  +A  +B  +C  +D  +E  +F */
+	    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,	/* +00: */
+	    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,	/* +10: */
+	    0, -1,  0, -1, -1, -1, -1,  0,  0,  0,  0, -1, -1, -1, -1, -1,	/* +20: " !"#$%&'()*+,-./" */
+	   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  0, -1,  0, -1,	/* +30: "0123456789:;<=>?" */
+	   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,	/* +40: "@ABCDEFGHIJKLMNO" */
+	   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  0, -1,  0,  0, -1,	/* +50: "PQRSTUVWXYZ[\]^_" */
+	    0, -1, -1, -1, -1, -1,urF,urG,urH, -1, -1, -1, -1,urM,urN, -1,	/* +60: "`abcdefghijklmno" */
+	  urP, -1, -1, -1,urT, -1, -1,urW, -1, -1, -1,  0,  0,  0, -1,  0,	/* +70: "pqrstuvwxyz{|}~ " */
+// clang-format on
+	/* あと128バイト犠牲にすればif文を2箇所削除できる */
+	/* 0    : not url char
+	 * -1   : url char
+	 * other: url head char --> url_table array number + 1
+	 */
+};
+
+//! wcがasciiなら0-127のまま返す。それ以外は0を返す。
+uchar_t wc_to_c(wchar_t wc)
+{
+#if 0
+//! wcがSJIS1バイト文字ならcharに変換して0～255を返す。SJIS2バイト文字なら0を返す。
+	char buf[3]={0,0,0};
+	int ret=wctomb(buf,wc);
+	if(ret==-1)return 0;   //エラー
+	if(buf[1]!=0)return 0; //エラー扱い
+	return buf[0] <= 0x7F ? buf[0]: 0; //1バイトで表せたので、これを返す  2011.12.17 バッファオーバーランの修正
+#endif
+	// 2011.12.15 wctombを使わない版
+	if(wc <= 0x7F){
+		return (uchar_t)wc;
+	}
+	return 0;
+}
+
+//@@@ 2002.01.24 Start by MIK
+/*!
+	文字列がURLかどうかを検査する。
+	
+	@retval TRUE URLである
+	@retval FALSE URLでない
+	
+	@note 関数内に定義したテーブルは必ず static const 宣言にすること(性能に影響します)。
+		url_char の値は url_table の配列番号+1 になっています。
+		新しい URL を追加する場合は #define 値を修正してください。
+		url_table は頭文字がアルファベット順になるように並べてください。
+
+	2007.10.23 kobake UNICODE対応。//$ wchar_t専用のテーブル(または判定ルーチン)を用意したほうが効率は上がるはずです。
+*/
+BOOL IsURL(
+	const wchar_t*	pszLine,	//!< [in]  文字列
+	int				offset,		//!< [in]  検査を開始する位置。
+	size_t			cchLine,	//!< [in]  文字列の長さ
+	int*			pnMatchLen	//!< [out] URLの長さ。offset からの距離。
+)
+{
+	const auto line  = std::wstring_view(pszLine, cchLine).substr(offset);
+
+	const auto ch = wc_to_c(line.front());
+	if (0 == ch) return FALSE;	/* 2バイト文字 */
+
+	const auto uc = url_char[ch];
+	if (uc <= 0) {	/* URL開始文字でない */
+		return IsMailAddress(pszLine, offset, cchLine, pnMatchLen);
+	}
+
+	for (auto urlp = &url_table[uc - 1]; urlp->name[0] == ch; ++urlp) {	/* URLテーブルを探索 */
+		if (!urlp->match(line)) {
+			continue;
+		}
+		/* URLヘッダーは一致した */
+		const auto schemaLength = int(urlp->length());
+		if (urlp->is_mail()) {	/* メール専用の解析へ */
+			if (IsMailAddress(std::data(line), schemaLength, int(std::size(line)), pnMatchLen)) {
+				*pnMatchLen = *pnMatchLen + schemaLength;
+				return TRUE;
+			}
+			return FALSE;
+		}
+		size_t i = schemaLength;
+		for (; i < std::size(line); ++i) {	/* 通常の解析へ */
+			if (const auto ch2 = wc_to_c(line[i]); !ch2 || !url_char[ch2]) break;	/* 終端に達した */
+		}
+		if (i == schemaLength) return FALSE;	/* URLヘッダーだけ */
+		*pnMatchLen = int(i);
+		return TRUE;
+	}
+	return IsMailAddress(pszLine, offset, cchLine, pnMatchLen);
+}
+
+/* 現在位置がメールアドレスならば、NULL以外と、その長さを返す
+	@date 2016.04.27 記号類を許可
+*/
+BOOL IsMailAddress( const wchar_t* pszBuf, int offset, size_t cchBuf, int* pnAddressLength )
+{
+	auto nBufLen = int(cchBuf);
+
+	struct {
+		bool operator()(const wchar_t ch)
+		{
+			return 0x21 <= ch && ch <= 0x7E && nullptr == wcschr(L"\"(),:;<>@[\\]", ch);
+		}
+	} IsValidChar;
+
+/*
+	直前の文字を利用した境界判定
+*/
+	if (0 < offset && IsValidChar(pszBuf[offset-1])) {
+		return FALSE;
+	}
+
+	pszBuf  += offset;
+	nBufLen -= offset;
+	offset   = 0;
+
+	int		j;
+	int		nDotCount;
+	int		nBgn;
+
+
+	j = 0;
+	if(pszBuf[j] != L'.' && IsValidChar(pszBuf[j])){
+		j++;
+	}else{
+		return FALSE;
+	}
+	while( j < nBufLen - 2 && IsValidChar(pszBuf[j]) ){
+		j++;
+	}
+	if( j == 0 || j >= nBufLen - 2  ){
+		return FALSE;
+	}
+	if( L'@' != pszBuf[j] ){
+		return FALSE;
+	}
+//	nAtPos = j;
+	j++;
+	nDotCount = 0;
+//	nAlphaCount = 0;
+
+
+	for (;;) {
+		nBgn = j;
+		while( j < nBufLen &&
+			(
+			(pszBuf[j] >= L'a' && pszBuf[j] <= L'z')
+		 || (pszBuf[j] >= L'A' && pszBuf[j] <= L'Z')
+		 || (pszBuf[j] >= L'0' && pszBuf[j] <= L'9')
+		 || (pszBuf[j] == L'-')
+		 || (pszBuf[j] == L'_')
+			)
+		){
+			j++;
+		}
+		if( 0 == j - nBgn ){
+			return FALSE;
+		}
+		if( L'.' != pszBuf[j] ){
+			if( 0 == nDotCount ){
+				return FALSE;
+			}else{
+				break;
+			}
+		}else{
+			nDotCount++;
+			j++;
+		}
+	}
+	if( nullptr != pnAddressLength){
+		*pnAddressLength = j;
+	}
+	return TRUE;
+}

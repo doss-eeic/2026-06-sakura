@@ -1,0 +1,481 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+#ifndef SAKURA_CDATAPROFILE_401640FD_5B27_454A_B0DE_098E1C4FAEAD_H_
+#define SAKURA_CDATAPROFILE_401640FD_5B27_454A_B0DE_098E1C4FAEAD_H_
+#pragma once
+
+#include "env/CProfile.h"
+
+#include "basis/SakuraBasis.h"
+#include "util/StaticType.h"
+
+#include <Windows.h>
+
+struct ColorInfo;
+struct EditInfo;
+struct KeyHelpInfo;
+struct MacroRec;
+struct PRINTSETTING;
+struct PluginRec;
+struct SFileTreeItem;
+
+/*!
+ * バッファ参照型
+ *
+ * basis::WritableBufferを導入前、生配列をキャストするために使っていたもの。
+ *
+ * 単純削除して構わないが、影響箇所が多いので一旦放置する
+ */
+// TODO: いつか廃止する
+#define StringBufferW(x) (x)
+
+/*!
+ * プロファイル用データ変換
+ */
+namespace profile_data {
+
+	/*!
+	 * 指定した型の変換に対応しているかどうかを示すコンセプト
+	 */
+	template<class T>
+	concept is_supported = std::is_integral_v<T> || std::is_enum_v<T> || std::is_same_v<T, CLogicInt> || std::is_same_v<T, CLayoutInt>;
+
+	/*!
+	 * 文字列を設定値に変換する
+	 *
+	 * テンプレート定義は、32bit以下の整数型とenum型に対応している。
+	 * それ以外の型で利用したい場合は、特殊化定義を書いて使う。
+	 * 既存コードにあった bool, CLayoutInt, WCHAR, KEYCODE は特殊化済み。
+	 * 独自型 CLogicInt は int に暗黙変換できるので特殊化不要。
+	 */
+	template<is_supported NumType>
+	[[nodiscard]] bool TryParse(std::wstring_view profile, NumType& value) noexcept
+	{
+		if (profile.length() > 0) {
+			const WCHAR* pStart = profile.data();
+			WCHAR* pEnd = nullptr;
+			if constexpr (std::is_unsigned_v<NumType>) {
+				if (const auto parsedNum = ::wcstoul(pStart, &pEnd, 10); pStart != pEnd) {
+					value = static_cast<NumType>(parsedNum);
+					return true;
+				}
+			}
+			else {
+				if (const auto parsedNum = ::wcstol(pStart, &pEnd, 10); pStart != pEnd) {
+					value = static_cast<NumType>(parsedNum);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/*!
+	 * 設定値を文字列に変換する
+	 *
+	 * テンプレート定義は、組込の整数型に対応している。
+	 * 整数以外の型で利用したい場合は、特殊化定義を書いて使う。
+	 * 既存コードにあった型 bool, CLayoutInt, WCHAR, KEYCODE は特殊化済み。
+	 * 独自型 CLogicInt は int に暗黙変換できるので特殊化不要。
+	 */
+	template<is_supported NumType>
+	[[nodiscard]] std::wstring ToString(NumType value)
+	{
+		auto nValue = static_cast<int>(value);
+		return std::to_wstring(nValue);
+	}
+
+#ifdef USE_STRICT_INT
+
+	//! 文字列を設定値に変換する
+	template<>
+	[[nodiscard]] inline bool TryParse<CLayoutInt>(std::wstring_view profile, CLayoutInt& value) noexcept
+	{
+		// int型を介して値を読み取る
+		if (int nValue = 0; TryParse(profile, nValue)) {
+			value = CLayoutInt(nValue);
+			return true;
+		}
+		return false;
+	}
+
+	//! 設定値を文字列に変換する
+	template<>
+	[[nodiscard]] inline std::wstring ToString<CLayoutInt>(CLayoutInt value)
+	{
+		// int型を介して文字列化する
+		return ToString(value.GetValue());
+	}
+
+#endif //ifdef USE_STRICT_INT
+
+	//! 文字列を設定値に変換する
+	template<>
+	[[nodiscard]] inline bool TryParse<bool>(std::wstring_view profile, bool& value) noexcept
+	{
+		// int型を介して値を読み取る
+		if (int nValue = 0; TryParse(profile, nValue)) {
+			value = (nValue != 0);
+			return true;
+		}
+		return false;
+	}
+
+	//! 設定値を文字列に変換する
+	template<>
+	[[nodiscard]] inline std::wstring ToString<bool>(bool value)
+	{
+		// int型を介して文字列化する
+		return ToString(value ? 1 : 0);
+	}
+
+	/*!
+	 * 文字列を設定値に変換する
+	 *
+	 * 行番号エリアとテキストエリアを区切るのに使う文字の設定。
+	 *
+	 * @sa STypeConfig::m_cLineTermChar
+	 */
+	template<>
+	[[nodiscard]] inline bool TryParse<WCHAR>(std::wstring_view profile, WCHAR& value) noexcept
+	{
+		// \0は区切り文字「なし」を意味する
+		if (const WCHAR ch = profile.empty() ? L'\0' : profile[0]; (ch & 0xd800) != 0xd800) {
+			// 区切り文字は表示可能な単一文字なので、変換不要。
+			value = ch;
+			return true;
+		}
+		return false;
+	}
+
+	/*!
+	 * 設定値を文字列に変換する
+	 *
+	 * 行番号エリアとテキストエリアを区切るのに使う文字の設定。
+	 *
+	 * @sa STypeConfig::m_cLineTermChar
+	 */
+	template<>
+	[[nodiscard]] inline std::wstring ToString<WCHAR>(WCHAR value)
+	{
+		if (value != L'\0' && (value & 0xd800) != 0xd800) {
+			// 指定された文字1字のみで構成される文字列を返す
+			return std::wstring(1, value);
+		}
+		return std::wstring();
+	}
+
+	/*!
+	 * 文字列を設定値に変換する
+	 *
+	 * 元々ACHAR型の変換メソッドになっていたものを再定義。
+	 * カスタムメニューのニーモニック設定に使われている。
+	 *
+	 * ニーモニックとは、「ファイル(F)」の F のこと。(Fには下線が付く)
+	 * キーボードショートカットとして機能することから、メニューショートカットとも言う。
+	 *
+	 * @sa CommonSetting_CustomMenu::m_nCustMenuItemKeyArr
+	 */
+	template<>
+	[[nodiscard]] inline bool TryParse<KEYCODE>(std::wstring_view profile, KEYCODE& value) noexcept
+	{
+		// \0はニーモニック「なし」を意味する
+		if (const WCHAR ch = profile.empty() ? L'\0' : profile[0]; ch < 0x80) {
+			// ニーモニックはASCIIの印字可能文字なので、CRT関数を使った変換は不要。
+			value = static_cast<KEYCODE>(ch);
+			return true;
+		}
+		return false;
+	}
+
+	//! 設定値を文字列に変換する
+	template<>
+	[[nodiscard]] inline std::wstring ToString<KEYCODE>(KEYCODE value)
+	{
+		// WCHAR型を介して文字列化する
+		static_assert(std::numeric_limits<KEYCODE>::max() < 0x80);
+		const WCHAR ch = (value < 0) ? L'\0' : static_cast<std::make_unsigned_t<KEYCODE>>(value);
+		return ToString(ch);
+	}
+
+}; // end of namespace profile_data
+
+/*!
+ * 各種データ変換付きCProfile
+ *
+ * @date 2007/09/24 kobake データ変換部を子クラスに分離
+ */
+class CDataProfile : public CProfile {
+public:
+	using CProfile::GetProfileData;
+	using CProfile::SetProfileData;
+
+	/*!
+	 * 設定値の入出力テンプレート
+	 *
+	 * 設定値の入出力を行う。
+	 *
+	 * @note このテンプレートはデフォルト実装。
+	 * @note 実際のファイル入出力はまとめて行う仕様。
+	 *
+	 * @retval true	設定値を正しく読み書きできた
+	 * @retval false 設定値を読み込めなかった
+	 */
+	template <typename T>
+	bool IOProfileData(
+		std::wstring_view		sectionName,	//!< [in] セクション名
+		std::wstring_view		entryKey,		//!< [in] エントリ名
+		T&						tEntryValue		//!< [in,out] エントリ値
+	)
+	{
+		// 取得・設定は文字列を介して行う
+		std::wstring strEntryValue;
+
+		// 読み込みモード
+		if (IsReadingMode()) {
+			// 設定値を読み取る
+			if (!GetProfileData(sectionName, entryKey, strEntryValue)) {
+				return false;
+			}
+
+			// 変換に対応した型なら変換関数を使う
+			if constexpr (profile_data::is_supported<T>) {
+				if (!profile_data::TryParse(strEntryValue, tEntryValue)) return false;
+			}
+			// それ以外は単純代入を試みる
+			// （ビルドエラーになったら特殊化してください）
+			else {
+				tEntryValue = strEntryValue;
+			}
+		}
+		// 書き込みモード
+		else {
+			// 変換に対応した型なら変換関数を使う
+			if constexpr (profile_data::is_supported<T>) {
+				strEntryValue = profile_data::ToString(tEntryValue);
+			}
+			// それ以外は代入を試みる
+			// （ビルドエラーになったら特殊化してください）
+			else {
+				strEntryValue = tEntryValue;
+			}
+
+			// 設定値を書き込む
+			SetProfileData(sectionName, entryKey, strEntryValue);
+		}
+		return true;
+	}
+
+	/*!
+	 * 設定値を入出力する
+	 *
+	 * 設定値の入出力を行う。
+	 *
+	 * @retval true	設定値を正しく読み書きできた
+	 * @retval false 設定値を読み込めなかった
+	 */
+	bool IOProfileData(
+		std::wstring_view		sectionName,	//!< [in] セクション名
+		std::wstring_view		entryKey,		//!< [in] エントリ名
+		std::wstring&			entryValue		//!< [in,out] エントリ値
+	)
+	{
+		// 読み込みモード
+		if (IsReadingMode()) {
+			// 設定値を読み取る
+			if (!GetProfileData(sectionName, entryKey, entryValue)) {
+				return false;
+			}
+		}
+		// 書き込みモード
+		else {
+			// 設定値を書き込む
+			SetProfileData(sectionName, entryKey, entryValue);
+
+			// 文字列の書き込みは常に成功
+		}
+
+		return true;
+	}
+
+	/*!
+	 * 文字列設定値の入出力
+	 *
+	 * 文字列設定値の入出力を行う。
+	 *
+	 * @retval true	設定値を正しく読み書きできた
+	 * @retval false 設定値を読み込めなかった
+	 */
+	template <basis::WritableBuffer<WCHAR> A>
+	bool IOProfileData(
+		std::wstring_view		sectionName,	//!< [in] セクション名
+		std::wstring_view		entryKey,		//!< [in] エントリ名
+		A&						tEntryValue		//!< [in,out] エントリ値
+	)
+	{
+		if (IsReadingMode()) {
+			// 可変長バッファを用意する
+			std::wstring entryValue;
+
+			// 可変長バッファに読み込んでサイズチェックする
+			if (const auto buffer = std::span( tEntryValue );
+				!GetProfileData(sectionName, entryKey, entryValue) ||
+				std::size(buffer) < entryValue.length() + 1)
+			{
+				return false;	// エントリがなかった、または、バッファに入り切らない
+			}
+
+			// バッファにコピーする
+			wcscpy_s(tEntryValue, entryValue);
+		}
+		else {
+			// バッファに格納された文字列を取り出して書き込む
+			auto text = std::wstring_view{ tEntryValue };
+
+			// 引数が配列型ならNUL終端を捜す
+			if constexpr (std::is_array_v<std::remove_cvref_t<A>>) {
+				const auto len = cxx::strnlen_s(tEntryValue);
+				text = text.substr(0, len);
+			}
+
+			// 設定値を書き込む
+			SetProfileData(sectionName, entryKey, text);
+		}
+
+		return true;
+	}
+
+	/*!
+	 * 配列型(StaticVector)の入出力
+	 *
+	 * @tparam T 配列の要素型
+	 * @tparam N 配列の最大要素数
+	 * @tparam A 配列の代入時に使う代替型
+	 * @param[in] sectionName セクション名
+	 * @param[in] entrySetName エントリセット名
+	 * @param[in,out] aEntries エントリ値
+	 * @param[in,opt] optCountName エントリ数のエントリ名。独自のエントリ名を指定したいときに利用します。
+	 */
+	template <typename T, int N, typename A>
+	void IOProfileDataSet(
+		std::wstring_view		sectionName,	//!< [in] セクション名
+		std::wstring_view		entrySetName,	//!< [in] エントリセット名
+		StaticVector<T, N, A>&	aEntries,		//!< [in,out] エントリ値
+		const std::optional<std::wstring>&	optCountName = std::nullopt
+	)
+	{
+		// 有効要素数を取得
+		auto count = aEntries.size();
+
+		// 有効要素数が読み込めなかったフラグ
+		bool isCountMissing = false;
+
+		// 有効要素数を読み書きする
+		if (!IOProfileData(
+			sectionName,
+			optCountName.value_or(std::format(L"_{:s}_Counts", entrySetName)),
+			count
+		) && IsReadingMode())
+		{
+			// 有効要素数が読み込めなかった場合、配列サイズを使う
+			count = aEntries.max_size();
+
+			// 有効要素数が読み込めなかったフラグを立てる
+			isCountMissing = true;
+		}
+
+		// 読み込みモード
+		if (IsReadingMode()) {
+			// 変な値が入っていたら補正する
+			count = std::min(std::max(0, count), aEntries.max_size());
+
+			// 配列のサイズを設定する
+			aEntries.resize(count);
+		}
+
+		// 配列要素の数だけループする
+		for (int i = 0; i < count; ++i) {
+			// 配列要素を読み書きする
+			IOProfileData(sectionName, std::format(L"{}[{:02d}]", entrySetName, i), aEntries[i]);
+		}
+
+		// 有効要素数を読み込めなかった場合、補正を試みる
+		if (isCountMissing)
+		{
+			// 補正された有効要素数
+			int fixedCount = count;
+
+			// 値型が文字列の場合
+			if constexpr (basis::NullTerminatedStringCompatible<T, WCHAR>) {
+				// 空でない要素を末尾から検索し、見付かった位置までを有効要素とする
+				for (; 0 < fixedCount && aEntries[fixedCount - 1].empty(); --fixedCount) ;
+			}
+
+			// 有効要素数を補正する
+			aEntries.resize(fixedCount);
+		}
+	}
+};
+
+template <>
+bool CDataProfile::IOProfileData<ColorInfo>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		entryKey,		//!< [in] エントリ名
+	ColorInfo&				tEntryValue		//!< [in,out] エントリ値
+);
+
+template <>
+bool CDataProfile::IOProfileData<EditInfo>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		keyPrefix,		//!< [in] エントリ名
+	EditInfo&				tEntryValue		//!< [in,out] エントリ値
+);
+
+template <>
+bool CDataProfile::IOProfileData<KeyHelpInfo>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		entryKey,		//!< [in] エントリ名
+	KeyHelpInfo&			tEntryValue		//!< [in,out] エントリ値
+);
+
+template <>
+bool CDataProfile::IOProfileData<MacroRec>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		keySuffix,		//!< [in] エントリ名
+	MacroRec&				macroRec		//!< [in,out] エントリ値
+);
+
+template <>
+bool CDataProfile::IOProfileData<PRINTSETTING>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		keyPrefix,		//!< [in] エントリ名
+	PRINTSETTING&			printSetting	//!< [in,out] エントリ値
+);
+
+template <>
+bool CDataProfile::IOProfileData<PluginRec>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		entryKey,		//!< [in] エントリ名
+	PluginRec&				tEntryValue		//!< [in,out] エントリ値
+);
+
+template <>
+bool CDataProfile::IOProfileData<RECT>(
+	std::wstring_view		sectionName,
+	std::wstring_view		entryKey,
+	RECT&					rcEntryValue
+);
+
+template <>
+bool CDataProfile::IOProfileData<SFileTreeItem>(
+	std::wstring_view		sectionName,	//!< [in] セクション名
+	std::wstring_view		entryKey,		//!< [in] エントリ名
+	SFileTreeItem&			tEntryValue		//!< [in,out] エントリ値
+);
+
+#endif /* SAKURA_CDATAPROFILE_401640FD_5B27_454A_B0DE_098E1C4FAEAD_H_ */

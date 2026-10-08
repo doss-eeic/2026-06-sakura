@@ -1,0 +1,45 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2025, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+ */
+#include "StdAfx.h"
+
+// テストではGMockを使う前提にする
+#include <gmock/gmock.h>
+
+#include "Funccode_enum.h"
+
+// マッチャーのusing（追加するときは昇順で。）
+using ::testing::_;
+using ::testing::ContainsRegex;
+using ::testing::Eq;
+using ::testing::Ge;
+using ::testing::Gt;
+using ::testing::Invoke;
+using ::testing::IsEmpty;
+using ::testing::IsFalse;
+using ::testing::IsNull;
+using ::testing::IsTrue;
+using ::testing::Le;
+using ::testing::Lt;
+using ::testing::MatchesRegex;
+using ::testing::Ne;
+using ::testing::NotNull;
+using ::testing::Return;
+using ::testing::StartsWith;
+using ::testing::StrCaseEq;
+using ::testing::StrCaseNe;
+using ::testing::StrEq;
+using ::testing::StrNe;
+using ::testing::ThrowsMessage;
+
+//! googletestに機能IDを出力させる
+void PrintTo(EFunctionCode eFuncCode, std::ostream* os);
+
+//! googletestに文字コードセット種別を出力させる
+void PrintTo(ECodeType eCodeType, std::ostream* os);
+
+//! googletestに行終端子を出力させる 
+void PrintTo(EEolType eEolType, std::ostream* os);

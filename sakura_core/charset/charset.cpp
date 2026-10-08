@@ -1,0 +1,195 @@
+﻿/*! @file
+	@brief 文字コードセットの管理
+
+	@author kobake
+	@date 2008
+	@date 2010/6/21	Uchi	全面的に作り変え(マージは2013/1/4)
+							interfaceはあまり変えない様にした
+*/
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2009, rastiv
+	Copyright (C) 2010, Uchi
+	Copyright (C) 2012, novice
+	Copyright (C) 2013, Moca, Uchi
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+#include "StdAfx.h"
+#include "charset.h"
+#include "CCodePage.h"
+#include <vector>
+#include <map>
+#include <mutex>
+#include "CSelectLang.h"
+
+struct SCodeSet {
+	ECodeType		m_eCodeSet;
+	const WCHAR*	m_sNormal;
+	const WCHAR*	m_sShort;
+	const WCHAR*	m_sLong;		// for Combo
+	bool			m_bUseBom;		// BOMが使えるか
+	bool			m_bIsBomDefOn;	// BOMのデフォルトがOnか
+	bool			m_bCanDefault;	// デフォルト文字コードになれるか
+};
+
+// 文字コードセット(初期データ)
+static	SCodeSet	ASCodeSet[] = {
+	{ CODE_AUTODETECT,	L"Auto",	L"Auto",	L"自動選択",	false,	false,	false },	//!< 文字コード自動判別	//mapには入れない
+	{ CODE_SJIS,		L"SJIS",	L"SJIS",	L"SJIS",		false,	false,	true  },	//!< SJIS				(MS-CP932(Windows-31J), シフトJIS(Shift_JIS))
+	{ CODE_JIS,			L"JIS",		L"JIS",		L"JIS",			false,	false,	false },	//!< JIS				(MS-CP5022x(ISO-2022-JP-MS))
+	{ CODE_EUC,			L"EUC",		L"EUC",		L"EUC-JP",		false,	false,	true  },	//!< EUC				(MS-CP51932)	// eucJP-ms(eucJP-open)ではない
+	{ CODE_LATIN1,		L"Latin1",	L"Latin1",	L"Latin1",		false,	false,	true  },	//!< Latin1				(欧文, Windows-932, Windows Codepage 1252 West European)
+	{ CODE_UNICODE,		L"UTF-16",	L"UTF-16",	L"UTF-16",		true,	true,	true  },	//!< Unicode			(UTF-16 LittleEndian)	// UCS-2
+	{ CODE_UNICODEBE,	L"U16BE",	L"U16BE",	L"UTF-16BE",	true,	true,	true  },	//!< Unicode BigEndian	(UTF-16 BigEndian)		// UCS-2
+	{ CODE_UTF8,		L"UTF-8",	L"UTF-8",	L"UTF-8",		true,	false,	true  },	//!< UTF-8
+	{ CODE_CESU8,		L"CESU-8",	L"CESU-8",	L"CESU-8",		true,	false,	true  },	//!< CESU-8				(UCS-2からUTF-8化)
+	{ CODE_UTF7,		L"UTF-7",	L"UTF-7",	L"UTF-7",		true,	false,	false },	//!< UTF-7
+};
+
+// 文字コードセット
+typedef	std::map<int, SCodeSet>	MSCodeSet;
+static MSCodeSet				msCodeSet;
+// 表示順
+static std::vector<ECodeType>	vDispIdx;
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           初期化                            //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+void InitCodeSet()
+{
+	// 並列Grepのワーカースレッドからも呼ばれるため、初期化が1回だけ実行されることを保証する
+	static std::once_flag	onceInitCodeSet;
+	std::call_once( onceInitCodeSet, []{
+		for (int i = 0; i < int(std::size(ASCodeSet)); i++) {
+			vDispIdx.push_back( ASCodeSet[i].m_eCodeSet );
+			if (i > 0) {
+				// 添字0(CODE_AUTODETECT)は表示順にだけ載せ、名前引きの対象からは外す
+				msCodeSet[ASCodeSet[i].m_eCodeSet] = ASCodeSet[i];
+			}
+		}
+	} );
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           判定                              //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+extern bool IsValidCodeType(int code)
+{
+	// 初期化
+	InitCodeSet();
+	return (msCodeSet.find( code ) != msCodeSet.end());
+}
+
+CCodeTypeName::CCodeTypeName(ECodeType eCodeType)
+	: m_eCodeType(eCodeType)
+{
+	InitCodeSet();
+}
+
+CCodeTypeName::CCodeTypeName(size_t nCodeType)
+	: CCodeTypeName(static_cast<ECodeType>(static_cast<int>(nCodeType)))
+{
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           名前                              //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+LPCWSTR CCodeTypeName::Normal() const
+{
+	// 非constのoperator[]は要素が無ければ挿入してしまうため、並列呼び出しでmapが壊れる。
+	// const参照経由のfind()なら読み取りだけで済み、検索も1回で終わる。
+	const MSCodeSet&	codeSet = msCodeSet;
+	const auto			it = codeSet.find( m_eCodeType );
+	if (it == codeSet.end()) {
+		return nullptr;
+	}
+	return it->second.m_sNormal;
+}
+
+LPCWSTR CCodeTypeName::Short() const
+{
+	const MSCodeSet&	codeSet = msCodeSet;
+	const auto			it = codeSet.find( m_eCodeType );
+	if (it == codeSet.end()) {
+		return nullptr;
+	}
+	return it->second.m_sShort;
+}
+
+std::wstring CCodeTypeName::Bracket() const
+{
+	const auto pszShort = Short();
+	if (pszShort == nullptr) {
+		return {};
+	}
+
+	// 値で返すので組み立て用の共有バッファは要らない
+	return std::format(L"  [{}]", pszShort);
+}
+
+bool CCodeTypeName::UseBom()
+{
+	if (msCodeSet.find( m_eCodeType ) == msCodeSet.end()) {
+		if( IsValidCodeOrCPType(m_eCodeType) ){
+			CCodePage encoding(m_eCodeType);
+			CMemory mem;
+			encoding.GetBom(&mem);
+			return 0 < mem.GetRawLength();
+		}
+		return false;
+	}
+
+	return msCodeSet[m_eCodeType].m_bUseBom;
+}
+
+bool CCodeTypeName::IsBomDefOn()
+{
+	if (msCodeSet.find( m_eCodeType ) == msCodeSet.end()) {
+		return false;
+	}
+
+	return msCodeSet[m_eCodeType].m_bIsBomDefOn;
+}
+
+bool CCodeTypeName::CanDefault()
+{
+	if (msCodeSet.find( m_eCodeType ) == msCodeSet.end()) {
+		if( IsValidCodeOrCPType(m_eCodeType) ){
+			return true;
+		}
+		return false;
+	}
+
+	return msCodeSet[m_eCodeType].m_bCanDefault;
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                      コンボボックス                         //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+CCodeTypesForCombobox::CCodeTypesForCombobox()
+{
+	InitCodeSet();
+}
+
+size_t CCodeTypesForCombobox::GetCount() const noexcept
+{
+	return vDispIdx.size();
+}
+
+ECodeType CCodeTypesForCombobox::GetCode(size_t nIndex) const
+{
+	return vDispIdx[nIndex];
+}
+
+LPCWSTR CCodeTypesForCombobox::GetName(size_t nIndex) const
+{
+	if (nIndex == 0) {
+		return LS(STR_ERR_GLOBAL01);
+	}
+	return msCodeSet[vDispIdx[nIndex]].m_sLong;
+}

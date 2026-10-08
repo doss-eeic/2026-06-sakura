@@ -1,0 +1,115 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+#ifndef SAKURA_CGREPAGENT_97F2B632_71C8_4E4A_AC42_13A6098B248F_H_
+#define SAKURA_CGREPAGENT_97F2B632_71C8_4E4A_AC42_13A6098B248F_H_
+#pragma once
+
+#include "doc/CDocListener.h"
+class CDlgCancel;
+class CEditView;
+class CSearchStringPattern;
+class CGrepEnumKeys;
+class CGrepEnumFiles;
+class CGrepEnumFolders;
+struct GrepInfo;
+
+//	Jun. 26, 2001 genta	正規表現ライブラリの差し替え
+//	Mar. 28, 2004 genta DoGrepFileから不要な引数を削除
+class CGrepAgent : public CDocListenerEx{
+public:
+	CGrepAgent();
+
+	// イベント
+	ECallbackResult OnBeforeClose() override;
+	void OnAfterSave(const SSaveInfo& sSaveInfo) override;
+
+	static void CreateFolders( const WCHAR* pszPath, std::vector<std::wstring>& vPaths );
+	static std::wstring ChopYen( const std::wstring& str );
+	void AddTail( CEditView* pcEditView, const CNativeW& cmem, bool bAddStdout );
+
+	// Grep実行
+	DWORD DoGrep(
+		CEditView*				pcViewDst,	//!< [in] Grep結果の出力先
+		const GrepInfo&			gi			//!< [in] Grep実行の入力一式(検索キー・対象・オプション)
+	);
+
+private:
+	// Grep実行
+	int DoGrepTree(
+		CEditView*				pcViewDst,
+		CDlgCancel*				pcDlgCancel,		//!< [in] Cancelダイアログへのポインタ
+		const wchar_t*			pszKey,				//!< [in] 検索パターン
+		const CNativeW&			cmGrepReplace,
+		CGrepEnumKeys&			cGrepEnumKeys,		//!< [in] 検索対象ファイルパターン(!で除外指定)
+		CGrepEnumFiles&			cGrepExceptAbsFiles,
+		CGrepEnumFolders&		cGrepExceptAbsFolders,
+		const WCHAR*			pszPath,			//!< [in] 検索対象パス
+		const WCHAR*			pszBasePath,		//!< [in] 検索対象パス(ベース)
+		const SSearchOption&	sSearchOption,		//!< [in] 検索オプション
+		const GrepInfo&			sGrepOption,		//!< [in] Grep実行の入力一式(正規化済み)
+		const CSearchStringPattern& pattern,		//!< [in] 検索パターン
+		CBregexp*				pRegexp,			//!< [in] 正規表現コンパイルデータ。既にコンパイルされている必要がある
+		int						nNest,				//!< [in] ネストレベル
+		bool&					bOutputBaseFolder,
+		int*					pnHitCount,			//!< [i/o] ヒット数の合計
+		CNativeW&				cmemMessage,
+		CNativeW&				cUnicodeBuffer
+	);
+
+	// Grep実行
+	int DoGrepFile(
+		CEditView*				pcViewDst,
+		CDlgCancel*				pcDlgCancel,
+		HWND					hWndTarget,
+		const wchar_t*			pszKey,
+		const WCHAR*			pszFile,
+		const SSearchOption&	sSearchOption,
+		const GrepInfo&			sGrepOption,
+		const CSearchStringPattern& pattern,
+		CBregexp*				pRegexp,		//	Jun. 27, 2001 genta	正規表現ライブラリの差し替え
+		int*					pnHitCount,
+		const WCHAR*			pszFullPath,
+		const WCHAR*			pszBaseFolder,
+		const WCHAR*			pszFolder,
+		const WCHAR*			pszRelPath,
+		bool&					bOutputBaseFolder,
+		bool&					bOutputFolderName,
+		CNativeW&				cmemMessage,
+		CNativeW&				cUnicodeBuffer
+	);
+
+	int DoGrepReplaceFile(
+		CEditView*				pcViewDst,
+		CDlgCancel*				pcDlgCancel,
+		const wchar_t*			pszKey,
+		const CNativeW&			cmGrepReplace,
+		const WCHAR*			pszFile,
+		const SSearchOption&	sSearchOption,
+		const GrepInfo&			sGrepOption,
+		const CSearchStringPattern& pattern,
+		CBregexp*				pRegexp,
+		int*					pnHitCount,
+		const WCHAR*			pszFullPath,
+		const WCHAR*			pszBaseFolder,
+		const WCHAR*			pszFolder,
+		const WCHAR*			pszRelPath,
+		bool&					bOutputBaseFolder,
+		bool&					bOutputFolderName,
+		CNativeW&				cmemMessage,
+		CNativeW&				cUnicodeBuffer
+	);
+
+	DWORD m_dwTickAddTail = 0;	// AddTail() を呼び出した時間
+	DWORD m_dwTickUICheck = 0;	// 処理中にユーザーによるUI操作が行われていないか確認した時間
+	DWORD m_dwTickUIFileName = 0;	// Cancelダイアログのファイル名表示更新を行った時間
+
+public: //$$ 仮
+	bool	m_bGrepMode = false;		//!< Grepモードか
+	bool	m_bGrepRunning = false;		//!< Grep処理中
+};
+#endif /* SAKURA_CGREPAGENT_97F2B632_71C8_4E4A_AC42_13A6098B248F_H_ */

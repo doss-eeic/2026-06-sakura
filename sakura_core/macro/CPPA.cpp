@@ -1,0 +1,671 @@
+﻿/*!	@file
+	@brief PPA Library Handler
+
+	PPA.DLLを利用するためのインターフェース
+
+	@author YAZAKI
+	@date 2002年1月26日
+*/
+/*
+	Copyright (C) 2001, YAZAKI
+	Copyright (C) 2002, YAZAKI, aroka, genta, Moca
+	Copyright (C) 2003, Moca, genta
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+
+#include "StdAfx.h"
+#include "CPPA.h"
+#include "view/CEditView.h"
+#include "func/Funccode.h"
+#include "CMacro.h"
+#include "macro/CSMacroMgr.h"// 2002/2/10 aroka
+#include "env/CShareData.h"
+#include "env/DLLSHAREDATA.h"
+#include "_os/OleTypes.h"
+#include "util/tchar_convert.h"
+
+#define NEVER_USED_PARAM(p) ((void)p)
+
+// 2003.06.01 Moca
+#define omGet (0)
+#define omSet (1)
+
+//	2007.07.26 genta
+CPPA::PpaExecInfo* CPPA::m_CurInstance = nullptr;
+bool			CPPA::m_bIsRunning = false;
+
+CPPA::CPPA()
+{
+}
+
+CPPA::~CPPA()
+{
+}
+
+/*!
+ * @brief PPA.DLLを実行する
+ *
+ * @date 2007/07/22 genta flags追加
+ */
+bool CPPA::Execute(CEditView* pcEditView, int flags) const
+{
+	//PPAの多重起動禁止 2008.10.22 syat
+	if ( CPPA::m_bIsRunning ) {
+		MYMESSAGEBOX( pcEditView->GetHwnd(), MB_OK, LS(STR_ERR_DLGPPA7), LS(STR_ERR_DLGPPA1) );
+		m_fnAbort();
+		CPPA::m_bIsRunning = false;
+		return false;
+	}
+	CPPA::m_bIsRunning = true;
+
+	PpaExecInfo info;
+	info.m_pcEditView = pcEditView;
+	info.m_bError = false;			//	2003.06.01 Moca
+	info.m_cMemDebug.SetString("");	//	2003.06.01 Moca
+	info.m_commandflags = flags | FA_FROMMACRO;	//	2007.07.22 genta
+	
+	//	実行前にインスタンスを待避する
+	PpaExecInfo* old_instance = m_CurInstance;
+	m_CurInstance = &info;
+	m_fnExecute();
+	
+	//	マクロ実行完了後はここに戻ってくる
+	m_CurInstance = old_instance;
+
+	//PPAの多重起動禁止 2008.10.22 syat
+	CPPA::m_bIsRunning = false;
+	return !info.m_bError;
+}
+
+LPCWSTR CPPA::GetDllNameImp([[maybe_unused]] int nIndex)
+{
+	return L"PPA.DLL";
+}
+
+/*!
+	DLLの初期化
+
+	関数のアドレスを取得してメンバに保管する．
+
+	@retval true 成功
+	@retval false アドレス取得に失敗
+*/
+bool CPPA::InitDllImp()
+{
+	/* PPA.DLLが持っている関数を準備 */
+
+	//	Apr. 15, 2002 genta constを付けた
+	//	アドレスの入れ場所はオブジェクトに依存するので
+	//	static配列にはできない。
+	const ImportTable table[] = 
+	{
+		{ &m_fnExecute,		"Execute" },
+		{ &m_fnSetDeclare,	"SetDeclare" },
+		{ &m_fnSetSource,	"SetSource" },
+		{ &m_fnSetDefProc,	"SetDefProc" },
+		{ &m_fnSetDefine,	"SetDefine" },
+		{ &m_fnSetIntFunc,	"SetIntFunc" },
+		{ &m_fnSetStrFunc,	"SetStrFunc" },
+		{ &m_fnSetProc,		"SetProc" },
+		{ &m_fnSetErrProc,	"SetErrProc" },
+		{ &m_fnAbort,		"ppaAbort" },
+		{ &m_fnGetVersion,	"GetVersion" },
+		{ &m_fnDeleteVar,	"DeleteVar" },
+		{ &m_fnGetArgInt,	"GetArgInt" },
+		{ &m_fnGetArgStr,	"GetArgStr" },
+		{ &m_fnGetArgBStr,	"GetArgBStr" },
+		{ &m_fnGetIntVar,	"GetIntVar" },
+		{ &m_fnGetStrVar,	"GetStrVar" },
+		{ &m_fnGetBStrVar,	"GetBStrVar" },
+		{ &m_fnSetIntVar,	"SetIntVar" },
+		{ &m_fnSetStrVar,	"SetStrVar" },
+		{ &m_fnAddIntObj,	"AddIntObj" },
+		{ &m_fnAddStrObj,	"AddStrObj" },
+		{ &m_fnAddIntVar,	"AddIntVar" },
+		{ &m_fnAddStrVar,	"AddStrVar" },
+		{ &m_fnSetIntObj,	"SetIntObj" },
+		{ &m_fnSetStrObj,	"SetStrObj" },
+
+#if PPADLL_VER >= 120
+		{ &m_fnAddRealVar,	"AddRealVar" },
+		{ &m_fnSetRealObj,	"SetRealObj" },
+		{ &m_fnAddRealObj,	"AddRealObj" },
+		{ &m_fnGetRealVar,	"GetRealVar" },
+		{ &m_fnSetRealVar,	"SetRealVar" },
+		{ &m_fnSetRealFunc,	"SetRealFunc" },
+		{ &m_fnGetArgReal,	"GetArgReal" },
+#endif
+
+#if PPADLL_VER >= 123
+		{ &m_fnIsRunning, "IsRunning" },
+		{ &m_fnSetFinishProc, "SetFinishProc"}, // 2003.06.23 Moca
+#endif
+
+		{ nullptr, nullptr }
+	};
+
+	//	Apr. 15, 2002 genta
+	//	CDllImpの共通関数化した
+	if( ! RegisterEntries(table) )
+		return false;
+
+	SetIntFunc(&stdIntFunc);
+	SetStrFunc(&stdStrFunc);
+	SetProc(&stdProc);
+
+	// 2003.06.01 Moca エラーメッセージを追加
+	SetErrProc(&stdError);
+	SetStrObj(&stdStrObj);	// UserErrorMes用
+#if PPADLL_VER >= 123
+	SetFinishProc(&stdFinishProc);
+#endif
+
+	SetDefine( "sakura-editor" );	// 2003.06.01 Moca SAKURAエディタ用独自関数を準備
+	AddStrObj( "UserErrorMes", "", FALSE, 2 ); // 2003.06.01 デバッグ用文字列変数を用意
+
+	// コマンドに置き換えられない関数 ＝ PPA無しでは使えない。。。
+	for (const auto& funcInfo : CSMacroMgr::GetFuncInfo()) {
+		//	関数登録用文字列を作成する
+		const auto buf = GetDeclarations(funcInfo);
+		SetDefProc( buf.c_str() );
+	}
+
+	// コマンドに置き換えられる関数 ＝ PPA無しでも使える。
+	for (const auto& funcInfo : CSMacroMgr::GetCommandInfo()) {
+		//	関数登録用文字列を作成する
+		const auto buf = GetDeclarations(funcInfo);
+		SetDefProc( buf.c_str() );
+	}
+	return true; 
+}
+
+/*! PPAに関数を登録するための文字列を作成する
+
+	@param cMacroFuncInfo [in]	マクロデータ
+	@param szBuffer [out]		生成した文字列を入れるバッファへのポインタ
+
+	@note バッファサイズは 9 + 3 + メソッド名の長さ + 13 * 4 + 9 + 5 は最低必要
+
+	@date 2003.06.01 Moca
+				スタティックメンバに変更
+				cMacroFuncInfo.m_pszDataを書き換えないように変更
+
+	@date 2003.06.16 genta 無駄なnew/deleteを避けるためバッファを外から与えるように
+*/
+std::string CPPA::GetDeclarations(const MacroFuncInfo& cMacroFuncInfo)
+{
+	//	procedure/function用バッファ
+	std::string declType = "function";
+
+	//	戻り値型用バッファ
+	std::string retType;
+
+	switch (cMacroFuncInfo.m_varResult) {
+	case VT_EMPTY: declType = "procedure"; break;
+	case VT_BSTR:  retType = ": string"; break;
+	case VT_I4:    retType = ": Integer"; break;
+	default: break;
+	}
+
+	//	引数用バッファ
+	std::vector<std::string> args{};
+	args.reserve(8);
+
+	for (int i = 0; i < 8; ++i) {
+		VARTYPE vt = VT_EMPTY;
+		if( i < 4 ){
+			vt = cMacroFuncInfo.m_varArguments[i];
+		}else{
+			if( cMacroFuncInfo.m_pData && i < cMacroFuncInfo.m_pData->m_nArgMinSize ){
+				vt = cMacroFuncInfo.m_pData->m_pVarArgEx[i - 4];
+			}
+		}
+		if ( vt == VT_EMPTY ){
+			break;
+		}
+
+		std::string_view type_name = "";
+		char type_char = 0;
+		switch (vt) {
+		case VT_BSTR:	type_char = 's'; type_name = "string";  break;
+		case VT_I4:		type_char = 'i'; type_name = "Integer"; break;
+		default:		type_char = 'u'; type_name = "Unknown"; break;
+		}
+		args.emplace_back(std::format("{:c}{:d}: {:s}", type_char, i, type_name));
+	}
+
+	if (!args.empty()) {
+		auto szArgument(args.front());
+		if (1 < args.size()) {
+			szArgument = std::accumulate(args.cbegin() + 1, args.cend(), szArgument, [](const std::string& a, std::string_view b) { return std::format("{}; {}", a, b); });
+		}
+
+		return std::format("{} S_{}({}){}; index {};",
+			declType,
+			cxx::to_string(cMacroFuncInfo.m_pszFuncName),
+			szArgument,
+			retType,
+			cMacroFuncInfo.m_nFuncID
+		);
+	} else {
+		return std::format("{} S_{}{}; index {};",
+			declType,
+			cxx::to_string(cMacroFuncInfo.m_pszFuncName),
+			retType,
+			cMacroFuncInfo.m_nFuncID
+		);
+	}
+}
+
+/*!
+ * CPPAマクロ関数呼出コールバックをテストできるようI/Fを公開する関数。
+ *
+ * 既存コードをできるだけ改変せずにテストできるよう作成。
+ * 可能であれば、そのうち消す。
+ */
+/* static */ int CPPA::CallStrObj(
+	PpaExecInfo& info,
+	int index,
+	bool isSetMode,
+	LPSTR* ResultValue
+)
+{
+	// PPA実行情報をセットする
+	m_CurInstance = &info;
+
+	// CPPAマクロ呼出コールバックを呼び出す
+	auto funcName = LPCSTR(nullptr);
+	int errCd = 0;
+	stdStrObj(funcName, index, isSetMode ? 1 : 0, & errCd, ResultValue);
+
+	// PPA実行情報をクリアする
+	m_CurInstance = nullptr;
+
+	return errCd;
+}
+
+/*! ユーザー定義文字列型オブジェクト
+	現在は、デバッグ用文字列を設定する為のみ
+*/
+void __stdcall CPPA::stdStrObj(const char* ObjName, int Index, BYTE GS_Mode, int* Err_CD, char** Value)
+{
+	NEVER_USED_PARAM(ObjName);
+	*Err_CD = 0;
+	switch(Index){
+	case 2:
+		switch(GS_Mode){
+		case omGet:
+			*Value = m_CurInstance->m_cMemDebug.GetStringPtr();
+			break;
+		case omSet:
+			m_CurInstance->m_cMemDebug.SetString(*Value);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		*Err_CD = -1;
+	}
+}
+
+/*!
+ * CPPAエラー情報コールバックをテストできるようI/Fを公開する関数。
+ *
+ * 既存コードをできるだけ改変せずにテストできるよう作成。
+ * 可能であれば、そのうち消す。
+ */
+/* static */ void CPPA::CallErrorProc(PpaExecInfo& info, int Err_CD, _In_opt_z_ LPCSTR Err_Mes)
+{
+	// PPA実行情報をセットする
+	m_CurInstance = &info;
+
+	// CPPAエラー情報コールバックを呼び出す
+	stdError(Err_CD, Err_Mes);
+
+	// PPA実行情報をクリアする
+	m_CurInstance = nullptr;
+}
+
+/*! ユーザー定義関数のエラーメッセージの作成
+
+	stdProc, stdIntFunc, stdStrFunc がエラーコードを返した場合、PPAから呼び出される。
+	異常終了/不正引数時のエラーメッセージを独自に指定する。
+	@author Moca
+	@param Err_CD IN  0以外各コールバック関数が設定した値
+			 1以上 FuncID + 1
+			 0     PPAのエラー
+			-1以下 その他ユーザー定義エラー
+	@param Err_Mes IN エラーメッセージ
+
+	@date 2003.06.01 Moca
+*/
+void __stdcall CPPA::stdError( int Err_CD, const char* Err_Mes )
+{
+	if( false != m_CurInstance->m_bError ){
+		return;
+	}
+	m_CurInstance->m_bError = true; // 関数内で関数を呼ぶ場合等、2回表示されるのを防ぐ
+
+	WCHAR szMes[2048]; // 2048あれば足りるかと
+	const WCHAR* pszErr = szMes;
+	if( 0 < Err_CD ){
+		int FuncID = Err_CD - 1;
+		std::string funcDesc;
+		funcDesc.reserve(1024);
+		if (const auto pFuncInfo = CSMacroMgr::GetFuncInfoByID(FuncID)) {
+			funcDesc = GetDeclarations(*pFuncInfo);
+		}
+		if (!funcDesc.empty()) {
+			auto_sprintf( szMes, LS(STR_ERR_DLGPPA2), funcDesc.c_str() );
+		}else{
+			auto_sprintf( szMes, LS(STR_ERR_DLGPPA3), FuncID );
+		}
+	}else{
+		if( !Err_Mes ){
+			// "エラー情報が不正"
+			pszErr = LS(STR_ERR_DLGPPA6);
+		}else{
+			switch( Err_CD ){
+			case 0:
+				if( '\0' == Err_Mes[0] ){
+					pszErr = LS(STR_ERR_DLGPPA4);
+				}else{
+					pszErr = to_wchar(Err_Mes);
+				}
+				break;
+			default:
+				auto_sprintf( szMes, LS(STR_ERR_DLGPPA5), Err_CD, to_wchar(Err_Mes) );
+			}
+		}
+	}
+	if( 0 == m_CurInstance->m_cMemDebug.GetStringLength() ){
+		MYMESSAGEBOX( m_CurInstance->m_pcEditView->GetHwnd(), MB_OK, LS(STR_ERR_DLGPPA7), L"%s", pszErr );
+	}
+	else{
+		MYMESSAGEBOX( m_CurInstance->m_pcEditView->GetHwnd(), MB_OK, LS(STR_ERR_DLGPPA7), L"%s\n%hs", pszErr, m_CurInstance->m_cMemDebug.GetStringPtr() );
+	}
+}
+
+/*!
+ * CPPAマクロ呼出コールバックをテストできるようI/Fを公開する関数。
+ *
+ * 既存コードをできるだけ改変せずにテストできるよう作成。
+ * 可能であれば、そのうち消す。
+ */
+/* static */ int CPPA::CallProc(
+	PpaExecInfo& info,
+	EFunctionCode eFuncCd,
+	std::span<LPCSTR> arguments
+)
+{
+	// PPA実行情報をセットする
+	m_CurInstance = &info;
+
+	// CPPAマクロ呼出コールバックを呼び出す
+	auto funcName = LPCSTR(nullptr);
+	auto ppArguments = std::data(arguments);
+	int errCd = 0;
+	stdProc(funcName, int(eFuncCd), ppArguments, int(std::size(arguments)), &errCd);
+
+	// PPA実行情報をクリアする
+	m_CurInstance = nullptr;
+
+	return errCd;
+}
+
+//----------------------------------------------------------------------
+/** プロシージャ実行callback
+
+	@date 2007.07.20 genta Indexと一緒にフラグを渡す
+*/
+void __stdcall CPPA::stdProc(
+	const char*		FuncName [[maybe_unused]],
+	const int		_Index,
+	const char**	Arguments,
+	const int		ArgSize,
+	int*			Err_CD
+)
+{
+	*Err_CD = 0;
+
+	auto tmpArguments = std::vector<std::wstring>();
+
+	//Argumentをwchar_t[]に変換 -> tmpArguments
+	auto tmpArguments2 = std::vector<LPCWSTR>(ArgSize);
+	auto tmpArgLengths = std::vector<int>(ArgSize);
+	for (int i = 0; i < ArgSize; ++i) {
+		if (Arguments[i]) {
+			tmpArguments.emplace_back(cxx::to_wstring(Arguments[i], CP_SJIS));
+			tmpArguments2[i] = std::data(tmpArguments.back());
+			tmpArgLengths[i] = int(std::size(tmpArguments.back()));
+		}
+		else{
+			tmpArguments2[i]=nullptr;
+			tmpArgLengths[i]=0;
+		}
+	}
+
+	//処理
+	if (const auto bRet = CMacro::HandleCommand(m_CurInstance->m_pcEditView, static_cast<EFunctionCode>(_Index | m_CurInstance->m_commandflags), std::data(tmpArguments2), std::data(tmpArgLengths), ArgSize); !bRet) {
+		*Err_CD = _Index + 1;
+	}
+}
+
+/*!
+ * CPPAマクロ関数呼出コールバックをテストできるようI/Fを公開する関数。
+ *
+ * 既存コードをできるだけ改変せずにテストできるよう作成。
+ * 可能であれば、そのうち消す。
+ */
+/* static */ int CPPA::CallIntFunc(
+	PpaExecInfo& info,
+	EFunctionCode eFuncCd,
+	std::span<LPCSTR> arguments,
+	int* ResultValue
+)
+{
+	// PPA実行情報をセットする
+	m_CurInstance = &info;
+
+	// CPPAマクロ呼出コールバックを呼び出す
+	auto funcName = LPCSTR(nullptr);
+	auto ppArguments = std::data(arguments);
+	int errCd = 0;
+	stdIntFunc(funcName, int(eFuncCd), ppArguments, int(std::size(arguments)), &errCd, ResultValue);
+
+	// PPA実行情報をクリアする
+	m_CurInstance = nullptr;
+
+	return errCd;
+}
+
+//----------------------------------------------------------------------
+/*!
+	整数値を返す関数を処理する
+
+	PPAから呼びだされる
+	@author Moca
+	@date 2003.02.24 Moca
+*/
+void __stdcall CPPA::stdIntFunc(
+	const char* FuncName, const int Index,
+	const char* Argument[], const int ArgSize, int* Err_CD,
+	int* ResultValue)
+{
+	NEVER_USED_PARAM(FuncName);
+	VARIANT Ret;
+	::VariantInit(&Ret);
+
+	*ResultValue = 0;
+	*Err_CD = 0;
+	if( false != CallHandleFunction(Index, Argument, ArgSize, &Ret) ){
+		switch( Ret.vt ){
+		case VT_I4:
+			*ResultValue = Ret.lVal;
+			break;
+		case VT_INT:
+			*ResultValue = Ret.intVal;
+			break;
+		case VT_UINT:
+			*ResultValue = Ret.uintVal;
+			break;
+		default:
+			*Err_CD = -2; // 2003.06.01 Moca 値変更
+		}
+		::VariantClear(&Ret);
+		return;
+	}
+	*Err_CD = Index + 1; // 2003.06.01 Moca
+	::VariantClear(&Ret);
+	return;
+}
+
+/*!
+ * CPPAマクロ関数呼出コールバックをテストできるようI/Fを公開する関数。
+ *
+ * 既存コードをできるだけ改変せずにテストできるよう作成。
+ * 可能であれば、そのうち消す。
+ */
+/* static */ int CPPA::CallStrFunc(
+	PpaExecInfo& info,
+	EFunctionCode eFuncCd,
+	std::span<LPCSTR> arguments,
+	LPSTR* ResultValue
+)
+{
+	// PPA実行情報をセットする
+	m_CurInstance = &info;
+
+	// CPPAマクロ呼出コールバックを呼び出す
+	auto funcName = LPCSTR(nullptr);
+	auto ppArguments = std::data(arguments);
+	int errCd = 0;
+	stdStrFunc(funcName, int(eFuncCd), ppArguments, int(std::size(arguments)), &errCd, ResultValue);
+
+	// PPA実行情報をクリアする
+	m_CurInstance = nullptr;
+
+	return errCd;
+}
+
+//----------------------------------------------------------------------
+/*!
+	文字列を返す関数を処理する
+
+	PPAから呼びだされる
+	@date 2003.02.24 Moca CallHandleFunction対応
+*/
+void __stdcall CPPA::stdStrFunc(
+	const char* FuncName, const int Index,
+	const char* Argument[], const int ArgSize, int* Err_CD,
+	char** ResultValue)
+{
+	NEVER_USED_PARAM(FuncName);
+
+	VARIANT Ret;
+	::VariantInit(&Ret);
+	*Err_CD = 0;
+
+	if (CallHandleFunction(Index, Argument, ArgSize, &Ret) &&
+		VT_BSTR == Ret.vt) {
+			int len;
+			char* buf;
+			Wrap(&Ret.bstrVal)->Get(&buf,&len);
+			m_CurInstance->m_cMemRet.SetString(buf,len); // Mar. 9, 2003 genta
+			delete[] buf;
+			*ResultValue = m_CurInstance->m_cMemRet.GetStringPtr();
+			::VariantClear(&Ret);
+			return;
+	}
+	::VariantClear(&Ret);
+	*Err_CD = Index + 1;
+	*ResultValue = const_cast<char*>("");
+	return;
+}
+
+/*!
+	引数型変換
+
+	文字列で与えられた引数をVARIANT/BSTRに変換してCMacro::HandleFunction()を呼びだす
+	@author Moca
+*/
+bool CPPA::CallHandleFunction(
+	const int Index, const char* Arg[],
+	int ArgSize, VARIANT* Result )
+{
+	int i, ArgCnt;
+	const int maxArgSize = 8;
+	VARIANT vtArg[maxArgSize];
+	const MacroFuncInfo* mfi;
+	bool Ret;
+
+	mfi = CSMacroMgr::GetFuncInfoByID(Index);
+	for( i=0; i<maxArgSize && i<ArgSize; i++ ){
+		::VariantInit( &vtArg[i] );
+	}
+	for(i=0, ArgCnt=0; i<maxArgSize && i<ArgSize; i++ ){
+		VARTYPE type = VT_EMPTY;
+		if( i < 4 ){
+			type = mfi->m_varArguments[i];
+		}else{
+			if( mfi->m_pData && i < mfi->m_pData->m_nArgMinSize ){
+				type = mfi->m_pData->m_pVarArgEx[i - 4];
+			}
+		}
+		if(VT_EMPTY == type){
+			break;
+		}
+
+		switch( type ){
+		case VT_I4:
+		{
+			vtArg[i].vt = VT_I4;
+			vtArg[i].lVal = atoi( Arg[i] );
+			break;
+		}
+		case VT_BSTR:
+		{
+			SysString S(Arg[i],lstrlenA(Arg[i]));
+			Wrap(&vtArg[i])->Receive(S);
+			break;
+		}
+		default:
+			for( i=0; i<maxArgSize && i<ArgSize; i++ ){
+				::VariantClear( &vtArg[i] );
+			}
+			return false;
+		}
+		ArgCnt++;
+	}
+
+	if(Index >= F_FUNCTION_FIRST)
+	{
+		Ret = CMacro::HandleFunction(m_CurInstance->m_pcEditView, (EFunctionCode)Index, vtArg, ArgCnt, *Result);
+		for( i=0; i<maxArgSize && i<ArgSize; i++ ){
+			::VariantClear( &vtArg[i] );
+		}
+		return Ret;
+	}else{
+		for( i=0; i<maxArgSize && i<ArgSize; i++ ){
+			::VariantClear( &vtArg[i] );
+		}
+		return false;
+	}
+}
+
+#if PPADLL_VER >= 123
+
+/*!
+	PPAマクロの実行終了時に呼ばれる
+	
+	@date 2003.06.01 Moca
+*/
+void __stdcall CPPA::stdFinishProc()
+{
+	// 2007.07.26 genta : 終了処理は不要
+}
+
+#endif

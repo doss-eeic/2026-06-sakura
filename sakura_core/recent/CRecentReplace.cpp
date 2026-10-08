@@ -1,0 +1,53 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+
+#include "StdAfx.h"
+#include "CRecentReplace.h"
+#include "config/maxdata.h"
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           生成                              //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+CRecentReplace::CRecentReplace()
+{
+	Create(
+		GetShareData()->m_sSearchKeywords.m_aReplaceKeys.dataPtr(),
+		GetShareData()->m_sSearchKeywords.m_aReplaceKeys.dataPtr()->GetBufferCount(),
+		&GetShareData()->m_sSearchKeywords.m_aReplaceKeys._GetSizeRef(),
+		nullptr,
+		MAX_REPLACEKEY,
+		nullptr
+	);
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                      オーバーライド                         //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+/*
+	アイテムの比較要素を取得する。
+
+	@note	取得後のポインタはユーザー管理の構造体にキャストして参照してください。
+*/
+const WCHAR* CRecentReplace::GetItemText( int nIndex ) const
+{
+	return *GetItem(nIndex);
+}
+
+bool CRecentReplace::DataToReceiveType( LPCWSTR* dst, const CReplaceString* src ) const
+{
+	*dst = *src;
+	return true;
+}
+
+int CRecentReplace::CompareItem( const CReplaceString* p1, LPCWSTR p2 ) const
+{
+	return wcscmp(*p1,p2);
+}
+

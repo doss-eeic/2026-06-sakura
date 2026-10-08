@@ -1,0 +1,259 @@
+﻿/*!	@file
+	@brief プロセス生成クラス
+
+	@author aroka
+	@date 2002/01/03 Create
+*/
+/*
+	Copyright (C) 1998-2001, Norio Nakatani
+	Copyright (C) 2000-2001, genta
+	Copyright (C) 2001, masami shoji
+	Copyright (C) 2002, aroka WinMainより分離
+	Copyright (C) 2006, ryoji
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	This source code is designed for sakura editor.
+	Please contact the copyright holder to use this code for other purpose.
+*/
+
+#include "StdAfx.h"
+#include "CProcessFactory.h"
+#include "CControlProcess.h"
+#include "CNormalProcess.h"
+#include "CCommandLine.h"
+#include "CControlTray.h"
+#include "dlg/CDlgProfileMgr.h"
+#include "debug/CRunningTimer.h"
+#include "util/os.h"
+#include <tchar.h>
+#include "CSelectLang.h"
+#include "config/system_constants.h"
+
+class CProcess;
+
+/*!
+	@brief プロセスクラスを生成する
+	
+	コマンドライン、コントロールプロセスの有無を判定し、
+	適当なプロセスクラスを生成する。
+	
+	@param[in] hInstance インスタンスハンドル
+	@param[in] lpCmdLine コマンドライン文字列
+	
+	@author aroka
+	@date 2002/01/08
+	@date 2006/04/10 ryoji
+*/
+CProcess* CProcessFactory::Create( HINSTANCE hInstance, LPCWSTR lpCmdLine )
+{
+	// 言語環境を初期化する
+	CSelectLang::InitializeLanguageEnvironment();
+
+	if( !ProfileSelect( hInstance, lpCmdLine ) ){
+		return nullptr;
+	}
+
+	CProcess* process = nullptr;
+	if( !IsValidVersion() ){
+		return nullptr;
+	}
+
+	// プロセスクラスを生成する
+	//
+	// Note: 以下の処理において使用される IsExistControlProcess() は、コントロールプロセスが
+	// 存在しない場合だけでなく、コントロールプロセスが起動して ::CreateMutex() を実行するまで
+	// の間も false（コントロールプロセス無し）を返す。
+	// 従って、複数のノーマルプロセスが同時に起動した場合などは複数のコントロールプロセスが
+	// 起動されることもある。
+	// しかし、そのような場合でもミューテックスを最初に確保したコントロールプロセスが唯一生き残る。
+	//
+	if( IsStartingControlProcess() ){
+
+			process = new CControlProcess( hInstance, lpCmdLine );
+
+	}
+	else{
+
+			process = new CNormalProcess( hInstance, lpCmdLine );
+
+	}
+	return process;
+}
+
+bool CProcessFactory::ProfileSelect(HINSTANCE hInstance, LPCWSTR lpCmdLine) const
+{
+	auto* pCommandLine = CCommandLine::getInstance();
+
+	//	May 30, 2000 genta
+	//	実行ファイル名をもとに漢字コードを固定する．
+	WCHAR szExeFileName[MAX_PATH];
+	const int cchExeFileName = ::GetModuleFileName(nullptr, szExeFileName, int(std::size(szExeFileName)));
+	pCommandLine->ParseKanjiCodeFromFileName(szExeFileName, cchExeFileName);
+
+	pCommandLine->ParseCommandLine(lpCmdLine);
+
+	// コマンドラインオプションから起動プロファイルを判定する
+	if (const auto profileSelected = CDlgProfileMgr::TrySelectProfile(pCommandLine);
+		!profileSelected)	// プロファイルが決まらなかった
+	{
+		// プロファイルマネージャを表示して選択させる
+		CDlgProfileMgr dlgProf;
+		if (HWND hWndParent = nullptr;
+			!dlgProf.DoModal(hWndParent, pCommandLine->GetProfileNameRef())) {
+			return false; // プロファイルマネージャで「閉じる」を選んだ。プロセス終了
+		}
+	}
+	return true;
+}
+
+/*!
+	@brief Windowsバージョンのチェック
+	
+	Windows 95以上，Windows NT4.0以上であることを確認する．
+	Windows 95系では残りリソースのチェックも行う．
+	
+	@author aroka
+	@date 2002/01/03
+*/
+bool CProcessFactory::IsValidVersion() const
+{
+	// Windowsバージョンは廃止。
+	// 動作可能バージョン(=windows7以降)でなければ起動できない。
+	return true;
+}
+
+/*!
+	@brief コマンドラインに -NOWIN があるかを判定する。
+	
+	@author aroka
+	@date 2002/01/03 作成 2002/01/18 変更
+*/
+bool CProcessFactory::IsStartingControlProcess() const
+{
+	return CCommandLine::getInstance()->IsNoWindow();
+}
+
+/*!
+	コントロールプロセスの有無を調べる。
+	
+	@author aroka
+	@date 2002/01/03
+	@date 2006/04/10 ryoji
+*/
+/* static */ bool CProcessFactory::IsExistControlProcess()
+{
+	const auto pszProfileName = GetProfileName();
+	std::wstring strMutexSakuraCp = GSTR_MUTEX_SAKURA_CP;
+	strMutexSakuraCp += pszProfileName;
+ 	HANDLE hMutexCP;
+	hMutexCP = ::OpenMutex( MUTEX_ALL_ACCESS, FALSE, strMutexSakuraCp.c_str() );	// 2006.04.10 ryoji ::CreateMutex() を ::OpenMutex()に変更
+	if( nullptr != hMutexCP ){
+		::CloseHandle( hMutexCP );
+		return true;	// コントロールプロセスが見つかった
+	}
+
+	return false;	// コントロールプロセスは存在していないか、まだ CreateMutex() してない
+}
+
+/*!
+	@brief コントロールプロセスを起動する
+	
+	自分自身に -NOWIN オプションを付けて起動する．
+	共有メモリをチェックしてはいけないので，残念ながらCControlTray::OpenNewEditorは使えない．
+	
+	@author genta
+	@date Aug. 28, 2001
+	@date 2008.05.05 novice GetModuleHandle(NULL)→NULLに変更
+*/
+/* static */ bool CProcessFactory::StartControlProcess()
+{
+	MY_RUNNINGTIMER(cRunningTimer,L"StartControlProcess" );
+
+	using HandleHolder = cxx::ResourceHolder<&::CloseHandle>;
+
+	const auto pszProfileName = GetProfileName();
+
+	// 初期化完了イベントの名前を組み立てる
+	SFilePath initEventName{ GSTR_EVENT_SAKURA_CP_INITIALIZED };
+	initEventName.append(pszProfileName);
+
+	// 初期化完了イベントを作成する
+	HandleHolder hEvent{ ::CreateEventW(nullptr, TRUE, FALSE, initEventName) };
+	if (!hEvent || ERROR_ALREADY_EXISTS == ::GetLastError()) {
+		// L"エディタまたはシステムがビジー状態です。\nしばらく待って開きなおしてください。
+		TopErrorMessage(nullptr, LS(STR_ERR_DLGPROCFACT5));
+		return false;
+	}
+
+	//	プロセスの起動
+	PROCESS_INFORMATION p;
+	STARTUPINFO s;
+
+	s.cb          = sizeof( s );
+	s.lpReserved  = nullptr;
+	s.lpDesktop   = nullptr;
+	s.lpTitle     = const_cast<WCHAR*>(L"sakura control process"); //2007.09.21 kobake デバッグしやすいように、名前を付ける
+	s.dwFlags     = STARTF_USESHOWWINDOW;
+	s.wShowWindow = SW_SHOWDEFAULT;
+	s.cbReserved2 = 0;
+	s.lpReserved2 = nullptr;
+
+	WCHAR szCmdLineBuf[1024];	//	コマンドライン
+	WCHAR szEXE[MAX_PATH + 1];	//	アプリケーションパス名
+
+	::GetModuleFileName( nullptr, szEXE, int(std::size(szEXE)));
+	if( CCommandLine::getInstance()->IsSetProfile() ){
+		::auto_sprintf_s( szCmdLineBuf, std::size(szCmdLineBuf), L"\"%s\" -NOWIN -PROF=\"%ls\"",
+			szEXE, GetProfileName() );
+	}else{
+		::auto_sprintf_s( szCmdLineBuf, std::size(szCmdLineBuf), L"\"%s\" -NOWIN", szEXE ); // ""付加
+	}
+
+	//常駐プロセス起動
+	DWORD dwCreationFlag = CREATE_DEFAULT_ERROR_MODE;
+#ifdef _DEBUG
+//	dwCreationFlag |= DEBUG_PROCESS; //2007.09.22 kobake デバッグ用フラグ
+#endif
+	BOOL bCreateResult = ::CreateProcess(
+		szEXE,				// 実行可能モジュールの名前
+		szCmdLineBuf,		// コマンドラインの文字列
+		nullptr,				// セキュリティ記述子
+		nullptr,				// セキュリティ記述子
+		FALSE,				// ハンドルの継承オプション
+		dwCreationFlag,		// 作成のフラグ
+		nullptr,				// 新しい環境ブロック
+		nullptr,				// カレントディレクトリの名前
+		&s,					// スタートアップ情報
+		&p					// プロセス情報
+	);
+	if( !bCreateResult ){
+		//	失敗
+		WCHAR* pMsg;
+		::FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER |
+						FORMAT_MESSAGE_IGNORE_INSERTS |
+						FORMAT_MESSAGE_FROM_SYSTEM,
+						nullptr,
+						::GetLastError(),
+						MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+						(LPWSTR)&pMsg,
+						0,
+						nullptr
+		);
+		ErrorMessage( nullptr, L"\'%s\'\nプロセスの起動に失敗しました。\n%s", szEXE, pMsg );
+		::LocalFree( (HLOCAL)pMsg );	//	エラーメッセージバッファを解放
+		return false;
+	}
+
+	HandleHolder hProcess{ p.hProcess };
+	HandleHolder hThread{ p.hThread };
+
+	// 初期化完了を待つ
+	std::array handles{ hEvent.get(), hProcess.get()};
+	if (const auto dwRet = ::WaitForMultipleObjects(DWORD(std::size(handles)), std::data(handles), FALSE, 15000); WAIT_OBJECT_0 != dwRet) {
+		// L"エディタまたはシステムがビジー状態です。\nしばらく待って開きなおしてください。
+		TopErrorMessage(nullptr, LS(STR_ERR_DLGPROCFACT5));
+		return false;
+	}
+
+	return true;
+}

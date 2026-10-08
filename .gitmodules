@@ -1,0 +1,22 @@
+[submodule "externals/Onigmo"]
+	path = externals/Onigmo
+	url = https://github.com/k-takata/Onigmo.git
+[submodule "externals/bregonig"]
+	path = externals/bregonig
+	url = https://github.com/k-takata/bregonig.git
+[submodule "externals/ctags"]
+	path = externals/ctags
+	url = https://github.com/universal-ctags/ctags.git
+[submodule "externals/miniz-cpp"]
+	path = externals/miniz-cpp
+	url = https://github.com/tfussell/miniz-cpp.git
+[submodule "externals/cmigemo"]
+	path = externals/cmigemo
+	url = https://github.com/koron/cmigemo.git
+[submodule "externals/darkmodelib"]
+	path = externals/darkmodelib
+	url = https://github.com/ozone10/darkmodelib.git
+[submodule "tools/vcpkg"]
+	path = tools/vcpkg
+	url = https://github.com/Microsoft/vcpkg.git
+	branch = master

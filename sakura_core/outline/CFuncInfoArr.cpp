@@ -1,0 +1,153 @@
+﻿/*!	@file
+	@brief アウトライン解析 データ配列
+
+	@author Norio Nakatani
+	@date	1998/06/23 作成
+*/
+/*
+	Copyright (C) 1998-2001, Norio Nakatani
+	Copyright (C) 2002, YAZAKI, aroka
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	This source code is designed for sakura editor.
+	Please contact the copyright holder to use this code for other purpose.
+*/
+
+#include "StdAfx.h"
+#include "outline/CFuncInfoArr.h"
+
+#include "outline/CFuncInfo.h"
+
+/* CFuncInfoArrクラス構築 */
+CFuncInfoArr::CFuncInfoArr()
+{
+	return;
+}
+
+/* CFuncInfoArrクラス消滅 */
+CFuncInfoArr::~CFuncInfoArr()
+{
+	Empty();
+	return;
+}
+
+void CFuncInfoArr::Empty()
+{
+	for( auto* p : m_funcInfoArr ){
+		delete p;
+	}
+	m_funcInfoArr.clear();
+	m_AppendTextArr.clear();
+	m_nAppendTextLenMax = 0;
+	return;
+}
+
+/* 0<=の指定番号のデータを返す */
+/* データがない場合はNULLを返す */
+CFuncInfo* CFuncInfoArr::GetAt(size_t nIdx) const noexcept
+{
+	if (m_funcInfoArr.size() <= nIdx) {
+		return nullptr;
+	}
+	return m_funcInfoArr[nIdx];
+}
+
+/*! 配列の最後にデータを追加する */
+void CFuncInfoArr::AppendData( CFuncInfo* pcFuncInfo )
+{
+	m_funcInfoArr.push_back( pcFuncInfo );
+}
+
+/*! 配列の最後にデータを追加する
+
+	@date 2002.04.01 YAZAKI 深さ導入
+*/
+void CFuncInfoArr::AppendData(
+	CLogicInt		nFuncLineCRLF,		//!< 関数のある行(CRLF単位)
+	CLogicInt		nFuncColCRLF,		//!< 関数のある桁(CRLF単位)
+	CLayoutInt		nFuncLineLAYOUT,	//!< 関数のある行(折り返し単位)
+	CLayoutInt		nFuncColLAYOUT,		//!< 関数のある桁(折り返し単位)
+	const WCHAR*	pszFuncName,		//!< 関数名
+	const WCHAR*	pszFileName,		//!< ファイル名
+	int				nInfo,				//!< 付加情報
+	int				nDepth				//!< 深さ
+)
+{
+	CFuncInfo* pcFuncInfo = new CFuncInfo( nFuncLineCRLF, nFuncColCRLF, nFuncLineLAYOUT, nFuncColLAYOUT,
+		pszFuncName, pszFileName, nInfo );
+	pcFuncInfo->m_nDepth = nDepth;
+	AppendData( pcFuncInfo );
+	return;
+}
+
+void CFuncInfoArr::AppendData(
+	CLogicInt		nFuncLineCRLF,		//!< 関数のある行(CRLF単位)
+	CLayoutInt		nFuncLineLAYOUT,	//!< 関数のある行(折り返し単位)
+	const WCHAR*	pszFuncName,		//!< 関数名
+	int				nInfo,				//!< 付加情報
+	int				nDepth				//!< 深さ
+)
+{
+	AppendData(
+		nFuncLineCRLF,
+		CLogicInt(1),
+		nFuncLineLAYOUT,
+		CLayoutInt(1),
+		pszFuncName,
+		nullptr,
+		nInfo,
+		nDepth
+	);
+
+	return;
+}
+
+void CFuncInfoArr::DUMP()
+{
+#ifdef _DEBUG
+	MYTRACE( L"=============================\n" );
+	for (int i = 0; i < GetNum(); ++i) {
+		MYTRACE( L"[%d]------------------\n", i );
+		MYTRACE( L"m_nFuncLineCRLF\t\t=%d\n", int(m_funcInfoArr[i]->m_nFuncLineCRLF) );
+		MYTRACE( L"m_nFuncLineLAYOUT\t=%d\n", int(m_funcInfoArr[i]->m_nFuncLineLAYOUT) );
+		MYTRACE( L"m_cmemFuncName\t=[%s]\n", m_funcInfoArr[i]->m_cmemFuncName );
+		MYTRACE( L"m_cmemFileName\t=[%s]\n",
+			(m_funcInfoArr[i]->m_cmemFileName.IsValid()
+				? m_funcInfoArr[i]->m_cmemFileName.GetStringPtr()
+				: L"NULL") );
+		MYTRACE( L"m_nInfo\t\t\t=%d\n", m_funcInfoArr[i]->m_nInfo );
+	}
+	MYTRACE( L"=============================\n" );
+#endif
+}
+
+void CFuncInfoArr::SetAppendText( int info, std::wstring s, bool overwrite )
+{
+	if (!m_AppendTextArr.contains(info)) {
+		// キーが存在しない場合、追加する
+		m_AppendTextArr.try_emplace(info, s);
+
+		if( m_nAppendTextLenMax < (int)s.length() ){
+			m_nAppendTextLenMax = (int)s.length();
+		}
+
+	}else{
+		// キーが存在する場合、値を書き換える
+		if( overwrite ){
+			m_AppendTextArr[ info ] = std::move(s);
+		}
+	}
+}
+
+std::wstring CFuncInfoArr::GetAppendText(int info) const
+{
+	// キーが存在する場合、値を返す
+	if (const auto found = m_AppendTextArr.find(info);
+		found != m_AppendTextArr.end())
+	{
+		return found->second;
+	}
+
+	// キーが存在しない場合、空文字列を返す
+	return {};
+}

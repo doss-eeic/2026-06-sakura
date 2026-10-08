@@ -1,0 +1,199 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+ */
+#include "pch.h"
+#include "window/EditorTestSuite.hpp"
+
+#include "_main/CAppMode.h"
+
+namespace window {
+
+/*!
+ * テストスイートの開始前に1回だけ呼ばれる関数
+ */
+/* static */ void EditorTestSuite::SetUpEditor()
+{
+	SetUpShareData();
+
+	// CanBeMoveリージョンをテストケースに分割する。（すぐ対応できないのでコメント残し）
+
+	// ドキュメントの初期化前に文字幅キャッシュの生成が必要
+	SelectCharWidthCache(CWM_FONT_EDIT, CWM_CACHE_SHARE);
+	InitCharWidthCache(GetDllShareData().m_Common.m_sView.m_lf);
+
+#pragma region CanBeMove
+	// ドキュメントがなくてもエラーにならない
+	EXPECT_THAT(GetDocument(), IsNull());
+
+	// ドキュメントがないのでエラー
+	EXPECT_ANY_THROW(GetEditDoc());
+
+#pragma endregion CanBeMove
+
+	const auto hInst = G_AppInstance();
+
+	CEditApp::getInstance()->m_hInst = hInst;
+
+	//ヘルパ作成
+	CEditApp::getInstance()->m_cIcons.Create(hInst);
+
+	// CEditViewをインスタンス化するにはドキュメントのインスタンスが必要
+	pcEditDoc = std::make_unique<CEditDoc>(nullptr);
+	CEditApp::getInstance()->m_pcEditDoc = pcEditDoc.get();
+
+#pragma region CanBeMove
+	// ドキュメントがあるので値を返す
+	EXPECT_THAT(GetDocument(), pcEditDoc.get());
+
+	// ドキュメントがあるのでエラーにならない
+	EXPECT_NO_THROW([] { GetEditDoc(); });
+
+	EXPECT_THAT(&GetEditDoc(), GetDocument());
+
+	// 編集ウインドウがなくてもエラーにならない
+	EXPECT_THAT(GetEditWndPtr(), IsNull());
+
+	// 編集ウインドウがないのでエラー
+	EXPECT_ANY_THROW(GetEditWnd());
+
+#pragma endregion CanBeMove
+
+	//IO管理
+	pcLoadAgent = std::make_unique<CLoadAgent>();
+	CEditApp::getInstance()->m_pcLoadAgent = pcLoadAgent.get();
+	pcSaveAgent = std::make_unique<CSaveAgent>();
+	CEditApp::getInstance()->m_pcSaveAgent = pcSaveAgent.get();
+	pcVisualProgress = std::make_unique<CVisualProgress>();
+	CEditApp::getInstance()->m_pcVisualProgress = pcVisualProgress.get();
+
+	//GREPモード管理
+	pcGrepAgent = std::make_unique<CGrepAgent>();
+	CEditApp::getInstance()->m_pcGrepAgent = pcGrepAgent.get();
+
+	//編集モード
+	CAppMode::getInstance();	//ウィンドウよりも前にイベントを受け取るためにここでインスタンス作成
+
+	// SMacroMgrを用意する
+	pcSMacroMgr = std::make_unique<CSMacroMgr>();
+
+	CEditApp::getInstance()->m_pcSMacroMgr = pcSMacroMgr.get();
+
+	//ドキュメントの作成
+	pcEditDoc->Create();
+
+	// CEditWndを用意する
+	pcEditWnd = std::make_unique<CEditWnd>();
+	CEditApp::getInstance()->m_pcEditWnd = pcEditWnd.get();
+
+#pragma region CanBeMove
+	// 編集ウインドウがあるので値を返す
+	EXPECT_THAT(GetEditWndPtr(), pcEditWnd.get());
+
+	// 編集ウインドウがあるのでエラーにならない
+	EXPECT_NO_THROW([] { GetEditWnd(); });
+
+#pragma endregion CanBeMove
+
+	//MRU管理
+	pcMruListener = std::make_unique<CMruListener>();
+	CEditApp::getInstance()->m_pcMruListener = pcMruListener.get();
+
+	//プロパティ管理
+	pcPropertyManager = std::make_unique<CPropertyManager>();
+	CEditApp::getInstance()->m_pcPropertyManager = pcPropertyManager.get();
+	CEditApp::getInstance()->m_pcPropertyManager->Create(
+		pcEditWnd->GetHwnd(),
+		&CEditApp::getInstance()->m_cIcons,
+		&pcEditWnd->GetMenuDrawer()
+	);
+}
+
+/*!
+ * テストスイートの終了後に1回だけ呼ばれる関数
+ */
+/* static */ void EditorTestSuite::TearDownEditor()
+{
+	CEditApp::getInstance()->m_pcSMacroMgr = nullptr;
+	CEditApp::getInstance()->m_pcPropertyManager = nullptr;
+	CEditApp::getInstance()->m_pcMruListener = nullptr;
+	CEditApp::getInstance()->m_pcGrepAgent = nullptr;
+	CEditApp::getInstance()->m_pcVisualProgress = nullptr;
+	CEditApp::getInstance()->m_pcSaveAgent = nullptr;
+	CEditApp::getInstance()->m_pcLoadAgent = nullptr;
+	CEditApp::getInstance()->m_pcEditWnd = nullptr;
+	CEditApp::getInstance()->m_pcEditDoc = nullptr;
+
+	CEditApp::resetInstance();
+
+	pcPropertyManager = nullptr;
+	pcMruListener = nullptr;
+	pcGrepAgent = nullptr;
+	pcVisualProgress = nullptr;
+	pcSaveAgent = nullptr;
+	pcLoadAgent = nullptr;
+
+	pcSMacroMgr = nullptr;
+
+	pcEditWnd = nullptr;
+
+	pcEditDoc = nullptr;
+
+	TearDownShareData();
+}
+
+} // namespace window
+
+/* static */ BOOL MockUser32::_WinHelpW(
+	_In_opt_ HWND /* hWndMain */,
+	_In_opt_ LPCWSTR /* lpszHelp */,
+	_In_ UINT /* uCommand */,
+	_In_ ULONG_PTR /* dwData */
+)
+{
+	return TRUE;
+}
+
+MockUser32::MockUser32()
+{
+	// デフォルトの動作を設定する
+	ON_CALL(*this, MessageBoxExW(_, _, _, _, _)).WillByDefault(&_MessageBoxExW);
+	ON_CALL(*this, WinHelpW(_, _, _, _)).WillByDefault(&_WinHelpW);
+}
+
+/* static */ void MockComdlg32::_Cleanup([[maybe_unused]] const MockComdlg32*)
+{
+	gm_Files.clear();
+}
+
+/* static */ BOOL MockComdlg32::_GetOpenFileNameW(
+	LPOPENFILENAMEW pOfn
+)
+{
+	const auto result = !gm_Files.empty();
+	if (result) {
+		::wcscpy_s(pOfn->lpstrFile, pOfn->nMaxFile, std::data(gm_Files.front()));
+	}
+	return result;
+}
+
+/* static */ BOOL MockComdlg32::_GetSaveFileNameW(
+	LPOPENFILENAMEW pOfn
+)
+{
+	const auto result = !gm_Files.empty();
+	if (result) {
+		::wcscpy_s(pOfn->lpstrFile, pOfn->nMaxFile, std::data(gm_Files.front()));
+	}
+	return result;
+}
+
+MockComdlg32::MockComdlg32()
+{
+	ON_CALL(*this, GetOpenFileNameW(_)).WillByDefault(&_GetOpenFileNameW);
+	ON_CALL(*this, GetSaveFileNameW(_)).WillByDefault(&_GetSaveFileNameW);
+
+	ON_CALL(*this, CommDlgExtendedError()).WillByDefault([]() { return 0; });
+}

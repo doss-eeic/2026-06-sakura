@@ -1,0 +1,53 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+
+#include "StdAfx.h"
+#include "CRecentSearch.h"
+#include "config/maxdata.h"
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           生成                              //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+CRecentSearch::CRecentSearch()
+{
+	Create(
+		GetShareData()->m_sSearchKeywords.m_aSearchKeys.dataPtr(),
+		GetShareData()->m_sSearchKeywords.m_aSearchKeys.dataPtr()->GetBufferCount(),
+		&GetShareData()->m_sSearchKeywords.m_aSearchKeys._GetSizeRef(),
+		nullptr,
+		MAX_SEARCHKEY,
+		nullptr
+	);
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                      オーバーライド                         //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+/*
+	アイテムの比較要素を取得する。
+
+	@note	取得後のポインタはユーザー管理の構造体にキャストして参照してください。
+*/
+const WCHAR* CRecentSearch::GetItemText( int nIndex ) const
+{
+	return *GetItem(nIndex);
+}
+
+bool CRecentSearch::DataToReceiveType( LPCWSTR* dst, const CSearchString* src ) const
+{
+	*dst = *src;
+	return true;
+}
+
+int CRecentSearch::CompareItem( const CSearchString* p1, LPCWSTR p2 ) const
+{
+	return wcscmp(*p1,p2);
+}
+

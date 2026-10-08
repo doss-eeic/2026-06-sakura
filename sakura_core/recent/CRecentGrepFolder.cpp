@@ -1,0 +1,52 @@
+﻿/*! @file */
+/*
+	Copyright (C) 2008, kobake
+	Copyright (C) 2018-2026, Sakura Editor Organization
+
+	SPDX-License-Identifier: Zlib
+*/
+
+#include "StdAfx.h"
+#include "CRecentGrepFolder.h"
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                           生成                              //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+CRecentGrepFolder::CRecentGrepFolder()
+{
+	Create(
+		GetShareData()->m_sSearchKeywords.m_aGrepFolders.dataPtr(),
+		GetShareData()->m_sSearchKeywords.m_aGrepFolders.dataPtr()->GetBufferCount(),
+		&GetShareData()->m_sSearchKeywords.m_aGrepFolders._GetSizeRef(),
+		nullptr,
+		MAX_GREPFOLDER,
+		nullptr
+	);
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+//                      オーバーライド                         //
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+/*
+	アイテムの比較要素を取得する。
+
+	@note	取得後のポインタはユーザー管理の構造体にキャストして参照してください。
+*/
+const WCHAR* CRecentGrepFolder::GetItemText( int nIndex ) const
+{
+	return *GetItem(nIndex);
+}
+
+bool CRecentGrepFolder::DataToReceiveType( LPCWSTR* dst, const CGrepFolderString* src ) const
+{
+	*dst = *src;
+	return true;
+}
+
+int CRecentGrepFolder::CompareItem( const CGrepFolderString* p1, LPCWSTR p2 ) const
+{
+	return _wcsicmp(*p1,p2);
+}
+
