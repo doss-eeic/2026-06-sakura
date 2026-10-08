@@ -33,13 +33,13 @@ class CProcess;
 
 /*!
 	@brief プロセスクラスを生成する
-	
+
 	コマンドライン、コントロールプロセスの有無を判定し、
 	適当なプロセスクラスを生成する。
-	
+
 	@param[in] hInstance インスタンスハンドル
 	@param[in] lpCmdLine コマンドライン文字列
-	
+
 	@author aroka
 	@date 2002/01/08
 	@date 2006/04/10 ryoji
@@ -108,10 +108,10 @@ bool CProcessFactory::ProfileSelect(HINSTANCE hInstance, LPCWSTR lpCmdLine) cons
 
 /*!
 	@brief Windowsバージョンのチェック
-	
+
 	Windows 95以上，Windows NT4.0以上であることを確認する．
 	Windows 95系では残りリソースのチェックも行う．
-	
+
 	@author aroka
 	@date 2002/01/03
 */
@@ -124,7 +124,7 @@ bool CProcessFactory::IsValidVersion() const
 
 /*!
 	@brief コマンドラインに -NOWIN があるかを判定する。
-	
+
 	@author aroka
 	@date 2002/01/03 作成 2002/01/18 変更
 */
@@ -135,7 +135,7 @@ bool CProcessFactory::IsStartingControlProcess() const
 
 /*!
 	コントロールプロセスの有無を調べる。
-	
+
 	@author aroka
 	@date 2002/01/03
 	@date 2006/04/10 ryoji
@@ -157,10 +157,10 @@ bool CProcessFactory::IsStartingControlProcess() const
 
 /*!
 	@brief コントロールプロセスを起動する
-	
+
 	自分自身に -NOWIN オプションを付けて起動する．
 	共有メモリをチェックしてはいけないので，残念ながらCControlTray::OpenNewEditorは使えない．
-	
+
 	@author genta
 	@date Aug. 28, 2001
 	@date 2008.05.05 novice GetModuleHandle(NULL)→NULLに変更

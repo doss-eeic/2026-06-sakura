@@ -54,3 +54,18 @@ sonar-cfamily-reproducer.tar.xz
 
 # VSCodeの設定ファイルは除外する
 /.vscode
+
+# vcpkg dependency checkout
+/tools/vcpkg/
+
+# Local external dependency checkouts (gitlinks missing from this checkout)
+/externals/Onigmo/
+/externals/bregonig/
+/externals/cmigemo/
+/externals/ctags/
+/externals/darkmodelib/
+/externals/miniz-cpp/
+
+# Generated test plugin output
+/tools/dll_plugin1/out/
+/tools/ppa_stub/out/
