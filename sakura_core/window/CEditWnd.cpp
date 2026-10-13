@@ -628,9 +628,9 @@ HWND CEditWnd::Create(
 	RegisterPluginCommand();
 
 	SelectCharWidthCache( CWM_FONT_MINIMAP, CWM_CACHE_LOCAL ); // Init
-	InitCharWidthCache( m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP );
+	InitCharWidthCache( m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP, &GetFontFallbacks() );
 	SelectCharWidthCache( CWM_FONT_EDIT, GetLogfontCacheMode() );
-	InitCharWidthCache( GetLogfont() );
+	InitCharWidthCache( GetLogfont(), CWM_FONT_EDIT, &GetFontFallbacks() );
 
 	// -- -- -- -- 子ウィンドウ作成 -- -- -- -- //
 
@@ -4778,6 +4778,12 @@ const LOGFONT& CEditWnd::GetLogfont(bool bTempSetting)
 		return GetDocument()->m_cDocType.GetDocumentAttribute().m_lf;
 	}
 	return m_pShareData->m_Common.m_sView.m_lf;
+}
+
+const SFontFallbacks& CEditWnd::GetFontFallbacks() const
+{
+	const auto& type = GetDocument()->m_cDocType.GetDocumentAttribute();
+	return type.m_bUseTypeFont ? type.m_fallbackFonts : m_pShareData->m_Common.m_sView.m_fallbackFonts;
 }
 
 int CEditWnd::GetFontPointSize(bool bTempSetting)

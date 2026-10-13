@@ -245,6 +245,7 @@ public:
 	void Clear();
 	[[nodiscard]] bool GetMultiFont() const noexcept { return m_bMultiFont; }
 	int ResolveFont(char32_t codePoint) const;
+	bool HasFallbacks() const { return m_fallback != nullptr; }
 
 	//!文字が半角かどうかを取得(DLLSHARE/フォント依存)
 	virtual bool CalcHankakuByFont(wchar_t c);
@@ -275,7 +276,7 @@ private:
 
 // キャッシュの初期化関数群
 void SelectCharWidthCache( ECharWidthFontMode fMode, ECharWidthCacheMode cMode );  //!< モードを変更したいとき
-void InitCharWidthCache( const LOGFONT &lf, ECharWidthFontMode fMode=CWM_FONT_EDIT ); //!< フォントを変更したとき
+void InitCharWidthCache( const LOGFONT &lf, ECharWidthFontMode fMode=CWM_FONT_EDIT, const SFontFallbacks* fallbacks = nullptr ); //!< フォントを変更したとき
 void InitCharWidthCacheFromDC(const LOGFONT* lfs, ECharWidthFontMode fMode, HDC hdcOrg );
 [[nodiscard]] CCharWidthCache& GetCharWidthCache();
 

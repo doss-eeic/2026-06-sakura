@@ -11,6 +11,7 @@
 class CDlgFontFallback final : public CDialog {
 public:
 	bool DoModal(HINSTANCE instance, HWND parent, CommonSetting_View& settings);
+	bool DoModal(HINSTANCE instance, HWND parent, LOGFONT& font, INT& pointSize, SFontFallbacks& fallbacks);
 
 protected:
 	void SetData() override;

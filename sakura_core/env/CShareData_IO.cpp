@@ -1928,6 +1928,10 @@ void ShareData_IO_TypeConfig(
 	{ // フォント設定
 		cProfile.IOProfileData( pszSecName, L"bUseTypeFont", types.m_bUseTypeFont );
 		ShareData_IO_LogFont( cProfile, pszSecName, L"lf", types.m_lf, types.m_nPointSize );
+		for (size_t i = 0; i < types.m_fallbackFonts.size(); ++i) {
+			const auto key = L"FallbackFont" + std::to_wstring(i + 1);
+			cProfile.IOProfileData(pszSecName, key, types.m_fallbackFonts[i]);
+		}
 	}
 }
 

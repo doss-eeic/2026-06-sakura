@@ -236,10 +236,11 @@ namespace WCODE {
 				m_parCache[i] = 0;
 			}
 		}
-		void Init( const LOGFONT &lf1, const LOGFONT &lf2, ECharWidthFontMode fMode, HDC hdc )
+		void Init( const LOGFONT &lf1, const LOGFONT &lf2, ECharWidthFontMode fMode, HDC hdc, const SFontFallbacks* fallbacks = nullptr )
 	 	{
 			//	Fontfaceが変更されていたらキャッシュをクリアする	2013.04.08 aroka
-			const auto* fallbacks = fMode == CWM_FONT_PRINT ? nullptr : &GetDllShareData().m_Common.m_sView.m_fallbackFonts;
+			if (fMode == CWM_FONT_PRINT) fallbacks = nullptr;
+			else if (!fallbacks) fallbacks = &GetDllShareData().m_Common.m_sView.m_fallbackFonts;
 			m_localcache[fMode].Init(lf1, lf2, hdc, fallbacks);
 			// サイズやHDCが変わってもクリアする必要がある
 			m_localcache[fMode].Clear();
@@ -250,7 +251,7 @@ namespace WCODE {
 			// A font list can be updated while another editor still uses the old list.
 			// Keep these widths local rather than mixing generations in shared memory.
 			const auto& fallbacks = GetDllShareData().m_Common.m_sView.m_fallbackFonts;
-			if (std::any_of(fallbacks.begin(), fallbacks.end(), [](const auto& name) { return name[0] != L'\0'; })) {
+			if (m_localcache[fMode].HasFallbacks() || std::any_of(fallbacks.begin(), fallbacks.end(), [](const auto& name) { return name[0] != L'\0'; })) {
 				cmode = CWM_CACHE_LOCAL;
 			}
 
@@ -287,11 +288,11 @@ namespace WCODE {
 }
 
 //	文字幅の動的計算用キャッシュの初期化。	2007/5/18 Uchi
-void InitCharWidthCache( const LOGFONT &lf, ECharWidthFontMode fMode )
+void InitCharWidthCache( const LOGFONT &lf, ECharWidthFontMode fMode, const SFontFallbacks* fallbacks )
 {
 	using MemDcHolder = cxx::ResourceHolder<&::DeleteDC>;
 	MemDcHolder hdc = ::CreateCompatibleDC(nullptr);
-	WCODE::selector.Init( lf, lf, fMode, hdc );
+	WCODE::selector.Init( lf, lf, fMode, hdc, fallbacks );
 }
 
 void InitCharWidthCacheFromDC( const LOGFONT* lfs, ECharWidthFontMode fMode, HDC hdcOrg )

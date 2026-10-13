@@ -14,9 +14,18 @@
 
 bool CDlgFontFallback::DoModal(HINSTANCE instance, HWND parent, CommonSetting_View& settings)
 {
-	m_settings = settings;
+	return DoModal(instance, parent, settings.m_lf, settings.m_nPointSize, settings.m_fallbackFonts);
+}
+
+bool CDlgFontFallback::DoModal(HINSTANCE instance, HWND parent, LOGFONT& font, INT& pointSize, SFontFallbacks& fallbacks)
+{
+	m_settings.m_lf = font;
+	m_settings.m_nPointSize = pointSize;
+	m_settings.m_fallbackFonts = fallbacks;
 	if (CDialog::DoModal(instance, parent, IDD_FONT_FALLBACK, 0) != IDOK) return false;
-	settings = m_settings;
+	font = m_settings.m_lf;
+	pointSize = m_settings.m_nPointSize;
+	fallbacks = m_settings.m_fallbackFonts;
 	return true;
 }
 

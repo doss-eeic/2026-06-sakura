@@ -1118,7 +1118,7 @@ BEGIN
     PUSHBUTTON      "下へ(&N)",IDC_BUTTON_DOWN,220,106,63,14
     LTEXT           "共通サイズ（pt）(&S)",IDC_STATIC,7,134,100,10
     EDITTEXT        IDC_EDIT_FONT_SIZE,111,131,50,14,ES_AUTOHSCROLL
-    LTEXT           "各文字を表示できる最初のフォントを使用します。タイプ別フォント指定時は、それを先頭として2番目以降を使用します。",IDC_STATIC,7,152,276,27
+    LTEXT           "文字ごとにリストを上から順に調べ、表示できる最初のフォントを使用します。",IDC_STATIC,7,152,276,27
     DEFPUSHBUTTON   "OK",IDOK,153,184,63,14
     PUSHBUTTON      "キャンセル",IDCANCEL,220,184,63,14
 END

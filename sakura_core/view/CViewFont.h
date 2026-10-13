@@ -16,10 +16,10 @@ class CViewFont{
 	using Me = CViewFont;
 
 public:
-	CViewFont(const LOGFONT *plf, bool bMiniMap = false)
+	CViewFont(const LOGFONT *plf, bool bMiniMap = false, const SFontFallbacks* fallbacks = nullptr)
 	{
 		m_bMiniMap = bMiniMap;
-		CreateFonts(plf);
+		CreateFonts(plf, fallbacks);
 	}
 	CViewFont(const Me&) = delete;
 	Me& operator = (const Me&) = delete;
@@ -30,10 +30,10 @@ public:
 		DeleteFonts();
 	}
 
-	void UpdateFont(const LOGFONT *plf)
+	void UpdateFont(const LOGFONT *plf, const SFontFallbacks* fallbacks = nullptr)
 	{
 		DeleteFonts();
-		CreateFonts(plf);
+		CreateFonts(plf, fallbacks);
 	}
 
 	HFONT ChooseFontHandle( int fontNo, SFontAttr sFontAttr ) const;		/* フォントを選ぶ */
@@ -51,7 +51,7 @@ public:
 	}
 
 private:
-	void CreateFonts( const LOGFONT *plf );
+	void CreateFonts( const LOGFONT *plf, const SFontFallbacks* fallbacks );
 	void DeleteFonts( void );
 
 	HFONT	m_hFont_HAN;			/* 現在のフォントハンドル */

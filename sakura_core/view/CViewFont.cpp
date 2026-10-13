@@ -13,7 +13,7 @@
 
 /*! フォント作成
 */
-void CViewFont::CreateFonts( const LOGFONT *plf )
+void CViewFont::CreateFonts( const LOGFONT *plf, const SFontFallbacks* configuredFallbacks )
 {
 	LOGFONT	lf;
 	int miniSize = ::DpiScaleX(GetDllShareData().m_Common.m_sWindow.m_nMiniMapFontSize);
@@ -29,7 +29,7 @@ void CViewFont::CreateFonts( const LOGFONT *plf )
 	}
 	m_hFont_HAN = CreateFontIndirect( &lf );
 	m_LogFont = lf;
-	const auto& fallbacks = GetDllShareData().m_Common.m_sView.m_fallbackFonts;
+	const auto& fallbacks = configuredFallbacks ? *configuredFallbacks : GetDllShareData().m_Common.m_sView.m_fallbackFonts;
 	if (std::any_of(fallbacks.begin(), fallbacks.end(), [](const auto& name) { return name[0] != L'\0'; })) {
 		m_fallback = std::make_unique<CFontFallback>(lf, fallbacks);
 	}
