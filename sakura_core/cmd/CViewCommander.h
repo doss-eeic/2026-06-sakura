@@ -115,6 +115,7 @@ public:
 
 	/* 編集系 */
 	void Command_WCHAR(wchar_t wcChar, bool bConvertEOL = true );			/* 文字入力 */ //2007.09.02 kobake Command_CHAR(char)→Command_WCHAR(wchar_t)に変更
+	wchar_t GetAutoCloseBracket(wchar_t opening);	/* 現在の入力条件で補完する閉じ文字を取得 */
 	void Command_IME_CHAR(WORD wChar);			/* 全角文字入力 */
 	void Command_UNDO( void );				/* 元に戻す(Undo) */
 	void Command_REDO( void );				/* やり直し(Redo) */

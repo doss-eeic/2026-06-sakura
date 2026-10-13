@@ -29,6 +29,23 @@
 #include "debug/CRunningTimer.h"
 #include "apiwrap/CommonControl.h"
 
+// 通常入力とIME確定入力で、同じ設定と入力条件を使って補完を判定する。
+wchar_t CViewCommander::GetAutoCloseBracket(wchar_t opening)
+{
+	const auto& type = *m_pCommanderView->m_pTypeData;
+	if (!type.m_bAutoCloseBrackets || !m_pCommanderView->IsInsMode()
+		|| m_pCommanderView->GetSelectionInfo().IsTextSelected()) {
+		return L'\0';
+	}
+	for (const auto& rule : type.m_autoCloseBracketRules) {
+		if (rule.enabled && rule.opening != L'\0' && rule.closing != L'\0'
+			&& rule.opening == opening) {
+			return rule.closing;
+		}
+	}
+	return L'\0';
+}
+
 /* wchar_t1個分の文字を入力 */
 void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 {
@@ -50,18 +67,7 @@ void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 	/* 現在位置にデータを挿入 */
 	CNativeW cmemDataW2(&wcChar, 1);
 
-	wchar_t closingBracket = L'\0';
-
-	const auto& type = *m_pCommanderView->m_pTypeData;
-
-	if (type.m_bAutoCloseBrackets && m_pCommanderView->IsInsMode() && !m_pCommanderView->GetSelectionInfo().IsTextSelected()) {
-		for (const auto& rule : type.m_autoCloseBracketRules) {
-			if (rule.enabled && rule.opening != L'\0' && rule.closing != L'\0' && rule.opening == wcChar) {
-				closingBracket = rule.closing;
-				break;
-			}
-		}
-	}
+	const wchar_t closingBracket = GetAutoCloseBracket(wcChar);
 
 	if (closingBracket != L'\0') {
 		cmemDataW2.AppendString(&closingBracket, 1);
