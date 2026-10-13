@@ -21,6 +21,7 @@
 */
 
 #include "StdAfx.h"
+#include "dlg/CDlgFontFallback.h"
 #include "CPropTypes.h"
 #include "dlg/CDlgOpenFile.h"
 #include "util/module.h"
@@ -285,19 +286,24 @@ INT_PTR CPropTypesScreen::DispatchEvent(
 				{
 					LOGFONT lf;
 					INT nPointSize;
+					SFontFallbacks fallbacks;
 
 					if( m_Types.m_bUseTypeFont ){
 						lf = m_Types.m_lf;
+						nPointSize = m_Types.m_nPointSize;
+						fallbacks = m_Types.m_fallbackFonts;
 					}
 					else{
 						lf = m_pShareData->m_Common.m_sView.m_lf;
+						nPointSize = m_pShareData->m_Common.m_sView.m_nPointSize;
+						fallbacks = m_pShareData->m_Common.m_sView.m_fallbackFonts;
 					}
 
-					bool bFixedFont = false;
-
-					if( MySelectFont( &lf, &nPointSize, hwndDlg, bFixedFont) ){
+					CDlgFontFallback dialog;
+					if( dialog.DoModal(::GetModuleHandle(nullptr), hwndDlg, lf, nPointSize, fallbacks) ){
 						m_Types.m_lf = lf;
 						m_Types.m_nPointSize = nPointSize;
+						m_Types.m_fallbackFonts = fallbacks;
 						m_Types.m_bUseTypeFont = true;		// タイプ別フォントの使用
 						::CheckDlgButton( hwndDlg, IDC_CHECK_USETYPEFONT, m_Types.m_bUseTypeFont );
 						::EnableWindow( ::GetDlgItem( hwndDlg, IDC_CHECK_USETYPEFONT ), m_Types.m_bUseTypeFont );

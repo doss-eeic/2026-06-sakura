@@ -256,11 +256,11 @@ void CEditDoc::Clear()
 	// 「基本」のタイプ別設定を適用
 	m_cDocType.SetDocumentType( CDocTypeManager().GetDocumentTypeOfPath( m_cDocFile.GetFilePath() ), true );
 	m_blfCurTemp = false;
-	GetEditWnd().m_pcViewFontMiniMap->UpdateFont(&GetEditWnd().GetLogfont());
-	InitCharWidthCache( GetEditWnd().m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP );
+	GetEditWnd().m_pcViewFontMiniMap->UpdateFont(&GetEditWnd().GetLogfont(), &GetEditWnd().GetFontFallbacks());
+	InitCharWidthCache( GetEditWnd().m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP, &GetEditWnd().GetFontFallbacks() );
 	SelectCharWidthCache( CWM_FONT_EDIT, GetEditWnd().GetLogfontCacheMode() );
-	InitCharWidthCache( GetEditWnd().GetLogfont() );
-	GetEditWnd().m_pcViewFont->UpdateFont(&GetEditWnd().GetLogfont());
+	InitCharWidthCache( GetEditWnd().GetLogfont(), CWM_FONT_EDIT, &GetEditWnd().GetFontFallbacks() );
+	GetEditWnd().m_pcViewFont->UpdateFont(&GetEditWnd().GetLogfont(), &GetEditWnd().GetFontFallbacks());
 
 	// 2008.06.07 nasukoji	折り返し方法の追加に対応
 	const STypeConfig& ref = m_cDocType.GetDocumentAttribute();
@@ -749,12 +749,12 @@ void CEditDoc::OnChangeSetting(
 	}
 
 	// フォント更新
-	GetEditWnd().m_pcViewFont->UpdateFont(&GetEditWnd().GetLogfont());
-	GetEditWnd().m_pcViewFontMiniMap->UpdateFont(&GetEditWnd().GetLogfont());
+	GetEditWnd().m_pcViewFont->UpdateFont(&GetEditWnd().GetLogfont(), &GetEditWnd().GetFontFallbacks());
+	GetEditWnd().m_pcViewFontMiniMap->UpdateFont(&GetEditWnd().GetLogfont(), &GetEditWnd().GetFontFallbacks());
 
-	InitCharWidthCache( GetEditWnd().m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP );
+	InitCharWidthCache( GetEditWnd().m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP, &GetEditWnd().GetFontFallbacks() );
 	SelectCharWidthCache( CWM_FONT_EDIT, GetEditWnd().GetLogfontCacheMode() );
-	InitCharWidthCache( GetEditWnd().GetLogfont() );
+	InitCharWidthCache( GetEditWnd().GetLogfont(), CWM_FONT_EDIT, &GetEditWnd().GetFontFallbacks() );
 
 	CKetaXInt nMaxLineKetas = ref.m_nMaxLineKetas;
 	CKetaXInt nTabSpace = ref.m_nTabSpace;

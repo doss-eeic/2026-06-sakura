@@ -45,7 +45,6 @@ std::wstring GetFaceName(const HFONT hFont)
 
 namespace WCODE
 {
-	static bool s_MultiFont;
 
 	bool CalcHankakuByFont(wchar_t);
 
@@ -105,9 +104,13 @@ void CCharWidthCache::DeleteLocalData()
 	m_hdc1 = nullptr;
 }
 
-void CCharWidthCache::Init(const LOGFONT &lf, const LOGFONT &lfFull, HDC hdcOrg)
+void CCharWidthCache::Init(const LOGFONT &lf, const LOGFONT &lfFull, HDC hdcOrg, const SFontFallbacks* fallbacks)
 {
 	DeleteLocalData();
+	m_fallback.reset();
+	if (fallbacks && std::any_of(fallbacks->begin(), fallbacks->end(), [](const auto& name) { return name[0] != L'\0'; })) {
+		m_fallback = std::make_unique<CFontFallback>(lf, *fallbacks);
+	}
 
 	m_hdc1 = ::CreateCompatibleDC(hdcOrg);
 	m_hFont1 = ::CreateFontIndirectW(&lf);
@@ -121,8 +124,6 @@ void CCharWidthCache::Init(const LOGFONT &lf, const LOGFONT &lfFull, HDC hdcOrg)
 		m_hFont2Old.updateBound(m_hdc2);
 		m_hFont2Old = ::SelectObject(m_hdc2, m_hFont2);
 	}
-
-	WCODE::s_MultiFont = m_bMultiFont;
 
 	// -- -- 半角基準 -- -- //
 	// CTextMetrics::Update と同じでなければならない
@@ -200,13 +201,23 @@ int CCharWidthCache::CalcPxWidthByFont2(const wchar_t* pc2) const
 	SIZE size={m_han_size.cx*2,0};
 	std::lock_guard lock(m_mtx);
 	// サロゲートは全角フォント
-	GetTextExtentPoint32(m_hdc2?m_hdc2:m_hdc1,pc2,2,&size);
+	HDC dc = m_hdc2 ? m_hdc2 : m_hdc1;
+	if (m_fallback) dc = m_fallback->GetDC(m_fallback->Resolve(CFontFallback::DecodePair(pc2[0], pc2[1])));
+	GetTextExtentPoint32(dc,pc2,2,&size);
 	return t_max<int>(1,size.cx);
 }
 		
 [[nodiscard]] HDC CCharWidthCache::SelectHDC(wchar_t c) const
 {
-	return m_hdc2 && WCODE::GetFontNo(c) ? m_hdc2 : m_hdc1;
+	if (m_fallback) return m_fallback->GetDC(m_fallback->Resolve(c));
+	return m_hdc2 && c >= 0x80 ? m_hdc2 : m_hdc1;
+}
+
+int CCharWidthCache::ResolveFont(char32_t codePoint) const
+{
+	if (!m_fallback) return m_bMultiFont && codePoint >= 0x80 ? 1 : 0;
+	std::lock_guard lock(m_mtx);
+	return m_fallback->Resolve(codePoint);
 }
 
 namespace WCODE {
@@ -225,28 +236,35 @@ namespace WCODE {
 				m_parCache[i] = 0;
 			}
 		}
-		void Init( const LOGFONT &lf1, const LOGFONT &lf2, ECharWidthFontMode fMode, HDC hdc )
+		void Init( const LOGFONT &lf1, const LOGFONT &lf2, ECharWidthFontMode fMode, HDC hdc, const SFontFallbacks* fallbacks = nullptr )
 	 	{
 			//	Fontfaceが変更されていたらキャッシュをクリアする	2013.04.08 aroka
-			m_localcache[fMode].Init(lf1, lf2, hdc);
+			if (fMode == CWM_FONT_PRINT) fallbacks = nullptr;
+			else if (!fallbacks) fallbacks = &GetDllShareData().m_Common.m_sView.m_fallbackFonts;
+			m_localcache[fMode].Init(lf1, lf2, hdc, fallbacks);
 			// サイズやHDCが変わってもクリアする必要がある
 			m_localcache[fMode].Clear();
 		}
 		void Select( ECharWidthFontMode fMode, ECharWidthCacheMode cMode )
 		{
 			ECharWidthCacheMode cmode = (cMode==CWM_CACHE_NEUTRAL)?m_eLastEditCacheMode:cMode;
+			// A font list can be updated while another editor still uses the old list.
+			// Keep these widths local rather than mixing generations in shared memory.
+			const auto& fallbacks = GetDllShareData().m_Common.m_sView.m_fallbackFonts;
+			if (m_localcache[fMode].HasFallbacks() || std::any_of(fallbacks.begin(), fallbacks.end(), [](const auto& name) { return name[0] != L'\0'; })) {
+				cmode = CWM_CACHE_LOCAL;
+			}
 
 			pcache = &m_localcache[fMode];
 			if( cmode == CWM_CACHE_SHARE ){
 				pcache->SelectCache( &(GetDllShareData().m_sCharWidth) );
 			}else{
 				if( m_parCache[fMode] == 0 ){
-					m_parCache[fMode] = new SCharWidthCache;
+					m_parCache[fMode] = new SCharWidthCache{};
 				}
 				pcache->SelectCache( m_parCache[fMode] );
 			}
 			if( fMode==CWM_FONT_EDIT ){ m_eLastEditCacheMode = cmode; }
-			WCODE::s_MultiFont = pcache->GetMultiFont();
 		}
 		[[nodiscard]] CCharWidthCache* GetCache(){ return pcache; }
 	private:
@@ -260,27 +278,21 @@ namespace WCODE {
 	static CacheSelector selector;
 
 	// 文字の使用フォントを返す
-	// @return 0:半角用 / 1:全角用
+	// @return 編集画面では 0:基本フォント / 1以降:補助フォント
 	[[nodiscard]] int GetFontNo( wchar_t c ){
-		if (s_MultiFont && 0x0080 <= c && c <= 0xFFFF){
-			return 1;
-		}
-		return 0;
+		return selector.GetCache()->ResolveFont(c);
 	}
-	[[nodiscard]] int GetFontNo2( wchar_t, wchar_t ){
-		if( s_MultiFont ){
-			return 1;
-		}
-		return 0;
+	[[nodiscard]] int GetFontNo2( wchar_t high, wchar_t low ){
+		return selector.GetCache()->ResolveFont(CFontFallback::DecodePair(high, low));
 	}
 }
 
 //	文字幅の動的計算用キャッシュの初期化。	2007/5/18 Uchi
-void InitCharWidthCache( const LOGFONT &lf, ECharWidthFontMode fMode )
+void InitCharWidthCache( const LOGFONT &lf, ECharWidthFontMode fMode, const SFontFallbacks* fallbacks )
 {
 	using MemDcHolder = cxx::ResourceHolder<&::DeleteDC>;
 	MemDcHolder hdc = ::CreateCompatibleDC(nullptr);
-	WCODE::selector.Init( lf, lf, fMode, hdc );
+	WCODE::selector.Init( lf, lf, fMode, hdc, fallbacks );
 }
 
 void InitCharWidthCacheFromDC( const LOGFONT* lfs, ECharWidthFontMode fMode, HDC hdcOrg )

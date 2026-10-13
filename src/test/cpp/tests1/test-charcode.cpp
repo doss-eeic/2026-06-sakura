@@ -10,6 +10,150 @@
 #include <cstring>
 #include <string>
 #include <Windows.h>
+#include "env/DLLSHAREDATA.h"
+#include "view/CViewFont.h"
+
+class FontFallback : public testing::Test {
+protected:
+	void SetUp() override
+	{
+		if (!CFontFallback::IsAvailable(L"Consolas") || !CFontFallback::IsAvailable(L"Meiryo")
+			|| !CFontFallback::IsAvailable(L"MS Gothic")) {
+			GTEST_SKIP() << "Requires Consolas, Meiryo and MS Gothic";
+		}
+		primary.lfHeight = -20;
+		primary.lfCharSet = DEFAULT_CHARSET;
+		::wcscpy_s(primary.lfFaceName, L"Consolas");
+		names[0] = L"Meiryo";
+		names[1] = L"MS Gothic";
+	}
+
+	LOGFONT primary{};
+	SFontFallbacks names{};
+};
+
+TEST_F(FontFallback, FirstFontWithGlyphWins)
+{
+	CFontFallback fonts(primary, names);
+	EXPECT_EQ(0, fonts.Resolve(U'A'));
+	EXPECT_EQ(1, fonts.Resolve(U'あ'));
+	EXPECT_EQ(0, fonts.Resolve(0x10ffff)); // No candidate: preserve OS fallback.
+
+	LOGFONT selected{};
+	ASSERT_NE(0, ::GetObjectW(fonts.GetFont(fonts.Resolve(U'あ')), sizeof(selected), &selected));
+	EXPECT_STREQ(L"Meiryo", selected.lfFaceName);
+
+	std::swap(names[0], names[1]);
+	CFontFallback reordered(primary, names);
+	ASSERT_NE(0, ::GetObjectW(reordered.GetFont(reordered.Resolve(U'あ')), sizeof(selected), &selected));
+	EXPECT_STREQ(L"MS Gothic", selected.lfFaceName);
+}
+
+TEST_F(FontFallback, MissingFontIsSkipped)
+{
+	names[0] = L"Sakura Missing Font 12345";
+	CFontFallback fonts(primary, names);
+	LOGFONT selected{};
+	ASSERT_NE(0, ::GetObjectW(fonts.GetFont(fonts.Resolve(U'あ')), sizeof(selected), &selected));
+	EXPECT_STREQ(L"MS Gothic", selected.lfFaceName);
+}
+
+TEST_F(FontFallback, DrawingAndMeasurementUseSameFontNumber)
+{
+	auto& settings = GetDllShareData().m_Common.m_sView;
+	struct Restore {
+		CommonSetting_View& settings;
+		SFontFallbacks names;
+		~Restore()
+		{
+			settings.m_fallbackFonts = names;
+			SelectCharWidthCache(CWM_FONT_EDIT, CWM_CACHE_LOCAL);
+			InitCharWidthCache(settings.m_lf);
+		}
+	} restore{settings, settings.m_fallbackFonts};
+	settings.m_fallbackFonts = {};
+	settings.m_fallbackFonts[0] = L"Consolas"; // Also missing Japanese.
+	settings.m_fallbackFonts[1] = L"Meiryo";
+	SelectCharWidthCache(CWM_FONT_EDIT, CWM_CACHE_LOCAL);
+	InitCharWidthCache(primary);
+	CViewFont view(&primary);
+	ASSERT_EQ(2, WCODE::GetFontNo(L'あ'));
+	LOGFONT selected{};
+	ASSERT_NE(0, ::GetObjectW(view.ChooseFontHandle(WCODE::GetFontNo(L'あ'), {}), sizeof(selected), &selected));
+	EXPECT_STREQ(L"Meiryo", selected.lfFaceName);
+
+	settings.m_fallbackFonts = {};
+	InitCharWidthCache(primary);
+	view.UpdateFont(&primary);
+	EXPECT_EQ(0, WCODE::GetFontNo(L'あ'));
+}
+
+TEST_F(FontFallback, WidthMatchesSelectedFontAndRefreshes)
+{
+	SCharWidthCache storage{};
+	CCharWidthCache cache;
+	cache.SelectCache(&storage);
+	cache.Init(primary, primary, nullptr, &names);
+	cache.Clear();
+	ASSERT_EQ(1, cache.ResolveFont(U'あ'));
+
+	LOGFONT lf = primary;
+	::wcscpy_s(lf.lfFaceName, L"Meiryo");
+	HFONT font = ::CreateFontIndirectW(&lf);
+	HDC dc = ::CreateCompatibleDC(nullptr);
+	HGDIOBJ old = ::SelectObject(dc, font);
+	SIZE size{};
+	EXPECT_TRUE(::GetTextExtentPoint32W(dc, L"あ", 1, &size));
+	EXPECT_EQ(size.cx, cache.CalcPxWidthByFont(L'あ'));
+	::SelectObject(dc, old);
+	::DeleteObject(font);
+	::DeleteDC(dc);
+
+	// Disabling the list must discard both the font choice and cached widths.
+	cache.Init(primary, primary, nullptr);
+	cache.Clear();
+	EXPECT_EQ(0, cache.ResolveFont(U'あ'));
+}
+
+TEST_F(FontFallback, SupplementaryCharacterUsesFallback)
+{
+	if (!CFontFallback::IsAvailable(L"Segoe UI Emoji")) GTEST_SKIP();
+	names = {};
+	names[0] = L"Segoe UI Emoji";
+	CFontFallback fonts(primary, names);
+	const char32_t emoji = CFontFallback::DecodePair(0xd83c, 0xdf38);
+	ASSERT_EQ(U'🌸', emoji);
+	EXPECT_EQ(1, fonts.Resolve(emoji));
+
+	SCharWidthCache storage{};
+	CCharWidthCache cache;
+	cache.SelectCache(&storage);
+	cache.Init(primary, primary, nullptr, &names);
+	cache.Clear();
+	EXPECT_EQ(fonts.Resolve(emoji), cache.ResolveFont(emoji));
+	SIZE size{};
+	ASSERT_TRUE(::GetTextExtentPoint32W(fonts.GetDC(1), L"\xd83c\xdf38", 2, &size));
+	EXPECT_EQ(size.cx, cache.CalcPxWidthByFont2(L"\xd83c\xdf38"));
+}
+
+TEST_F(FontFallback, StylesAndBaselines)
+{
+	CFontFallback fonts(primary, names);
+	for (int index = 0; index < 3; ++index) {
+		LOGFONT lf{};
+		ASSERT_NE(0, ::GetObjectW(fonts.GetFont(index, true, true), sizeof(lf), &lf));
+		EXPECT_EQ(primary.lfHeight, lf.lfHeight);
+		EXPECT_EQ(primary.lfWeight + 300, lf.lfWeight);
+		EXPECT_TRUE(lf.lfUnderline);
+		TEXTMETRIC metrics{};
+		ASSERT_TRUE(::GetTextMetricsW(fonts.GetDC(index), &metrics));
+		TEXTMETRIC primaryMetrics{};
+		ASSERT_TRUE(::GetTextMetricsW(fonts.GetDC(0), &primaryMetrics));
+		EXPECT_EQ(fonts.GetTopOffset(0) + primaryMetrics.tmAscent,
+			fonts.GetTopOffset(index) + metrics.tmAscent);
+		EXPECT_LE(fonts.GetTopOffset(index) + metrics.tmHeight, fonts.GetHeight());
+	}
+}
 
 class CharWidthCache : public testing::Test {
 protected:

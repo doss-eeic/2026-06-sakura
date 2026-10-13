@@ -340,6 +340,7 @@ public:
 	void SetCurrentFocus(int n){ m_nCurrentFocus = n; }
 
 	const LOGFONT&	GetLogfont(bool bTempSetting = true);
+	const SFontFallbacks& GetFontFallbacks() const;
 	int			GetFontPointSize(bool bTempSetting = true);
 	ECharWidthCacheMode GetLogfontCacheMode();
 	double GetFontZoom();
@@ -368,8 +369,8 @@ public:
 
 	CSplitterWnd	m_cSplitterWnd;		//!< 分割フレーム
 	CEditView*		m_pcDragSourceView = nullptr;	//!< ドラッグ元のビュー
-	CViewFontHolder		m_pcViewFont = std::make_unique<CViewFont>(&GetLogfont());		//!< フォント
-	CViewFontHolder		m_pcViewFontMiniMap = std::make_unique<CViewFont>(&GetLogfont(), true);		//!< フォント
+	CViewFontHolder		m_pcViewFont = std::make_unique<CViewFont>(&GetLogfont(), false, &GetFontFallbacks());		//!< フォント
+	CViewFontHolder		m_pcViewFontMiniMap = std::make_unique<CViewFont>(&GetLogfont(), true, &GetFontFallbacks());		//!< フォント
 
 	//ダイアログ達
 	CDlgFind		m_cDlgFind;			// 「検索」ダイアログ

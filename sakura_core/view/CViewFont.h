@@ -10,15 +10,16 @@
 #pragma once
 
 #include "doc/CDocTypeSetting.h" // ColorInfo !!
+#include "view/CFontFallback.h"
 
 class CViewFont{
 	using Me = CViewFont;
 
 public:
-	CViewFont(const LOGFONT *plf, bool bMiniMap = false)
+	CViewFont(const LOGFONT *plf, bool bMiniMap = false, const SFontFallbacks* fallbacks = nullptr)
 	{
 		m_bMiniMap = bMiniMap;
-		CreateFonts(plf);
+		CreateFonts(plf, fallbacks);
 	}
 	CViewFont(const Me&) = delete;
 	Me& operator = (const Me&) = delete;
@@ -29,13 +30,15 @@ public:
 		DeleteFonts();
 	}
 
-	void UpdateFont(const LOGFONT *plf)
+	void UpdateFont(const LOGFONT *plf, const SFontFallbacks* fallbacks = nullptr)
 	{
 		DeleteFonts();
-		CreateFonts(plf);
+		CreateFonts(plf, fallbacks);
 	}
 
 	HFONT ChooseFontHandle( int fontNo, SFontAttr sFontAttr ) const;		/* フォントを選ぶ */
+	int GetFontTopOffset(int fontNo) const { return m_fallback ? m_fallback->GetTopOffset(fontNo) : 0; }
+	int GetFontHeight() const { return m_fallback ? m_fallback->GetHeight() : 0; }
 
 	HFONT GetFontHan() const
 	{
@@ -48,7 +51,7 @@ public:
 	}
 
 private:
-	void CreateFonts( const LOGFONT *plf );
+	void CreateFonts( const LOGFONT *plf, const SFontFallbacks* fallbacks );
 	void DeleteFonts( void );
 
 	HFONT	m_hFont_HAN;			/* 現在のフォントハンドル */
@@ -58,6 +61,7 @@ private:
 
 	LOGFONT	m_LogFont;
 	bool	m_bMiniMap;
+	std::unique_ptr<CFontFallback> m_fallback;
 };
 
 CViewFont* GetViewFont(bool isMiniMap);

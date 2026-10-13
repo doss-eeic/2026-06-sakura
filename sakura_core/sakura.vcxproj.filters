@@ -613,6 +613,15 @@
     <ClInclude Include="..\sakura_core\view\CViewFont.h">
       <Filter>Cpp Source Files\view</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\view\CFontFallback.h">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\env\SFontFallbacks.h">
+      <Filter>Cpp Source Files\env</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\dlg\CDlgFontFallback.h">
+      <Filter>Cpp Source Files\dlg</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\view\CViewParser.h">
       <Filter>Cpp Source Files\view</Filter>
     </ClInclude>
@@ -1731,6 +1740,12 @@
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CViewFont.cpp">
       <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\CFontFallback.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\dlg\CDlgFontFallback.cpp">
+      <Filter>Cpp Source Files\dlg</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CViewParser.cpp">
       <Filter>Cpp Source Files\view</Filter>

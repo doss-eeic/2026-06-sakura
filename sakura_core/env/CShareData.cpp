@@ -564,6 +564,7 @@ bool CShareData::InitShareData()
 		// [ビュー]タブ
 		{
 			CommonSetting_View& sView = m_pShareData->m_Common.m_sView;
+			sView.m_fallbackFonts = {};
 
 			sView.m_lf = lf;
 			sView.m_nPointSize = 0;	// フォントサイズ（1/10ポイント単位） ※古いバージョンからの移行を考慮して無効値で初期化	// 2009.10.01 ryoji

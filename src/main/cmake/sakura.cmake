@@ -583,6 +583,7 @@ target_link_libraries(sakura_core
     comctl32
     dbghelp
     dwmapi
+    dwrite
     htmlhelp
     imm32
     mpr

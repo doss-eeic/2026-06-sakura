@@ -24,6 +24,7 @@
 #include "CViewCommander_inline.h"
 #include "typeprop/CDlgTypeList.h"
 #include "dlg/CDlgFavorite.h"	//履歴の管理	//@@@ 2003.04.08 MIK
+#include "dlg/CDlgFontFallback.h"
 #include "CEditApp.h"
 #include "util/shell.h"
 #include "env/CPropertyManager.h"
@@ -213,25 +214,9 @@ void CViewCommander::Command_FONT( void )
 	hwndFrame = GetMainWindow();
 
 	/* フォント設定ダイアログ */
-	LOGFONT lf = GetDllShareData().m_Common.m_sView.m_lf;
-	INT   nPointSize = GetDllShareData().m_Common.m_sView.m_nPointSize;
-#if !defined(USE_UNFIXED_FONT)
-#define USE_UNFIXED_FONT
-#endif
-#ifdef USE_UNFIXED_FONT
-	bool bFixedFont = false;
-#else
-	bool bFixedFont = true;
-#endif
-	if( MySelectFont( &lf, &nPointSize, CEditWnd::getInstance()->m_cSplitterWnd.GetHwnd(), bFixedFont ) ){
-		GetDllShareData().m_Common.m_sView.m_lf = lf;
-		GetDllShareData().m_Common.m_sView.m_nPointSize = nPointSize;
-
-		if( GetDllShareData().m_Common.m_sView.m_lf.lfPitchAndFamily & FIXED_PITCH  ){
-			GetDllShareData().m_Common.m_sView.m_bFontIs_FIXED_PITCH = TRUE;	/* 現在のフォントは固定幅フォントである */
-		}else{
-			GetDllShareData().m_Common.m_sView.m_bFontIs_FIXED_PITCH = FALSE;	/* 現在のフォントは固定幅フォントである */
-		}
+	CDlgFontFallback dialog;
+	if( dialog.DoModal(::GetModuleHandle(nullptr),
+		CEditWnd::getInstance()->m_cSplitterWnd.GetHwnd(), GetDllShareData().m_Common.m_sView) ){
 		// 2010.09.06 プロポーショナルフォントでもたぶん矩形も使えるはず
 		GetDllShareData().m_Common.m_sView.m_bFontIs_FIXED_PITCH = TRUE;
 		/* 設定変更を反映させる */

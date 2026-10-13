@@ -1089,9 +1089,9 @@ void CEditView::SetFont(
 
 	// メトリクス更新
 	if( m_bMiniMap ){
-		GetTextMetrics().Update(hdc, GetFontset().GetFontHan(), 0, 0);
+		GetTextMetrics().Update(hdc, GetFontset().GetFontHan(), 0, 0, GetFontset().GetFontHeight());
 	}else{
-		GetTextMetrics().Update(hdc, GetFontset().GetFontHan(), DpiScaleY(m_pTypeData->m_nLineSpace), DpiScaleX(m_pTypeData->m_nColumnSpace));
+		GetTextMetrics().Update(hdc, GetFontset().GetFontHan(), DpiScaleY(m_pTypeData->m_nLineSpace), DpiScaleX(m_pTypeData->m_nColumnSpace), GetFontset().GetFontHeight());
 	}
 
 	hdc = nullptr;
