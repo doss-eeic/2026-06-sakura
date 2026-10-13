@@ -178,6 +178,13 @@ void _DefaultConfig(STypeConfig* pType)
 	pType->m_bUseHokanByFile = true;			//! 入力補完 開いているファイル内から候補を探す
 	pType->m_bUseHokanByKeyword = false;			// 強調キーワードから入力補完
 
+	// 2026.10.13  閉じ括弧
+	pType->m_bAutoCloseBrackets = false; // 閉じ括弧の自動補完
+	pType->m_autoCloseBracketRules = {};
+	pType->m_autoCloseBracketRules[0] = {true, L'(', L')'};
+	pType->m_autoCloseBracketRules[1] = {true, L'[', L']'};
+	pType->m_autoCloseBracketRules[2] = {true, L'{', L'}'};
+
 	// 文字コード設定
 	pType->m_encoding.m_bPriorCesu8 = false;
 	pType->m_encoding.m_eDefaultCodetype = CODE_UTF8;

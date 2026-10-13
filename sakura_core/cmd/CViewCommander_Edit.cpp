@@ -49,6 +49,24 @@ void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 
 	/* 現在位置にデータを挿入 */
 	CNativeW cmemDataW2(&wcChar, 1);
+
+	wchar_t closingBracket = L'\0';
+
+	const auto& type = *m_pCommanderView->m_pTypeData;
+
+	if (type.m_bAutoCloseBrackets && m_pCommanderView->IsInsMode() && !m_pCommanderView->GetSelectionInfo().IsTextSelected()) {
+		for (const auto& rule : type.m_autoCloseBracketRules) {
+			if (rule.enabled && rule.opening != L'\0' && rule.closing != L'\0' && rule.opening == wcChar) {
+				closingBracket = rule.closing;
+				break;
+			}
+		}
+	}
+
+	if (closingBracket != L'\0') {
+		cmemDataW2.AppendString(&closingBracket, 1);
+	}
+
 	if( WCODE::IsLineDelimiter(wcChar, GetDllShareData().m_Common.m_sEdit.m_bEnableExtEol) ){ 
 		/* 現在、Enterなどで挿入する改行コードの種類を取得 */
 		if( bConvertEOL ){
@@ -155,7 +173,18 @@ end_of_for:;
 		true
 	);
 
-	/* 挿入データの最後へカーソルを移動 */
+	/* 補完した場合は閉じ括弧の直前へ移動 */
+	if (closingBracket != L'\0') {
+		CLogicPoint ptCaretLogic;
+
+		GetDocument()->m_cLayoutMgr.LayoutToLogic(
+			ptLayoutNew, &ptCaretLogic
+		);
+		ptCaretLogic.Offset(-1, 0);
+		GetDocument()->m_cLayoutMgr.LogicToLayout(
+			ptCaretLogic, &ptLayoutNew
+		);
+	}
 	GetCaret().MoveCursor( ptLayoutNew, true );
 	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
 

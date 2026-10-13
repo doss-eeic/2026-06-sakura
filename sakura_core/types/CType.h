@@ -17,6 +17,7 @@
 #include "charset/charset.h"  // ECodeType
 #include "env/CRegexKeyword.h"	// RegexKeywordInfo
 #include "charset/charcode.h"
+#include <array>
 
 //! タブ表示方法
 enum ETabArrow {
@@ -105,6 +106,13 @@ enum EKeyHelpRMenuType{
 	KEYHELP_RMENU_NONE,		//!< 非表示
 	KEYHELP_RMENU_TOP,		//!< メニュー先頭
 	KEYHELP_RMENU_BOTTOM,	//!< メニュー末尾
+};
+
+// 括弧補完のルール
+struct SAutoCloseBracket {
+	bool enabled = false;
+	wchar_t opening = L'\0';
+	wchar_t closing = L'\0';
 };
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
@@ -198,7 +206,10 @@ struct STypeConfig{
 	//	2003.06.23 Moca ファイル内からの入力補完機能
 	bool				m_bUseHokanByFile;				//!< 入力補完 開いているファイル内から候補を探す
 	bool				m_bUseHokanByKeyword;			//!< 強調キーワードから入力補完
-	
+
+	// 2026/10/13 閉じ括弧
+	bool                m_bAutoCloseBrackets = false;   //!< 閉じ括弧を自動補完
+	std::array<SAutoCloseBracket, 16> m_autoCloseBracketRules{};
 	//	2001/06/19 asa-o
 	bool				m_bHokanLoHiCase;				//!< 入力補完機能：英大文字小文字を同一視する
 
