@@ -24,7 +24,7 @@ void CTextMetrics::CopyTextMetricsStatus(CTextMetrics* pDst) const
 	※ビルド種により、微妙にサイズが変わるようでした。
 	　サイズを合わせるため、適当な文字で調整。
 */
-void CTextMetrics::Update(HDC hdc, HFONT hFont, int nLineSpace, int nColmSpace)
+void CTextMetrics::Update(HDC hdc, HFONT hFont, int nLineSpace, int nColmSpace, int minimumHeight)
 {
 	// CCharWidthCache::m_han_size と一致していなければならない
 	//
@@ -35,6 +35,7 @@ void CTextMetrics::Update(HDC hdc, HFONT hFont, int nLineSpace, int nColmSpace)
 	SIZE  sz;
 	GetTextExtentPoint32(hdc, L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", 52, &sz);
 	::SelectObject( hdc, hFontOld );
+	sz.cy = std::max<LONG>(sz.cy, minimumHeight);
 
 	m_nCharWidth = (sz.cx / 26 + 1) / 2;
 	if( nLineSpace < 0 ){

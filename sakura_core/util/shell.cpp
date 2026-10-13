@@ -578,7 +578,7 @@ BOOL MyWinHelp(HWND hwndCaller, UINT uCommand, DWORD_PTR dwData)
 	2008.04.27 kobake CEditDoc::SelectFont から分離
 	2009.10.01 ryoji ポイントサイズ（1/10ポイント単位）引数追加
 */
-BOOL MySelectFont( LOGFONT* plf, INT* piPointSize, HWND hwndDlgOwner, bool FixedFontOnly )
+BOOL MySelectFont( LOGFONT* plf, INT* piPointSize, HWND hwndDlgOwner, bool FixedFontOnly, bool familyOnly )
 {
 	// 2004.02.16 Moca CHOOSEFONTをメンバから外す
 	CHOOSEFONT cf;
@@ -588,6 +588,7 @@ BOOL MySelectFont( LOGFONT* plf, INT* piPointSize, HWND hwndDlgOwner, bool Fixed
 	cf.hwndOwner = hwndDlgOwner;
 	cf.hDC = nullptr;
 	cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_EFFECTS | CF_ENABLEHOOK;
+	if (familyOnly) cf.Flags = (cf.Flags & ~CF_EFFECTS) | CF_NOSIZESEL | CF_NOSTYLESEL;
 	if( FixedFontOnly ){
 		//FIXEDフォント
 		cf.Flags |= CF_FIXEDPITCHONLY;
@@ -610,7 +611,7 @@ BOOL MySelectFont( LOGFONT* plf, INT* piPointSize, HWND hwndDlgOwner, bool Fixed
 #endif
 		return FALSE;
 	}
-	*piPointSize = cf.iPointSize;
+	if (!familyOnly) *piPointSize = cf.iPointSize;
 
 	return TRUE;
 }

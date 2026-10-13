@@ -405,6 +405,34 @@ TEST(CDataProfile, IOProfileData)
 	EXPECT_THAT(nValue, 109);
 }
 
+TEST(CDataProfile, FontFallbackSettingsRoundTrip)
+{
+	CDataProfile profile;
+	CommonSetting_View original{};
+	original.m_fallbackFonts[0] = L"Meiryo";
+	original.m_fallbackFonts[1] = L"MS Gothic";
+	profile.SetWritingMode();
+	ShareData_IO_Font(profile, original);
+	CommonSetting_View restored{};
+	profile.SetReadingMode();
+	ShareData_IO_Font(profile, restored);
+	EXPECT_EQ(original.m_fallbackFonts, restored.m_fallbackFonts);
+
+	// Saving an empty list must remove previously saved choices.
+	original.m_fallbackFonts = {};
+	profile.SetWritingMode();
+	ShareData_IO_Font(profile, original);
+	profile.SetReadingMode();
+	ShareData_IO_Font(profile, restored);
+	EXPECT_EQ(original.m_fallbackFonts, restored.m_fallbackFonts);
+
+	CDataProfile oldProfile;
+	oldProfile.SetReadingMode();
+	CommonSetting_View defaults{};
+	ShareData_IO_Font(oldProfile, defaults);
+	EXPECT_EQ(SFontFallbacks{}, defaults.m_fallbackFonts);
+}
+
 /*!
  * @brief IOProfileDataのテスト
  */

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "doc/CDocTypeSetting.h" // ColorInfo !!
+#include "view/CFontFallback.h"
 
 class CViewFont{
 	using Me = CViewFont;
@@ -36,6 +37,8 @@ public:
 	}
 
 	HFONT ChooseFontHandle( int fontNo, SFontAttr sFontAttr ) const;		/* フォントを選ぶ */
+	int GetFontTopOffset(int fontNo) const { return m_fallback ? m_fallback->GetTopOffset(fontNo) : 0; }
+	int GetFontHeight() const { return m_fallback ? m_fallback->GetHeight() : 0; }
 
 	HFONT GetFontHan() const
 	{
@@ -58,6 +61,7 @@ private:
 
 	LOGFONT	m_LogFont;
 	bool	m_bMiniMap;
+	std::unique_ptr<CFontFallback> m_fallback;
 };
 
 CViewFont* GetViewFont(bool isMiniMap);

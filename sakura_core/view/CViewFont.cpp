@@ -29,6 +29,10 @@ void CViewFont::CreateFonts( const LOGFONT *plf )
 	}
 	m_hFont_HAN = CreateFontIndirect( &lf );
 	m_LogFont = lf;
+	const auto& fallbacks = GetDllShareData().m_Common.m_sView.m_fallbackFonts;
+	if (std::any_of(fallbacks.begin(), fallbacks.end(), [](const auto& name) { return name[0] != L'\0'; })) {
+		m_fallback = std::make_unique<CFontFallback>(lf, fallbacks);
+	}
 
 	/* 太字フォント作成 */
 	lf = *plf;
@@ -73,6 +77,7 @@ void CViewFont::CreateFonts( const LOGFONT *plf )
 */
 void CViewFont::DeleteFonts()
 {
+	m_fallback.reset();
 	DeleteObject( m_hFont_HAN );
 	DeleteObject( m_hFont_HAN_BOLD );
 	DeleteObject( m_hFont_HAN_UL );
@@ -85,6 +90,7 @@ void CViewFont::DeleteFonts()
 */
 HFONT CViewFont::ChooseFontHandle( int fontNo, SFontAttr sFontAttr ) const
 {
+	if (m_fallback) return m_fallback->GetFont(fontNo, sFontAttr.m_bBoldFont, sFontAttr.m_bUnderLine);
 	assert( fontNo == 0 );
 	if( sFontAttr.m_bBoldFont ){	/* 太字か */
 		if( sFontAttr.m_bUnderLine ){	/* 下線か */

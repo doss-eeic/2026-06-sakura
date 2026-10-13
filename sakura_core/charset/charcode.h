@@ -16,6 +16,7 @@
 #include "parse/CWordParse.h"
 #include "util/StaticType.h"
 #include "util/std_macro.h"
+#include "view/CFontFallback.h"
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 //                           定数                              //
@@ -79,7 +80,7 @@ namespace WCODE
 	}
 
 	//!使用フォント番号を返す
-	// (0:半角/1:全角)
+	// 編集画面では 0:基本フォント / 1以降:補助フォント。印刷では 0:半角 / 1:全角。
 	int GetFontNo(wchar_t c);
 	int GetFontNo2(wchar_t wc1, wchar_t wc2);
 
@@ -239,10 +240,11 @@ public:
 	virtual ~CCharWidthCache() = default;
 
 	// 再初期化
-	void Init(const LOGFONT& lf, const LOGFONT& lfFull, HDC hdcOrg);
+	void Init(const LOGFONT& lf, const LOGFONT& lfFull, HDC hdcOrg, const SFontFallbacks* fallbacks = nullptr);
 	void SelectCache(SCharWidthCache* pCache) { m_pCache = pCache; }
 	void Clear();
 	[[nodiscard]] bool GetMultiFont() const noexcept { return m_bMultiFont; }
+	int ResolveFont(char32_t codePoint) const;
 
 	//!文字が半角かどうかを取得(DLLSHARE/フォント依存)
 	virtual bool CalcHankakuByFont(wchar_t c);
@@ -263,6 +265,7 @@ private:
 	SelectionHolder m_hFont1Old{ m_hdc1 };
 	SelectionHolder m_hFont2Old{ m_hdc2 };
 	bool m_bMultiFont = false;
+	std::unique_ptr<CFontFallback> m_fallback;
 	SIZE m_han_size{};
 
 	SCharWidthCache* m_pCache = nullptr;
