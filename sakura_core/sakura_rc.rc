@@ -2403,6 +2403,8 @@ BEGIN
     F_SORT_DESC             "選択行の降順ソート"
     F_MERGE                 "連続した重複行の削除(uniq)"
     F_RECONVERT             "再変換"
+    F_MARKDOWN_BOLD         "Markdown太字"
+    F_MARKDOWN_ITALIC       "Markdown斜体"
 END
 
 STRINGTABLE

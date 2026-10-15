@@ -205,11 +205,9 @@ BOOL CViewCommander::HandleCommand(
 	// -------------------------------------
 
 	switch( nCommand ){
-	case F_WCHAR:	/* 文字入力 */
-		{
-			Command_WCHAR( (wchar_t)lparam1 );
-		}
-		break;
+	case F_WCHAR:	            Command_WCHAR( (wchar_t)lparam1 );break;
+	case F_MARKDOWN_BOLD:       Command_ENCLOSE(L"**", L"**"); break;
+	case F_MARKDOWN_ITALIC:     Command_ENCLOSE(L"*", L"*"); break;
 
 	/* ファイル操作系 */
 	case F_FILENEW:				Command_FILENEW();break;			/* 新規作成 */

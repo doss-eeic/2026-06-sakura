@@ -92,6 +92,8 @@ static const EFunctionCode EIsModificationForbidden[] = {
 	F_SORT_ASC,	// 2001.12.11 hor
 	F_SORT_DESC,	// 2001.12.11 hor
 	F_MERGE,		// 2001.12.11 hor
+	F_MARKDOWN_BOLD,
+	F_MARKDOWN_ITALIC,
 	F_CUT,
 	F_PASTE,
 	F_PASTEBOX,
