@@ -807,6 +807,7 @@
 #define IDC_CHECK_BRACKET_ENABLED      1751
 #define IDC_EDIT_BRACKET_OPENING       1752
 #define IDC_EDIT_BRACKET_CLOSING       1753
+#define IDC_CHECK_SELCOUNT_INCLUDE_EOL  1755
 #define IDS_AUTHOR_PAGE                 4054
 #define IDS_ABOUT_DESCRIPTION           4056
 #define IDD_TYPELIST                    5000
@@ -1877,7 +1878,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        35066
 #define _APS_NEXT_COMMAND_VALUE         101
-#define _APS_NEXT_CONTROL_VALUE         1755
+#define _APS_NEXT_CONTROL_VALUE         1756
 #define _APS_NEXT_SYMED_VALUE           10000
 #endif
 #endif

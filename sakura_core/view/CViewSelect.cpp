@@ -672,8 +672,9 @@ void CViewSelect::PrintSelectionInfoMsg() const
 			select_col = -select_col;
 		}
 		int select_col_keta = (Int)select_col / (Int)pView->GetTextMetrics().GetLayoutXDefault();
-		auto_sprintf( msg, L"%d col (%dpx) * %d lines selected.",
-			select_col_keta, int(select_col), int(select_line) );
+		auto_sprintf( msg, L"%d col (%dpx) * %d %s selected.",
+			select_col_keta, int(select_col), int(select_line),
+			int(select_line) == 1 ? L"line" : L"lines" );
 	}
 	else {
 		//	通常の選択では選択範囲の中身を数える
@@ -769,18 +770,26 @@ void CViewSelect::PrintSelectionInfoMsg() const
 				//2009.07.07 syat カウント方法を切り替えながら選択範囲を拡大・縮小すると整合性が
 				//                とれなくなるため、モード切替時にキャッシュをクリアする。
 				thiz->m_nLastSelectedByteLen = 0;
+				const bool bIncludeEol = GetDllShareData().m_Common.m_sStatusbar.m_bSelCountIncludeEol != FALSE;
+				// 文字数計算に使う選択位置を取得する
+				const auto getCountIndex =
+					[pView, bIncludeEol]( const CLayout* layout, CLayoutInt column ) {
+						CLogicInt index = pView->LineColumnToIndex( layout, column );
 
+						if( !bIncludeEol && index > layout->GetLengthWithoutEOL() ){
+							index = layout->GetLengthWithoutEOL();
+						}
+
+						return index;
+					};
 				//	1行だけ選択されている場合
 				if( m_sSelect.IsLineOne() ){
-					select_sum =
-						pView->LineColumnToIndex( pcLayout, m_sSelect.GetTo().GetX2() )
-						- pView->LineColumnToIndex( pcLayout, m_sSelect.GetFrom().GetX2() );
+					select_sum = getCountIndex( pcLayout, m_sSelect.GetTo().GetX2() ) - getCountIndex( pcLayout, m_sSelect.GetFrom().GetX2() );
 				} else {	//	2行以上選択されている場合
-					select_sum =
-						pcLayout->GetLengthWithoutEOL()
-						+ pcLayout->GetLayoutEol().GetLen()
-						- pView->LineColumnToIndex( pcLayout, m_sSelect.GetFrom().GetX2() );
-
+					select_sum = pcLayout->GetLengthWithoutEOL() - getCountIndex( pcLayout, m_sSelect.GetFrom().GetX2() );
+					if( bIncludeEol ){
+						select_sum += pcLayout->GetLayoutEol().GetLen();
+					}
 					//	GetSelectedDataと似ているが，先頭行と最終行は排除している
 					//	Aug. 16, 2005 aroka nLineNumはfor以降でも使われるのでforの前で宣言する
 					//	VC .NET以降でもMicrosoft拡張を有効にした標準動作はVC6と同じことに注意
@@ -789,19 +798,27 @@ void CViewSelect::PrintSelectionInfoMsg() const
 					pcLayout = pView->m_pcEditDoc->m_cLayoutMgr.SearchLineByLayoutY( nLineNum );
 					for( ; nLineNum < nLineTo && pcLayout; ++nLineNum ){
 						//	2006.06.06 ryoji 指定行のデータが存在しない場合の対策
-						CLogicInt eolLen = pcLayout->GetLayoutEol().GetLen();
-						select_sum += pcLayout->GetLengthWithEOL() - (eolLen ? 1 : 0) + eolLen;
+						select_sum += pcLayout->GetLengthWithoutEOL();
+
+						if( bIncludeEol ){
+							select_sum += pcLayout->GetLayoutEol().GetLen();
+						}
 						pcLayout = pcLayout->GetNextLayout();
 					}
 
 					//	最終行の処理
 					pcLayout = pView->m_pcEditDoc->m_cLayoutMgr.SearchLineByLayoutY( nLineNum );
 					if( pcLayout ){
-						int last_line_chars = pView->LineColumnToIndex( pcLayout, m_sSelect.GetTo().GetX2() );
-						select_sum += last_line_chars;
+						// 行数の判定には、制限する前の位置を使う
+						int last_line_chars =
+							pView->LineColumnToIndex( pcLayout, m_sSelect.GetTo().GetX2() );
+
+						// 文字数には、設定に応じて制限した位置を使う
+						select_sum +=
+							getCountIndex( pcLayout, m_sSelect.GetTo().GetX2() );
+
 						if( last_line_chars == 0 ){
-							//	最終行の先頭にキャレットがある場合は
-							//	その行を行数に含めない
+							// 最終行の先頭までの選択なら、その行を行数に含めない
 							--select_line;
 						}
 					}
@@ -815,16 +832,22 @@ void CViewSelect::PrintSelectionInfoMsg() const
 			}
 		}
 
+		const wchar_t* countUnit = bCountByByte
+			? (select_sum == 1 ? L"byte" : L"bytes")
+			: (select_sum == 1 ? L"char" : L"chars");
+		const wchar_t* lineUnit = int(select_line) == 1 ? L"line" : L"lines";
+
 #ifdef _DEBUG
-		auto_sprintf( msg, L"%d %s (%d lines) selected. [%d:%d]-[%d:%d]",
+		auto_sprintf( msg, L"%d %s (%d %s) selected. [%d:%d]-[%d:%d]",
 			select_sum,
-			( bCountByByte ? L"bytes" : L"chars" ),
+			countUnit,
 			int(select_line),
+			lineUnit,
 			int(m_sSelect.GetFrom().x), int(m_sSelect.GetFrom().y),
 			int(m_sSelect.GetTo().x), int(m_sSelect.GetTo().y)
 		);
 #else
-		auto_sprintf( msg, L"%d %s (%d lines) selected.", select_sum, ( bCountByByte ? L"bytes" : L"chars" ), select_line );
+		auto_sprintf( msg, L"%d %s (%d %s) selected.", select_sum, countUnit, int(select_line), lineUnit );
 #endif
 	}
 	const_cast<CEditView*>(pView)->GetCaret().m_bClearStatus = false;
