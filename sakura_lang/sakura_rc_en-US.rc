@@ -880,6 +880,35 @@ BEGIN
     GROUPBOX        "C/C++　Indent Settings",IDC_STATIC,3,159,295,40,WS_GROUP
     CONTROL         "Detect an indentation style when a file is loaded(&T)",IDC_CHECK_DETECT_INDENTATION_STYLE_ON_FILE_LOAD,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,205,240,10
+    CONTROL         "Automatically close brackets (&B)",IDC_CHECK_AUTOCLOSEBRACKETS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,221,165,10
+    PUSHBUTTON      "Bracket rules (&R)...",IDC_BUTTON_AUTOCLOSEBRACKETS,180,218,114,14
+END
+
+IDD_AUTOCLOSEBRACKETS DIALOGEX 0, 0, 290, 216
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Bracket completion"
+FONT 9, "Tahoma", 0, 0, 0x1
+BEGIN
+    LTEXT           "Completion rules (up to 16) (&L)",IDC_STATIC,7,7,276,10
+    LISTBOX         IDC_LIST_AUTOCLOSEBRACKETS,7,20,276,85,LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "&Enable selected rule",IDC_CHECK_BRACKET_ENABLED,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,112,276,10
+    LTEXT           "Add a rule",IDC_STATIC,7,132,276,10
+    LTEXT           "&Opening",IDC_STATIC,7,149,54,10
+    EDITTEXT        IDC_EDIT_BRACKET_OPENING,65,146,28,14,ES_AUTOHSCROLL
+    LTEXT           "&Closing",IDC_STATIC,101,149,54,10
+    EDITTEXT        IDC_EDIT_BRACKET_CLOSING,159,146,28,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "&Add",IDC_BUTTON_ADD,223,146,60,14
+    LTEXT           "New rules are enabled. Select a rule and clear the checkbox to disable it.",IDC_STATIC,7,170,276,20
+    DEFPUSHBUTTON   "OK",IDOK,176,195,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,233,195,50,14
+END
+
+STRINGTABLE
+BEGIN
+    STR_BRACKET_INVALID_CHAR "Enter one character other than whitespace, control characters or supplementary-plane characters."
+    STR_BRACKET_DUPLICATE "A rule with this opening character already exists. Check the existing rule in the list."
+    STR_BRACKET_SAME_CHAR "Rules with identical opening and closing characters are not supported yet."
 END
 
 IDD_PROP_REGEX DIALOGEX 0, 0, 302, 244

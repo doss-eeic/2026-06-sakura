@@ -23,6 +23,7 @@
 #include "StdAfx.h"
 #include "CPropTypes.h"
 #include "dlg/CDlgOpenFile.h"
+#include "dlg/CDlgAutoCloseBrackets.h"
 #include "util/module.h"
 #include "util/shell.h"
 #include "util/file.h" // _IS_REL_PATH
@@ -101,6 +102,12 @@ INT_PTR CPropTypesSupport::DispatchEvent(
 			/* ダイアログデータの取得 p2 */
 			GetData( hwndDlg );
 			switch( wID ){
+			case IDC_BUTTON_AUTOCLOSEBRACKETS:
+				{
+					CDlgAutoCloseBrackets dialog;
+					dialog.DoModal(::GetModuleHandle(nullptr), hwndDlg, m_Types.m_autoCloseBracketRules);
+				}
+				return TRUE;
 			case IDC_BUTTON_HOKANFILE_REF:	/* 入力補完 単語ファイルの「参照...」ボタン */
 				{
 					// 2003.06.23 Moca 相対パスは実行ファイルからのパスとして開く
@@ -201,6 +208,7 @@ void CPropTypesSupport::SetData( HWND hwndDlg )
 	// 2003.06.25 Moca ファイルからの補完機能
 	::CheckDlgButton( hwndDlg, IDC_CHECK_HOKANBYFILE, m_Types.m_bUseHokanByFile ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButtonBool( hwndDlg, IDC_CHECK_HOKANBYKEYWORD, m_Types.m_bUseHokanByKeyword );
+	CheckDlgButtonBool(hwndDlg, IDC_CHECK_AUTOCLOSEBRACKETS, m_Types.m_bAutoCloseBrackets);
 
 	//@@@ 2002.2.2 YAZAKI
 	ApiWrap::DlgItem_SetText( hwndDlg, IDC_EDIT_TYPEEXTHELP, m_Types.m_szExtHelp );
@@ -226,6 +234,7 @@ int CPropTypesSupport::GetData( HWND hwndDlg )
 
 	m_Types.m_bUseHokanByFile = ::IsDlgButtonChecked( hwndDlg, IDC_CHECK_HOKANBYFILE ) != 0;
 	m_Types.m_bUseHokanByKeyword = IsDlgButtonCheckedBool( hwndDlg, IDC_CHECK_HOKANBYKEYWORD );
+	m_Types.m_bAutoCloseBrackets = IsDlgButtonCheckedBool(hwndDlg, IDC_CHECK_AUTOCLOSEBRACKETS);
 
 	/* 入力補完 単語ファイル */
 	ApiWrap::DlgItem_GetText( hwndDlg, IDC_EDIT_HOKANFILE, m_Types.m_szHokanFile, std::size( m_Types.m_szHokanFile ));

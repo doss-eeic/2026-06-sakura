@@ -552,7 +552,13 @@ LRESULT CEditView::DispatchEvent(
 				m_nMousePause = -1;
 				::SetCursor( nullptr );
 			}
-			GetCommander().HandleCommand( F_INSTEXT_W, true, (LPARAM)pszText, (LPARAM)wcslen(pszText), TRUE, 0 );
+			const size_t textLength = wcslen(pszText);
+			// 1文字の確定が補完対象なら、通常入力と同じ括弧補完処理へ渡す。
+			if (textLength == 1 && GetCommander().GetAutoCloseBracket(pszText[0]) != L'\0') {
+				GetCommander().HandleCommand( F_WCHAR, true, (LPARAM)pszText[0], 0, 0, 0 );
+			} else {
+				GetCommander().HandleCommand( F_INSTEXT_W, true, (LPARAM)pszText, (LPARAM)textLength, TRUE, 0 );
+			}
 			m_bHokan = bHokan;	// 消されても表示中であるかのように誤魔化して入力補完を動作させる
 			ImmReleaseContext( hwnd, hIMC );
 

@@ -39,6 +39,7 @@
 #define IDC_LIST_FALLBACK_FONTS         1742
 #define IDC_EDIT_FONT_SIZE              1743
 #define IDC_BUTTON_CHANGE               1746
+#define IDD_AUTOCLOSEBRACKETS           143
 #define IDB_MYTOOL                      200
 #define IDB_SCROLL_CENTER               201
 #define IDB_SCROLL_VERTICAL             202
@@ -800,6 +801,12 @@
 #define IDC_PYTHONDIR                   1739
 #define IDC_PYTHONDIRREF                1740
 #define IDC_CHECK_bDarkMode             1741
+#define IDC_CHECK_AUTOCLOSEBRACKETS     1748
+#define IDC_BUTTON_AUTOCLOSEBRACKETS    1749
+#define IDC_LIST_AUTOCLOSEBRACKETS      1750
+#define IDC_CHECK_BRACKET_ENABLED      1751
+#define IDC_EDIT_BRACKET_OPENING       1752
+#define IDC_EDIT_BRACKET_CLOSING       1753
 #define IDS_AUTHOR_PAGE                 4054
 #define IDS_ABOUT_DESCRIPTION           4056
 #define IDD_TYPELIST                    5000
@@ -1859,17 +1866,20 @@
 #define STR_GREP_ERR_EXCLUDE_REGEXP     35059
 #define STR_GREP_EXCLUDE_FILE_REGEXP    35060
 #define STR_FONT_SIZE_INVALID          35061
-#define STR_IMAGE_LINK_FILTER          35062
-#define STR_IMAGE_LINK_ERROR           35063
+#define STR_IMAGE_LINK_FILTER          35065
+#define STR_IMAGE_LINK_ERROR           35066
+#define STR_BRACKET_INVALID_CHAR       35062
+#define STR_BRACKET_DUPLICATE          35063
+#define STR_BRACKET_SAME_CHAR          35064
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35064
+#define _APS_NEXT_RESOURCE_VALUE        35067
 #define _APS_NEXT_COMMAND_VALUE         101
-#define _APS_NEXT_CONTROL_VALUE         1747
+#define _APS_NEXT_CONTROL_VALUE         1755
 #define _APS_NEXT_SYMED_VALUE           10000
 #endif
 #endif

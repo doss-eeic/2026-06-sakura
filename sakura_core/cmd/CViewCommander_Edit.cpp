@@ -29,6 +29,232 @@
 #include "debug/CRunningTimer.h"
 #include "apiwrap/CommonControl.h"
 
+#include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
+
+// 通常入力とIME確定入力で、同じ設定と入力条件を使って補完を判定する。
+wchar_t CViewCommander::GetAutoCloseBracket(wchar_t opening)
+{
+	const auto& type = *m_pCommanderView->m_pTypeData;
+	if (!type.m_bAutoCloseBrackets || !m_pCommanderView->IsInsMode()) {
+		return L'\0';
+	}
+	for (const auto& rule : type.m_autoCloseBracketRules) {
+		if (rule.enabled && rule.opening != L'\0' && rule.closing != L'\0'
+			&& rule.opening == opening) {
+			return rule.closing;
+		}
+	}
+	return L'\0';
+}
+
+// 矩形選択の各表示行を、それぞれ括弧で囲む。
+
+void CViewCommander::WrapBoxSelectionWithBrackets(wchar_t opening, wchar_t closing) {
+	auto& selection = m_pCommanderView->GetSelectionInfo();
+	auto& layoutMgr = GetDocument()->m_cLayoutMgr;
+
+	CLayoutRange box;
+	TwoPointToRange(&box, selection.m_sSelect.GetFrom(), selection.m_sSelect.GetTo());
+	std::vector<std::pair<CLogicRange, std::wstring>> edits;
+
+	const int spaceWidth = m_pCommanderView->GetTextMetrics().CalcTextWidth3(L" ", 1);
+
+	if (spaceWidth <= 0) {
+		ErrorBeep();
+		return;
+	}
+
+	CLogicPoint finalCaret;
+
+	for (CLayoutInt y = box.GetFrom().GetY2(); y <= box.GetTo().GetY2(); ++y) {
+		const CLayout* layout = layoutMgr.SearchLineByLayoutY(y);
+
+		CLogicPoint from;
+		CLogicPoint to;
+		CLayoutInt endColumn(0);
+		std::wstring selectedText;
+
+		if (layout != nullptr) {
+			const CLogicInt length = layout->GetLengthWithoutEOL();
+
+			const CLogicInt beginIndex = std::min(
+				m_pCommanderView->LineColumnToIndex(layout, box.GetFrom().GetX2()),
+				length
+			);
+
+			const CLogicInt endIndex = std::min(
+				m_pCommanderView->LineColumnToIndex(layout, box.GetTo().GetX2()),
+				length
+			);
+
+			from.Set(
+				layout->GetLogicOffset() + beginIndex,
+				layout->GetLogicLineNo()
+			);
+			to.Set(
+				layout->GetLogicOffset() + endIndex,
+				layout->GetLogicLineNo()
+			);
+
+			selectedText.assign(
+				layout->GetPtr() + beginIndex,
+				static_cast<int>(endIndex - beginIndex)
+			);
+			endColumn = m_pCommanderView->LineIndexToColumn(layout, length);
+		} else {
+			// 改行直後のEOF行など、文字を持たない表示行。
+			layoutMgr.LayoutToLogic(CLayoutPoint(CLayoutInt(0), y), &from);
+			to = from;
+		}
+
+		std::wstring replacement;
+		// 矩形の左端に届かない行は、括弧の手前を空白で補う。
+		for (CLayoutInt column = endColumn; column < box.GetFrom().GetX2(); column += spaceWidth) {
+			replacement += L' ';
+		}
+
+		// 最上段の開き括弧の直後を、最後のカーソル位置にする。
+		if (edits.empty()) {
+			finalCaret = from;
+			finalCaret.Offset(static_cast<int>(replacement.size()) + 1, 0);
+		}
+
+		replacement += opening;
+		replacement += selectedText;
+		replacement += closing;
+
+		CLogicRange range;
+		range.SetFrom(from);
+		range.SetTo(to);
+		edits.emplace_back(range, std::move(replacement));
+	}
+
+	if (edits.empty()) {
+		return;
+	}
+
+	// 全行の論理範囲を保存してから、文書の後ろ側から置換する。
+	selection.DisableSelectArea(true);
+	COpeBlk* const opeBlk =
+		m_pCommanderView->m_bDoing_UndoRedo ? nullptr : GetOpeBlk();
+
+	for (auto it = edits.rbegin(); it != edits.rend(); ++it) {
+		const CLogicRange& range = it->first;
+		const std::wstring& replacement = it->second;
+		m_pCommanderView->ReplaceData_CEditView2(
+			range,
+			replacement.c_str(),
+			CLogicInt(static_cast<int>(replacement.size())),
+			true,
+			opeBlk
+		);
+	}
+
+	// 最上段の括弧内へ移動し、その移動も同じUndoブロックへ記録する。
+	const CLogicPoint beforeMove = GetCaret().GetCaretLogicPos();
+	CLayoutPoint target;
+	layoutMgr.LogicToLayout(finalCaret, &target);
+	GetCaret().MoveCursor(target, true);
+
+	const CLogicPoint afterMove = GetCaret().GetCaretLogicPos();
+	if (opeBlk != nullptr && beforeMove != afterMove) {
+		opeBlk->AppendOpe(new CMoveCaretOpe(beforeMove, afterMove));
+		GetDocument()->m_cDocEditor.m_nOpeBlkRedawCount++;
+	}
+	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
+}
+
+// 選択範囲を括弧で囲む。矩形選択は各表示行を個別に囲む。
+// true: この入力を処理済み。呼び出し元は通常入力を続けない。
+// false: 対象外。呼び出し元で通常入力を続ける。
+bool CViewCommander::HandleBracketWrapping(wchar_t opening, wchar_t closing)
+{
+	auto& selection = m_pCommanderView->GetSelectionInfo();
+
+	if (!selection.IsTextSelected()) {
+		return false;
+	}
+	if (opening == L'\0' || closing == L'\0') {
+		return false;
+	}
+
+	if (selection.IsBoxSelecting()) {
+		WrapBoxSelectionWithBrackets(opening, closing);
+		return true;
+	}
+
+	// 1. 選択されている文字列を取得する。
+	CNativeW selectedText;
+	if (!m_pCommanderView->GetSelectedDataSimple(selectedText)) {
+		ErrorBeep();
+		return true;
+	}
+	if (selectedText.GetStringLength() == 0) {
+		return true;
+	}
+
+	// 2. 編集前の範囲とカーソル位置を保存する。
+	auto& layoutMgr = GetDocument()->m_cLayoutMgr;
+	CLogicRange originalRange;
+	layoutMgr.LayoutToLogic(selection.m_sSelect, &originalRange);
+	const CLogicPoint originalCaret = GetCaret().GetCaretLogicPos();
+	const bool caretAtStart = originalCaret == originalRange.GetFrom();
+
+	// 3. 「開く括弧 + 選択文字列 + 閉じる括弧」を作る。
+	CNativeW wrappedText(&opening, 1);
+	wrappedText.AppendString(
+		selectedText.GetStringPtr(),
+		selectedText.GetStringLength()
+	);
+	wrappedText.AppendString(&closing, 1);
+
+	// 4. 同じUndo操作ブロックに、置換を記録する。
+	COpeBlk* const opeBlk =
+		m_pCommanderView->m_bDoing_UndoRedo ? nullptr : GetOpeBlk();
+	m_pCommanderView->ReplaceData_CEditView2(
+		originalRange,
+		wrappedText.GetStringPtr(),
+		CLogicInt(wrappedText.GetStringLength()),
+		true,
+		opeBlk
+	);
+
+	// 置換処理は、挿入した文字列の直後へカーソルを移動する。
+	const CLogicPoint afterReplace = GetCaret().GetCaretLogicPos();
+
+	// 5. 括弧の中身だけを選択するための範囲を求める。
+	CLogicPoint innerStart = originalRange.GetFrom();
+	innerStart.Offset(1, 0);
+	CLogicPoint innerEnd = afterReplace;
+	innerEnd.Offset(-1, 0);
+
+	// 6. 編集後の表示座標へ変換し、元の選択方向を維持する。
+	CLayoutPoint startLayout;
+	CLayoutPoint endLayout;
+	layoutMgr.LogicToLayout(innerStart, &startLayout);
+	layoutMgr.LogicToLayout(innerEnd, &endLayout);
+	const CLayoutPoint anchor = caretAtStart ? endLayout : startLayout;
+	const CLayoutPoint targetCaret = caretAtStart ? startLayout : endLayout;
+	GetCaret().MoveCursor(targetCaret, true);
+
+	// 7. 置換後に行ったカーソル移動もUndoへ記録する。
+	const CLogicPoint finalCaret = GetCaret().GetCaretLogicPos();
+	if (opeBlk != nullptr && afterReplace != finalCaret) {
+		opeBlk->AppendOpe(new CMoveCaretOpe(afterReplace, finalCaret));
+		GetDocument()->m_cDocEditor.m_nOpeBlkRedawCount++;
+	}
+
+	// 8. 中身を選択し直す。
+	selection.BeginSelectArea(&anchor);
+	selection.ChangeSelectAreaByCurrentCursor(targetCaret);
+	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
+
+	return true;
+}
+
 /* wchar_t1個分の文字を入力 */
 void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 {
@@ -49,6 +275,22 @@ void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 
 	/* 現在位置にデータを挿入 */
 	CNativeW cmemDataW2(&wcChar, 1);
+
+	const bool hasSelection = m_pCommanderView->GetSelectionInfo().IsTextSelected();
+
+	const wchar_t ruleClosing = GetAutoCloseBracket(wcChar);
+
+	if (ruleClosing != L'\0' && HandleBracketWrapping(wcChar, ruleClosing)) {
+		m_pCommanderView->PostprocessCommand_hokan();
+		return;
+	}
+
+	const wchar_t closingBracket = hasSelection ? L'\0' : ruleClosing;
+
+	if (closingBracket != L'\0') {
+		cmemDataW2.AppendString(&closingBracket, 1);
+	}
+
 	if( WCODE::IsLineDelimiter(wcChar, GetDllShareData().m_Common.m_sEdit.m_bEnableExtEol) ){ 
 		/* 現在、Enterなどで挿入する改行コードの種類を取得 */
 		if( bConvertEOL ){
@@ -155,7 +397,18 @@ end_of_for:;
 		true
 	);
 
-	/* 挿入データの最後へカーソルを移動 */
+	/* 補完した場合は閉じ括弧の直前へ移動 */
+	if (closingBracket != L'\0') {
+		CLogicPoint ptCaretLogic;
+
+		GetDocument()->m_cLayoutMgr.LayoutToLogic(
+			ptLayoutNew, &ptCaretLogic
+		);
+		ptCaretLogic.Offset(-1, 0);
+		GetDocument()->m_cLayoutMgr.LogicToLayout(
+			ptCaretLogic, &ptLayoutNew
+		);
+	}
 	GetCaret().MoveCursor( ptLayoutNew, true );
 	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
 
@@ -781,11 +1034,68 @@ void CViewCommander::Command_REDO( void )
 	return;
 }
 
+bool CViewCommander::HandleBracketPairDeletion(bool backspace) {
+	if (m_pCommanderView->GetSelectionInfo().IsTextSelected() || m_pCommanderView->m_bDoing_UndoRedo) {
+		return false;
+	}
+
+	auto& CLayoutMgr = GetDocument()->m_cLayoutMgr;
+
+	CLogicPointEx caret;
+	CLayoutMgr.LayoutToLogicEx(GetCaret().GetCaretLayoutPos(), &caret);
+	if (caret.ext != 0) {
+		return false;
+	}
+	CLogicPoint from = caret;
+	if (backspace) {
+		from.Offset(-1, 0);
+	}
+	const CDocLine * line = GetDocument()->m_cDocLineMgr.GetLine(from.GetY2());
+	if (line == nullptr) {
+		return false;
+	}
+
+	const int index = from.GetX();
+	const int length = static_cast<int>(line->GetLengthWithoutEOL());
+
+	if (index < 0 || index >= length || length - index < 2) {
+		return false;
+	}
+
+	const wchar_t* text = line->GetPtr();
+	const wchar_t closing = GetAutoCloseBracket(text[index]);
+
+	if (closing == L'\0' || text[index + 1] != closing) {
+		return false;
+	}
+
+	CLogicPoint to = from;
+	to.Offset(2, 0);
+	CLogicRange range;
+	range.SetFrom(from);
+	range.SetTo(to);
+
+	m_pCommanderView->ReplaceData_CEditView2(
+		range,
+		L"",
+		CLogicInt(0),
+		true,
+		GetOpeBlk()
+	);
+
+	return true;
+
+}
+
 //カーソル位置または選択エリアを削除
 void CViewCommander::Command_DELETE( void )
 {
 	if( m_pCommanderView->GetSelectionInfo().IsMouseSelecting() ){		/* マウスによる範囲選択中 */
 		ErrorBeep();
+		return;
+	}
+
+	if (HandleBracketPairDeletion(false)) {
 		return;
 	}
 
@@ -834,6 +1144,11 @@ void CViewCommander::Command_DELETE_BACK( void )
 {
 	if( m_pCommanderView->GetSelectionInfo().IsMouseSelecting() ){	/* マウスによる範囲選択中 */
 		ErrorBeep();
+		return;
+	}
+
+	if (HandleBracketPairDeletion(true)) {
+		m_pCommanderView->PostprocessCommand_hokan();
 		return;
 	}
 
