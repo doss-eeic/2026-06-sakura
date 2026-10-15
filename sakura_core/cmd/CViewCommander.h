@@ -398,6 +398,7 @@ private:
 	void MoveViewTopLine(CLayoutInt nViewTopLine);
 	bool HandleBracketWrapping(const std::wstring& opening, const std::wstring& closing);
 	void WrapBoxSelectionWithBrackets(const std::wstring& opening, const std::wstring& closing);
+	void InsertBracketPair(const std::wstring& opening, const std::wstring& closing);
 	bool HandleBracketPairDeletion(bool backspace);
 	/*!
 	 * @brief 検索で見つからないときの警告（メッセージボックス／サウンド）
