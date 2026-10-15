@@ -15,6 +15,7 @@
 #include "func/CFuncLookup.h" //MacroRec
 #include "io/CFile.h" //EShareMode
 #include "basis/SakuraBasis.h"
+#include "env/SFontFallbacks.h"
 
 // Apr. 05, 2003 genta WindowCaption用領域（変換前）の長さ
 static const int MAX_CAPTION_CONF_LEN = 256;
@@ -607,6 +608,7 @@ struct CommonSetting_Compare
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 struct CommonSetting_View
 {
+	SFontFallbacks m_fallbackFonts{};
 	//INI内設定のみ
 	LOGFONT		m_lf;						//!< 現在のフォント情報
 	BOOL		m_bFontIs_FIXED_PITCH;		//!< 現在のフォントは固定幅フォントである

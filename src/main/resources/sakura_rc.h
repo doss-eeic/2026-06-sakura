@@ -35,6 +35,15 @@
 #define IDD_SETCHARSET                  139
 #define IDD_GREP_REPLACE                140
 #define IDD_WINLIST                     141
+#define IDD_FONT_FALLBACK               142
+#define IDC_LIST_FALLBACK_FONTS         1742
+#define IDC_EDIT_FONT_SIZE              1743
+#define IDC_BUTTON_CHANGE               1746
+#define IDD_AUTOCLOSEBRACKETS           143
+#define IDD_FONT_FALLBACK               142
+#define IDC_LIST_FALLBACK_FONTS         1742
+#define IDC_EDIT_FONT_SIZE              1743
+#define IDC_BUTTON_CHANGE               1746
 #define IDD_AUTOCLOSEBRACKETS           143
 #define IDB_MYTOOL                      200
 #define IDB_SCROLL_CENTER               201
@@ -1861,6 +1870,7 @@
 #define STR_DLGGREP_QUOTE_ERROR         35058
 #define STR_GREP_ERR_EXCLUDE_REGEXP     35059
 #define STR_GREP_EXCLUDE_FILE_REGEXP    35060
+#define STR_FONT_SIZE_INVALID          35061
 #define STR_BRACKET_INVALID_CHAR       35062
 #define STR_BRACKET_DUPLICATE          35063
 #define STR_BRACKET_SAME_CHAR          35064
@@ -1870,9 +1880,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35065
+#define _APS_NEXT_RESOURCE_VALUE        35066
 #define _APS_NEXT_COMMAND_VALUE         101
-#define _APS_NEXT_CONTROL_VALUE         1754
+#define _APS_NEXT_CONTROL_VALUE         1755
 #define _APS_NEXT_SYMED_VALUE           10000
 #endif
 #endif

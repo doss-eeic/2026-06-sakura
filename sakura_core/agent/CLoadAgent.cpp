@@ -182,11 +182,11 @@ ELoadResult CLoadAgent::OnLoad(const SLoadInfo& sLoadInfo)
 
 	// 文書種別確定
 	pcDoc->m_cDocType.SetDocumentType( sLoadInfo.nType, true );
-	GetEditWnd().m_pcViewFontMiniMap->UpdateFont(&GetEditWnd().GetLogfont());
-	InitCharWidthCache( GetEditWnd().m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP );
+	GetEditWnd().m_pcViewFontMiniMap->UpdateFont(&GetEditWnd().GetLogfont(), &GetEditWnd().GetFontFallbacks());
+	InitCharWidthCache( GetEditWnd().m_pcViewFontMiniMap->GetLogfont(), CWM_FONT_MINIMAP, &GetEditWnd().GetFontFallbacks() );
 	SelectCharWidthCache( CWM_FONT_EDIT, GetEditWnd().GetLogfontCacheMode() );
-	InitCharWidthCache( GetEditWnd().GetLogfont() );
-	GetEditWnd().m_pcViewFont->UpdateFont(&GetEditWnd().GetLogfont());
+	InitCharWidthCache( GetEditWnd().GetLogfont(), CWM_FONT_EDIT, &GetEditWnd().GetFontFallbacks() );
+	GetEditWnd().m_pcViewFont->UpdateFont(&GetEditWnd().GetLogfont(), &GetEditWnd().GetFontFallbacks());
 
 	// 起動と同時に読む場合は予めアウトライン解析画面を配置しておく
 	// （ファイル読み込み開始とともにビューが表示されるので、あとで配置すると画面のちらつきが大きいの）

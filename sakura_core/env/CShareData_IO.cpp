@@ -979,6 +979,10 @@ void ShareData_IO_Font(
 	ShareData_IO_LogFont( cProfile, pszSecName, L"lf", view.m_lf, view.m_nPointSize );
 
 	cProfile.IOProfileData( pszSecName, L"bFontIs_FIXED_PITCH", view.m_bFontIs_FIXED_PITCH );
+	for (size_t i = 0; i < view.m_fallbackFonts.size(); ++i) {
+		const auto key = L"FallbackFont" + std::to_wstring(i + 1);
+		cProfile.IOProfileData(pszSecName, key, view.m_fallbackFonts[i]);
+	}
 }
 
 /*!
@@ -1941,6 +1945,10 @@ void ShareData_IO_TypeConfig(
 	{ // フォント設定
 		cProfile.IOProfileData( pszSecName, L"bUseTypeFont", types.m_bUseTypeFont );
 		ShareData_IO_LogFont( cProfile, pszSecName, L"lf", types.m_lf, types.m_nPointSize );
+		for (size_t i = 0; i < types.m_fallbackFonts.size(); ++i) {
+			const auto key = L"FallbackFont" + std::to_wstring(i + 1);
+			cProfile.IOProfileData(pszSecName, key, types.m_fallbackFonts[i]);
+		}
 	}
 }
 

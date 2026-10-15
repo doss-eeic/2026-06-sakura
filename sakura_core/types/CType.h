@@ -248,6 +248,7 @@ struct STypeConfig{
 	bool				m_bUseDocumentIcon;				//!< ファイルに関連づけられたアイコンを使う
 
 	bool				m_bUseTypeFont;					//!< タイプ別フォントの使用
+	SFontFallbacks		m_fallbackFonts{};				//!< タイプ別フォントの2番目以降
 	LOGFONT				m_lf{};							//!< フォント // 2013.03.18 aroka
 	INT					m_nPointSize;					//!< フォントサイズ（1/10ポイント単位）
 

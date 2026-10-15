@@ -21,7 +21,7 @@
 class CTextMetrics{
 public:
 	void CopyTextMetricsStatus(CTextMetrics* pDst) const;
-	void Update(HDC hdc, HFONT hFont, int nLineSpace, int nColmSpace);
+	void Update(HDC hdc, HFONT hFont, int nLineSpace, int nColmSpace, int minimumHeight = 0);
 
 	//! 半角文字の横幅を取得。単位はピクセル。
 	[[nodiscard]] int GetHankakuWidth() const { return m_nCharWidth; }
