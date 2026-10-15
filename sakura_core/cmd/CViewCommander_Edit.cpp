@@ -255,6 +255,51 @@ bool CViewCommander::HandleBracketWrapping(const std::wstring& opening,const std
 	return true;
 }
 
+void CViewCommander::InsertBracketPair(const std::wstring& opening, const std::wstring& closing) {
+	auto& selection = m_pCommanderView->GetSelectionInfo();
+
+	if (selection.IsMouseSelecting() || selection.IsTextSelected()) {
+		return;
+	}
+
+	if (opening.empty() || closing.empty()) {
+		return;
+	}
+
+	auto& layoutMgr = GetDocument()->m_cLayoutMgr;
+
+	const std::wstring text = opening + closing;
+
+	GetDocument()->m_cDocEditor.SetModified(true, true);
+
+	CLayoutPoint afterInsertLayout;
+	m_pCommanderView->InsertData_CEditView(
+		GetCaret().GetCaretLayoutPos(),
+		text.c_str(),
+		static_cast<int>(text.size()),
+		&afterInsertLayout,
+		true
+	);
+
+	CLogicPoint afterInsert;
+	layoutMgr.LayoutToLogic(afterInsertLayout, &afterInsert);
+
+	CLogicPoint inside = afterInsert;
+	inside.Offset(-static_cast<int>(closing.size()), 0);
+
+	CLayoutPoint target;
+	layoutMgr.LogicToLayout(inside, &target);
+	GetCaret().MoveCursor(target, true);
+
+	const CLogicPoint finalCaret = GetCaret().GetCaretLogicPos();
+	if (!m_pCommanderView->m_bDoing_UndoRedo && afterInsert != finalCaret) {
+		GetOpeBlk()->AppendOpe(new CMoveCaretOpe(afterInsert, finalCaret));
+		GetDocument()->m_cDocEditor.m_nOpeBlkRedawCount++;
+	}
+
+	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
+}
+
 /* wchar_t1個分の文字を入力 */
 void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 {
