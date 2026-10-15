@@ -1873,6 +1873,23 @@ void ShareData_IO_TypeConfig(
 	cProfile.IOProfileData( pszSecName, L"bUseHokanByFile"		, types.m_bUseHokanByFile );
 	cProfile.IOProfileData( pszSecName, L"bUseHokanByKeyword"		, types.m_bUseHokanByKeyword );
 
+	//  2026.10.13 閉じ括弧
+	cProfile.IOProfileData(pszSecName, L"bAutoCloseBrackets", types.m_bAutoCloseBrackets);
+
+	for (size_t i = 0; i < types.m_autoCloseBracketRules.size(); ++i) {
+		auto& rule = types.m_autoCloseBracketRules[i];
+		const auto key = L"AutoCloseBracket" + std::to_wstring(i + 1);
+
+		cProfile.IOProfileData(pszSecName, key + L"Enabled", rule.enabled);
+		// Use strings: the legacy WCHAR conversion excludes full-width brackets.
+		wchar_t opening[2] = { rule.opening, L'\0' };
+		wchar_t closing[2] = { rule.closing, L'\0' };
+		cProfile.IOProfileData(pszSecName, key + L"Opening", opening);
+		cProfile.IOProfileData(pszSecName, key + L"Closing", closing);
+		rule.opening = opening[0];
+		rule.closing = closing[0];
+	}
+
 	//@@@ 2002.2.4 YAZAKI
 	cProfile.IOProfileData( pszSecName, L"szExtHelp"			, types.m_szExtHelp );
 
