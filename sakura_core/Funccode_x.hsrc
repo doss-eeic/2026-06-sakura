@@ -136,6 +136,8 @@ F_SORT_ASC			= 30282,	//選択行の昇順ソート						なし
 F_SORT_DESC			= 30283,	//選択行の降順ソート						なし
 F_MERGE				= 30284,	//選択行のマージ							なし
 F_RECONVERT			= 30285,	//再変換									なし
+F_MARKDOWN_BOLD     = 30286,    //Markdown太字
+F_MARKDOWN_ITALIC   = 30287,    //Markdown斜体
 
 
 // カーソル移動系

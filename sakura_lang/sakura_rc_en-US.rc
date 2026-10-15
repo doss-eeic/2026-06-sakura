@@ -2493,6 +2493,8 @@ BEGIN
     F_SORT_DESC             "Descending sort selected lines"
     F_MERGE                 "Merge selected lines, Unique only"
     F_RECONVERT             "Reconvert"
+    F_MARKDOWN_BOLD         "Markdown bold"
+    F_MARKDOWN_ITALIC       "Markdown italic"
 END
 
 STRINGTABLE

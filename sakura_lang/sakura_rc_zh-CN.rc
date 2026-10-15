@@ -2411,6 +2411,8 @@ BEGIN
     F_SORT_DESC             "降序排列选中行"
     F_MERGE                 "合并选中行(去重)"
     F_RECONVERT             "重新转换"
+    F_MARKDOWN_BOLD         "Markdown粗体"
+    F_MARKDOWN_ITALIC       "Markdown斜体"
 END
 
 STRINGTABLE

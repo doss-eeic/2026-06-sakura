@@ -300,8 +300,30 @@ void CViewCommander::InsertBracketPair(const std::wstring& opening, const std::w
 	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
 }
 
+void CViewCommander::Command_ENCLOSE(const std::wstring& opening, const std::wstring& closing) {
+	if (m_pCommanderView->GetSelectionInfo().IsMouseSelecting()) {
+		ErrorBeep();
+		return;
+	}
+
+	if (opening.empty() || closing.empty()) {
+		return;
+	}
+
+	if (m_pCommanderView->m_bHideMouse && 0 <= m_pCommanderView->m_nMousePause) {
+		m_pCommanderView->m_nMousePause = -1;
+		::SetCursor(nullptr);
+	}
+
+	if (!HandleBracketWrapping(opening, closing)) {
+		InsertBracketPair(opening, closing);
+	}
+
+	m_pCommanderView->PostprocessCommand_hokan();
+}
+
 /* wchar_t1個分の文字を入力 */
-void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
+void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL)
 {
 	if( m_pCommanderView->GetSelectionInfo().IsMouseSelecting() ){	/* マウスによる範囲選択中 */
 		ErrorBeep();
@@ -331,10 +353,6 @@ void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL )
 	}
 
 	const wchar_t closingBracket = hasSelection ? L'\0' : ruleClosing;
-
-	if (closingBracket != L'\0') {
-		cmemDataW2.AppendString(&closingBracket, 1);
-	}
 
 	if( WCODE::IsLineDelimiter(wcChar, GetDllShareData().m_Common.m_sEdit.m_bEnableExtEol) ){ 
 		/* 現在、Enterなどで挿入する改行コードの種類を取得 */
@@ -433,29 +451,22 @@ end_of_for:;
 	}
 
 	//本文に挿入する
-	CLayoutPoint ptLayoutNew;
-	m_pCommanderView->InsertData_CEditView(
-		GetCaret().GetCaretLayoutPos(),
-		cmemDataW2.GetStringPtr(),
-		cmemDataW2.GetStringLength(),
-		&ptLayoutNew,
-		true
-	);
-
-	/* 補完した場合は閉じ括弧の直前へ移動 */
 	if (closingBracket != L'\0') {
-		CLogicPoint ptCaretLogic;
-
-		GetDocument()->m_cLayoutMgr.LayoutToLogic(
-			ptLayoutNew, &ptCaretLogic
-		);
-		ptCaretLogic.Offset(-1, 0);
-		GetDocument()->m_cLayoutMgr.LogicToLayout(
-			ptCaretLogic, &ptLayoutNew
-		);
+		InsertBracketPair(std::wstring(1, wcChar), std::wstring(1, closingBracket));
 	}
-	GetCaret().MoveCursor( ptLayoutNew, true );
-	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
+	else {
+		CLayoutPoint ptLayoutNew;
+		m_pCommanderView->InsertData_CEditView(
+			GetCaret().GetCaretLayoutPos(),
+			cmemDataW2.GetStringPtr(),
+			cmemDataW2.GetStringLength(),
+			&ptLayoutNew,
+			true
+		);
+		GetCaret().MoveCursor(ptLayoutNew, true);
+		GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
+	}
+
 
 	/* スマートインデント */
 	ESmartIndentType nSIndentType = m_pCommanderView->m_pTypeData->m_eSmartIndent;
