@@ -517,6 +517,12 @@
     <ClInclude Include="..\sakura_core\util\string_ex.h">
       <Filter>Cpp Source Files\util</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\window\CImagePreviewWnd.h">
+      <Filter>Cpp Source Files\window</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\util\ImageLink.h">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\util\string_ex2.h">
       <Filter>Cpp Source Files\util</Filter>
     </ClInclude>
@@ -1709,6 +1715,15 @@
       <Filter>Cpp Source Files\view</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CEditView_Mouse.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\window\CImagePreviewWnd.cpp">
+      <Filter>Cpp Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\util\ImageLink.cpp">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\CEditView_ImageLink.cpp">
       <Filter>Cpp Source Files\view</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CEditView_Paint.cpp">

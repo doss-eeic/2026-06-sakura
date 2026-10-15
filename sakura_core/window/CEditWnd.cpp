@@ -1229,6 +1229,7 @@ LRESULT CEditWnd::DispatchEvent(
 		return TRUE;
 
 	case WM_ACTIVATEAPP:
+		for (int pane = 0; pane < GetAllViewCount(); ++pane) GetView(pane).CancelImagePreview();
 		m_bIsActiveApp = (wParam != 0);	// 自アプリがアクティブかどうか
 
 		// アクティブ化なら編集ウィンドウリストの先頭に移動する		// 2007.04.08 ryoji WM_SETFOCUS から移動
@@ -2749,14 +2750,26 @@ STDMETHODIMP CEditWnd::Drop(LPDATAOBJECT pDataObject, [[maybe_unused]] DWORD dwK
 }
 
 /* ファイルがドロップされた */
-void CEditWnd::OnDropFiles( HDROP hDrop )
+void CEditWnd::OnDropFiles( HDROP hDrop, bool allowImageLinks )
 {
 	POINT		pt;
 	int			cFiles, i;
 	EditInfo*	pfi;
 	HWND		hWndOwner;
 
-	::DragQueryPoint( hDrop, &pt );
+	if (allowImageLinks && ::DragQueryPoint(hDrop, &pt)) {
+		::ClientToScreen(GetHwnd(), &pt);
+		for (int pane = 0; pane < GetAllViewCount(); ++pane) {
+			auto& view = GetView(pane);
+			if (!::IsWindowVisible(view.GetHwnd())) continue;
+			POINT clientPoint = pt;
+			::ScreenToClient(view.GetHwnd(), &clientPoint);
+			if (view.TryInsertImageFiles(hDrop, clientPoint)) {
+				::DragFinish(hDrop);
+				return;
+			}
+		}
+	}
 	cFiles = (int)::DragQueryFile( hDrop, 0xFFFFFFFF, nullptr, 0);
 	/* ファイルをドロップしたときは閉じて開く */
 	if( m_pShareData->m_Common.m_sFile.m_bDropFileAndClose ){

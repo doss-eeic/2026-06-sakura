@@ -82,6 +82,7 @@ BOOL CViewCommander::HandleCommand(
 	//	下位16ビットのみを取り出す
 	//	Jul.  7, 2007 genta 定数と比較するためにシフトしないで使う
 	int nCommandFrom = nCommand & ~0xffff;
+	m_pCommanderView->CancelImagePreview();
 	nCommand = (EFunctionCode)LOWORD( nCommand );
 
 	if( m_pCommanderView->m_nAutoScrollMode && F_AUTOSCROLL != nCommand ){
@@ -423,6 +424,7 @@ BOOL CViewCommander::HandleCommand(
 
 	/* 挿入系 */
 	case F_INS_DATE:				Command_INS_DATE();break;	//日付挿入
+	case F_INS_IMAGE_LINK:		Command_INS_IMAGE_LINK();break;
 	case F_INS_TIME:				Command_INS_TIME();break;	//時刻挿入
     case F_CTRL_CODE_DIALOG:		Command_CtrlCode_Dialog();break;	/* コントロールコードの入力(ダイアログ) */	//@@@ 2002.06.02 MIK
     case F_CTRL_CODE:				Command_WCHAR( (wchar_t)lparam1, false );break;

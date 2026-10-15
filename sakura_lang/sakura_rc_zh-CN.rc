@@ -2520,6 +2520,9 @@ END
 STRINGTABLE
 BEGIN
     F_INS_DATE              "插入日期"
+    F_INS_IMAGE_LINK        "插入图像链接..."
+    STR_IMAGE_LINK_FILTER   "图像 (PNG/JPEG)"
+    STR_IMAGE_LINK_ERROR    "无法插入图像链接。请检查路径是否为可读的本地PNG/JPEG文件并且包含支持的字符。"
     F_INS_TIME              "插入时间"
     F_CTRL_CODE_DIALOG      "控制码输入对话框"
     F_INS_FILE_USED_RECENTLY "插入最近使用文件"

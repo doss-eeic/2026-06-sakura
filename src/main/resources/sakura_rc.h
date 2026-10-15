@@ -1859,13 +1859,15 @@
 #define STR_GREP_ERR_EXCLUDE_REGEXP     35059
 #define STR_GREP_EXCLUDE_FILE_REGEXP    35060
 #define STR_FONT_SIZE_INVALID          35061
+#define STR_IMAGE_LINK_FILTER          35062
+#define STR_IMAGE_LINK_ERROR           35063
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35062
+#define _APS_NEXT_RESOURCE_VALUE        35064
 #define _APS_NEXT_COMMAND_VALUE         101
 #define _APS_NEXT_CONTROL_VALUE         1747
 #define _APS_NEXT_SYMED_VALUE           10000

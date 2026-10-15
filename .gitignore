@@ -11,6 +11,7 @@
 /.vs
 /cppcheck-*.xml
 /build
+/out/
 /tools/dll_plugin1/out/
 /tools/ppa_stub/out/
 /MinGW
@@ -33,6 +34,11 @@ UpgradeLog.htm
 # PyTest出力ファイルは除外する
 .coverage
 pytest-coverage.xml
+__pycache__/
+.pytest_cache/
+
+# ローカルのPython仮想環境
+/.venv/
 
 # SonarScanローカル実行用(解析ツールをダウンロードするフォルダ)
 .sonar
@@ -71,3 +77,6 @@ sonar-cfamily-reproducer.tar.xz
 # Generated test plugin output
 /tools/dll_plugin1/out/
 /tools/ppa_stub/out/
+
+# AI prompt
+/.prompt

@@ -271,6 +271,7 @@ constexpr auto nFincList_Clip_Num = int(std::size(pnFuncList_Clip));	//Oct. 16, 
 /* 挿入系 */
 const EFunctionCode pnFuncList_Insert[] = {
 	F_INS_DATE				,	// 日付挿入
+	F_INS_IMAGE_LINK,
 	F_INS_TIME				,	// 時刻挿入
 	F_CTRL_CODE_DIALOG		,	// コントロールコードの入力
 	F_INS_FILE_USED_RECENTLY,	// 最近使ったファイル挿入

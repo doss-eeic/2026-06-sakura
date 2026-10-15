@@ -73,6 +73,9 @@
     <ClCompile Include="..\src\test\cpp\tests1\test-cmemory.cpp">
       <Filter>Test Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\test\cpp\tests1\test-image-link.cpp">
+      <Filter>Test Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\test\cpp\tests1\test-cnative.cpp">
       <Filter>Test Files</Filter>
     </ClCompile>
