@@ -40,11 +40,6 @@
 #define IDC_EDIT_FONT_SIZE              1743
 #define IDC_BUTTON_CHANGE               1746
 #define IDD_AUTOCLOSEBRACKETS           143
-#define IDD_FONT_FALLBACK               142
-#define IDC_LIST_FALLBACK_FONTS         1742
-#define IDC_EDIT_FONT_SIZE              1743
-#define IDC_BUTTON_CHANGE               1746
-#define IDD_AUTOCLOSEBRACKETS           143
 #define IDB_MYTOOL                      200
 #define IDB_SCROLL_CENTER               201
 #define IDB_SCROLL_VERTICAL             202
