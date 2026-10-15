@@ -97,10 +97,6 @@ void CDlgAutoCloseBrackets::AddRule()
 {
 	wchar_t opening, closing;
 	if (!ReadCharacter(IDC_EDIT_BRACKET_OPENING, opening) || !ReadCharacter(IDC_EDIT_BRACKET_CLOSING, closing)) return;
-	if (opening == closing) {
-		ErrorMessage(GetHwnd(), LS(STR_BRACKET_SAME_CHAR));
-		return;
-	}
 	int emptySlot = -1;
 	for (size_t i = 0; i < m_rules.size(); ++i) {
 		const auto& rule = m_rules[i];
