@@ -13,6 +13,8 @@
 #include "types/CType.h"
 #include "util/MessageBoxF.h"
 
+#include <string>
+
 class CEditView;
 enum EFunctionCode;
 class CEditDoc;
@@ -395,8 +397,8 @@ public:
 
 private:
 	void MoveViewTopLine(CLayoutInt nViewTopLine);
-	bool HandleBracketWrapping(wchar_t opening, wchar_t closing);
-	void WrapBoxSelectionWithBrackets(wchar_t opening, wchar_t closing);
+	bool HandleBracketWrapping(const std::wstring& opening, const std::wstring& closing);
+	void WrapBoxSelectionWithBrackets(const std::wstring& opening, const std::wstring& closing);
 	bool HandleBracketPairDeletion(bool backspace);
 	/*!
 	 * @brief 検索で見つからないときの警告（メッセージボックス／サウンド）
