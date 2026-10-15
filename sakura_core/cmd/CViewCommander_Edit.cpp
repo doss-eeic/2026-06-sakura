@@ -1034,11 +1034,68 @@ void CViewCommander::Command_REDO( void )
 	return;
 }
 
+bool CViewCommander::HandleBracketPairDeletion(bool backspace) {
+	if (m_pCommanderView->GetSelectionInfo().IsTextSelected() || m_pCommanderView->m_bDoing_UndoRedo) {
+		return false;
+	}
+
+	auto& CLayoutMgr = GetDocument()->m_cLayoutMgr;
+
+	CLogicPointEx caret;
+	CLayoutMgr.LayoutToLogicEx(GetCaret().GetCaretLayoutPos(), &caret);
+	if (caret.ext != 0) {
+		return false;
+	}
+	CLogicPoint from = caret;
+	if (backspace) {
+		from.Offset(-1, 0);
+	}
+	const CDocLine * line = GetDocument()->m_cDocLineMgr.GetLine(from.GetY2());
+	if (line == nullptr) {
+		return false;
+	}
+
+	const int index = from.GetX();
+	const int length = static_cast<int>(line->GetLengthWithoutEOL());
+
+	if (index < 0 || index >= length || length - index < 2) {
+		return false;
+	}
+
+	const wchar_t* text = line->GetPtr();
+	const wchar_t closing = GetAutoCloseBracket(text[index]);
+
+	if (closing == L'\0' || text[index + 1] != closing) {
+		return false;
+	}
+
+	CLogicPoint to = from;
+	to.Offset(2, 0);
+	CLogicRange range;
+	range.SetFrom(from);
+	range.SetTo(to);
+
+	m_pCommanderView->ReplaceData_CEditView2(
+		range,
+		L"",
+		CLogicInt(0),
+		true,
+		GetOpeBlk()
+	);
+
+	return true;
+
+}
+
 //カーソル位置または選択エリアを削除
 void CViewCommander::Command_DELETE( void )
 {
 	if( m_pCommanderView->GetSelectionInfo().IsMouseSelecting() ){		/* マウスによる範囲選択中 */
 		ErrorBeep();
+		return;
+	}
+
+	if (HandleBracketPairDeletion(false)) {
 		return;
 	}
 
@@ -1087,6 +1144,11 @@ void CViewCommander::Command_DELETE_BACK( void )
 {
 	if( m_pCommanderView->GetSelectionInfo().IsMouseSelecting() ){	/* マウスによる範囲選択中 */
 		ErrorBeep();
+		return;
+	}
+
+	if (HandleBracketPairDeletion(true)) {
+		m_pCommanderView->PostprocessCommand_hokan();
 		return;
 	}
 
