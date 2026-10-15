@@ -369,6 +369,7 @@ void CEditView::AdjustScrollBars( BOOL bRedraw )
 */
 CLayoutInt CEditView::ScrollAtV( CLayoutInt nPos, BOOL bRedrawScrollBar )
 {
+	CancelImagePreview();
 	CLayoutInt	nScrollRowNum;
 	RECT		rcScrol;
 	RECT		rcClip;
@@ -449,6 +450,7 @@ CLayoutInt CEditView::ScrollAtV( CLayoutInt nPos, BOOL bRedrawScrollBar )
 */
 CLayoutInt CEditView::ScrollAtH( CLayoutInt nPos, BOOL bRedrawScrollBar )
 {
+	CancelImagePreview();
 	RECT		rcScrol;
 	RECT		rcClip2;
 	if( nPos < 0 ){

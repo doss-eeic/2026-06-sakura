@@ -201,6 +201,7 @@ void PrintTo(EFunctionCode eFuncCode, std::ostream* os)
 	case F_CREATEKEYBINDLIST: *os << "F_CREATEKEYBINDLIST"; break;
 	case F_COPYDIRPATH: *os << "F_COPYDIRPATH"; break;
 	case F_INS_DATE: *os << "F_INS_DATE"; break;
+	case F_INS_IMAGE_LINK: *os << "F_INS_IMAGE_LINK"; break;
 	case F_INS_TIME: *os << "F_INS_TIME"; break;
 	case F_CTRL_CODE_DIALOG: *os << "F_CTRL_CODE_DIALOG"; break;
 	case F_CTRL_CODE: *os << "F_CTRL_CODE"; break;

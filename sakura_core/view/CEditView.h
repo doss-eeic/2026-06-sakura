@@ -42,6 +42,8 @@
 #include "agent/CSearchAgent.h"
 #include "view/colors/EColorIndexType.h"
 #include "window/CTipWnd.h"
+#include "window/CImagePreviewWnd.h"
+#include "util/ImageLink.h"
 #include "window/CAutoScrollWnd.h"
 #include "env/CDicMgr.h"
 #include "env/CMarkMgr.h"
@@ -186,6 +188,8 @@ public:
 public:
 	//ドキュメントイベント
 	void OnAfterLoad(const SLoadInfo& sLoadInfo) override;
+	void OnBeforeLoad(SLoadInfo*) override { CancelImagePreview(); }
+	ECallbackResult OnBeforeClose() override { CancelImagePreview(); return CALLBACK_CONTINUE; }
 	/* メッセージディスパッチャ */
 	LRESULT DispatchEvent(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	//
@@ -194,6 +198,9 @@ public:
 	void OnPaint2(HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp);			/* 通常の描画処理 */
 	void DrawBackImage(HDC hdc, RECT& rcPaint, HDC hdcBgImg);
 	void OnTimer(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
+	void CancelImagePreview();
+	void UpdateImagePreview(bool mouseMoved);
+	static constexpr UINT_PTR IDT_IMAGE_PREVIEW = 0x494d47;
 	//ウィンドウ
 	void OnSize(int cx, int cy);							/* ウィンドウサイズの変更処理 */
 	void OnMove(int x, int y, int nWidth, int nHeight);
@@ -360,6 +367,9 @@ public: /* テスト用にアクセス属性を変更 */
 	STDMETHODIMP PostMyDropFiles( LPDATAOBJECT pDataObject );		/* 独自ドロップファイルメッセージをポストする */	// 2008.06.20 ryoji
 	void OnMyDropFiles( HDROP hDrop );								/* 独自ドロップファイルメッセージ処理 */	// 2008.06.20 ryoji
 	CLIPFORMAT GetAvailableClipFormat( LPDATAOBJECT pDataObject );
+	// Returns true when the entire image group was handled (including rejected insertion).
+	bool TryInsertImageFiles(HDROP hDrop, POINT clientPoint);
+	bool m_bFileDragRight = false;
 	DWORD TranslateDropEffect( CLIPFORMAT cf, DWORD dwKeyState, POINTL pt, DWORD dwEffect );
 	bool IsDragSource( void );
 
@@ -730,6 +740,14 @@ public:
 
 	//編集
 	bool			m_bDoing_UndoRedo = false;	/* アンドゥ・リドゥの実行中か */
+
+	CImagePreviewWnd m_imagePreview;
+	std::optional<ImageLink::Link> m_imageHover;
+	CLogicInt m_imageHoverLine = CLogicInt(-1);
+	DWORD m_imageHoverStarted = 0;
+	bool m_imageRequested = false;
+	POINT m_imageMousePoint{-1, -1};
+	int m_imageCommandNumber = 0;
 
 	// 辞書Tip関連
 	DWORD			m_dwTipTimer = 0;			/* Tip起動タイマー */

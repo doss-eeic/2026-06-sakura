@@ -427,6 +427,8 @@
     <ClInclude Include="..\sakura_core\util\StaticType.h" />
     <ClInclude Include="..\sakura_core\util\std_macro.h" />
     <ClInclude Include="..\sakura_core\util\string_ex.h" />
+    <ClInclude Include="..\sakura_core\util\ImageLink.h" />
+    <ClInclude Include="..\sakura_core\window\CImagePreviewWnd.h" />
     <ClInclude Include="..\sakura_core\util\string_ex2.h" />
     <ClInclude Include="..\sakura_core\util\tchar_convert.h" />
     <ClInclude Include="..\sakura_core\util\tchar_template.h" />
@@ -841,6 +843,9 @@
     <ClCompile Include="..\sakura_core\view\CEditView_ExecCmd.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Ime.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Mouse.cpp" />
+    <ClCompile Include="..\sakura_core\view\CEditView_ImageLink.cpp" />
+    <ClCompile Include="..\sakura_core\util\ImageLink.cpp" />
+    <ClCompile Include="..\sakura_core\window\CImagePreviewWnd.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Paint.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Paint_Bracket.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Scroll.cpp" />

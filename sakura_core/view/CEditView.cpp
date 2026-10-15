@@ -344,6 +344,7 @@ BOOL CEditView::Create(
 	}
 
 	m_bHideMouse = false;
+	::SetTimer(GetHwnd(), IDT_IMAGE_PREVIEW, 50, EditViewTimerProc);
 	CRegKey reg;
 	BYTE bUserPref[8] = {0};
 	reg.Open(HKEY_CURRENT_USER, L"Control Panel\\Desktop" );
@@ -365,6 +366,7 @@ CEditView::~CEditView()
 
 void CEditView::Close()
 {
+	CancelImagePreview();
 	if( GetHwnd() != nullptr ){
 		::DestroyWindow( GetHwnd() );
 	}
@@ -399,6 +401,23 @@ LRESULT CEditView::DispatchEvent(
 //	int			nPosX;
 //	int			nPosY;
 
+	switch (uMsg) {
+	case WM_MOUSELEAVE:
+	case WM_LBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+	case WM_MBUTTONDOWN:
+	case WM_XBUTTONDOWN:
+	case WM_KEYDOWN:
+	case WM_SYSKEYDOWN:
+	case WM_IME_STARTCOMPOSITION:
+	case WM_MOUSEWHEEL:
+	case WM_MOUSEHWHEEL:
+	case WM_SIZE:
+	case WM_SHOWWINDOW:
+	case WM_DESTROY:
+		CancelImagePreview();
+		break;
+	}
 	switch ( uMsg ){
 	case WM_MOUSEWHEEL:
 		if( GetEditWnd().DoMouseWheel( wParam, lParam ) ){
@@ -1042,6 +1061,7 @@ void CEditView::OnSetFocus( void )
 /* 入力フォーカスを失ったときの処理 */
 void CEditView::OnKillFocus( void )
 {
+	CancelImagePreview();
 	if( m_bMiniMap ){
 		return;
 	}
@@ -1271,6 +1291,10 @@ VOID CEditView::OnTimer(
 	[[maybe_unused]] DWORD dwTime 	// current system time
 	)
 {
+	if (idEvent == IDT_IMAGE_PREVIEW) {
+		if (m_imageHover) UpdateImagePreview(false);
+		return;
+	}
 	POINT		po;
 	RECT		rc;
 
@@ -1292,7 +1316,7 @@ VOID CEditView::OnTimer(
 				}
 			}
 		}else{
-			if( FALSE != KeyWordHelpSearchDict( LID_SKH_ONTIMER, &po, &rc ) ){	// 2006.04.10 fon
+			if( !m_imageHover && FALSE != KeyWordHelpSearchDict( LID_SKH_ONTIMER, &po, &rc ) ){	// 2006.04.10 fon
 				/* 辞書Tipを表示 */
 				m_cTipWnd.Show( po.x, po.y + GetTextMetrics().GetHankakuHeight() );
 			}
@@ -1664,6 +1688,7 @@ int	CEditView::CreatePopUpMenuSub( HMENU hMenu, int nMenuIdx, int* pParentMenus,
 /* 設定変更を反映させる */
 void CEditView::OnChangeSetting()
 {
+	CancelImagePreview();
 	if( nullptr == GetHwnd() ){
 		return;
 	}

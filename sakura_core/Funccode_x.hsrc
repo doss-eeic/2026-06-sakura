@@ -274,6 +274,7 @@ F_CTRL_CODE_DIALOG		= 30792,	//コントロールコードの入力(ダイアロ
 F_CTRL_CODE				= 30793,	//コントロールコードの入力						wchar_t code
 F_INS_FILE_USED_RECENTLY	= 30794,	// 最近使ったファイル挿入
 F_INS_FOLDER_USED_RECENTLY	= 30795,	// 最近使ったフォルダー挿入
+F_INS_IMAGE_LINK			= 30796,	// 画像リンクを挿入
 
 
 // 変換系

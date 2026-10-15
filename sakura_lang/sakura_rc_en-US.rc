@@ -2632,6 +2632,9 @@ END
 STRINGTABLE
 BEGIN
     F_INS_DATE              "Ins. Date"
+    F_INS_IMAGE_LINK        "Insert Image Link..."
+    STR_IMAGE_LINK_FILTER   "Images (PNG/JPEG)"
+    STR_IMAGE_LINK_ERROR    "Cannot insert the image link. Check that the path is a readable local PNG/JPEG and contains supported characters."
     F_INS_TIME              "Ins. Time"
     F_CTRL_CODE_DIALOG      "Control Code Input"
     F_INS_FILE_USED_RECENTLY "Ins. Recently Used File"

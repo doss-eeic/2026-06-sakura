@@ -1168,6 +1168,7 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 		SMenuItem{ 2, 30792, 'C' },
 		SMenuItem{ 2, 30794, 'F' },
 		SMenuItem{ 2, 30795, 'O' },
+		SMenuItem{ 2, 30796, 'I' },
 		SMenuItem{ 1, 34012, 'V' },
 		SMenuItem{ 2, 30230, 'L' },
 		SMenuItem{ 2, 30231, 'R' },
@@ -1463,12 +1464,12 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 	constexpr std::array mainMenuTopIdxs = {
 		0,
 		40,
-		168,
-		199,
-		239,
-		258,
-		286,
-		326,
+		169,
+		200,
+		240,
+		259,
+		287,
+		327,
 	};
 
 	for (size_t i = 0; i < std::size(mainMenuTopIdxs); ++i) {
