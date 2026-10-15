@@ -394,7 +394,8 @@ public:
 
 private:
 	void MoveViewTopLine(CLayoutInt nViewTopLine);
-
+	bool HandleBracketWrapping(wchar_t opening, wchar_t closing);
+	void WrapBoxSelectionWithBrackets(wchar_t opening, wchar_t closing);
 	/*!
 	 * @brief 検索で見つからないときの警告（メッセージボックス／サウンド）
 	 *
