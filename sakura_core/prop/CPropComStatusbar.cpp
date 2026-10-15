@@ -131,6 +131,8 @@ void CPropStatusbar::SetData( HWND hwndDlg )
 	::CheckDlgButton( hwndDlg, IDC_CHECK_DISP_SELCOUNT_BY_BYTE,m_Common.m_sStatusbar.m_bDispSelCountByByte );
 	// 現在桁をルーラー単位ではなく文字単位で表示する
 	::CheckDlgButton( hwndDlg, IDC_CHECK_DISP_COL_BY_CHAR,     m_Common.m_sStatusbar.m_bDispColByChar );
+	// 選択文字数に改行文字を含める
+	::CheckDlgButton( hwndDlg, IDC_CHECK_SELCOUNT_INCLUDE_EOL, m_Common.m_sStatusbar.m_bSelCountIncludeEol ? BST_CHECKED : BST_UNCHECKED );
 	return;
 }
 
@@ -152,6 +154,7 @@ int CPropStatusbar::GetData( HWND hwndDlg )
 	m_Common.m_sStatusbar.m_bDispSelCountByByte	= ::IsDlgButtonChecked( hwndDlg, IDC_CHECK_DISP_SELCOUNT_BY_BYTE );
 	// 現在桁をルーラー単位ではなく文字単位で表示する
 	m_Common.m_sStatusbar.m_bDispColByChar		= ::IsDlgButtonChecked( hwndDlg, IDC_CHECK_DISP_COL_BY_CHAR );
-
+	// 選択文字数に改行文字を含める
+	m_Common.m_sStatusbar.m_bSelCountIncludeEol = (::IsDlgButtonChecked( hwndDlg, IDC_CHECK_SELCOUNT_INCLUDE_EOL ) == BST_CHECKED);
 	return TRUE;
 }

@@ -2071,6 +2071,7 @@ void CShareData_IO::ShareData_IO_Statusbar( CDataProfile& cProfile )
 	cProfile.IOProfileData( pszSecName, L"DispSurrogatePairCodepoint"	, statusbar.m_bDispSPCodepoint);	// サロゲートペアをコードポイントで表示する
 	cProfile.IOProfileData( pszSecName, L"DispSelectCountByByte"		, statusbar.m_bDispSelCountByByte);	// 選択文字数を文字単位ではなくバイト単位で表示する
 	cProfile.IOProfileData( pszSecName, L"DispColByChar"				, statusbar.m_bDispColByChar);		// 現在桁をルーラー単位ではなく文字単位で表示する
+	cProfile.IOProfileData( pszSecName, L"SelectCountIncludeEol"        , statusbar.m_bSelCountIncludeEol); // 選択文字数に改行を含める
 }
 
 /*!

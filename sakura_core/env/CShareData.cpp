@@ -650,6 +650,7 @@ bool CShareData::InitShareData()
 			sStatusbar.m_bDispSPCodepoint		= TRUE;		// サロゲートペアをコードポイントで表示する
 			sStatusbar.m_bDispSelCountByByte	= FALSE;	// 選択文字数を文字単位ではなくバイト単位で表示する
 			sStatusbar.m_bDispColByChar = FALSE; // 現在桁をルーラー単位ではなく文字単位で表示する
+			sStatusbar.m_bSelCountIncludeEol = TRUE; // 選択文字数に改行を含める
 		}
 
 		// [プラグイン]タブ
