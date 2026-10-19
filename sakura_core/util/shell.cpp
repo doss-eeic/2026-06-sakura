@@ -611,7 +611,14 @@ BOOL MySelectFont( LOGFONT* plf, INT* piPointSize, HWND hwndDlgOwner, bool Fixed
 #endif
 		return FALSE;
 	}
-	if (!familyOnly) *piPointSize = cf.iPointSize;
+	if (!familyOnly) {
+		*piPointSize = cf.iPointSize;
+		if (cf.Flags & CF_NOSTYLESEL) {
+			// An empty style field means regular, not the previous selection's style.
+			plf->lfWeight = FW_NORMAL;
+			plf->lfItalic = FALSE;
+		}
+	}
 
 	return TRUE;
 }

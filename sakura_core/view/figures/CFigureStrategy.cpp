@@ -9,6 +9,7 @@
 #include "StdAfx.h"
 #include "view/CEditView.h" // SColorStrategyInfo
 #include "view/CViewFont.h"
+#include "view/CMarkdownEmphasis.h"
 #include "CFigureStrategy.h"
 #include "doc/layout/CLayout.h"
 #include "charset/charcode.h"
@@ -43,7 +44,8 @@ FigureRenderType CFigure_Text::GetRenderType(SColorStrategyInfo* pInfo)
 			nType = 1;
 		}
 	}
-	return (fontNo << 1) | nType;
+	const auto emphasis = pInfo->m_markdownEmphasis.GetStyle(nIdx);
+	return (fontNo << 4) | (emphasis << 1) | nType;
 }
 
 int CFigure_Text::FowardChars(SColorStrategyInfo* pInfo)
@@ -71,14 +73,18 @@ bool CFigure_Text::DrawImpBlock(SColorStrategyInfo* pInfo, int nPos, int nLength
 	// 先頭の文字のフォントを採用する。フォント判別は上位で行う必要がある
 	int fontNo = (nLengthFirst == 2 ? WCODE::GetFontNo2(pInfo->m_pLineOfLogic[nIdx], pInfo->m_pLineOfLogic[nIdx+1]):
 			WCODE::GetFontNo(pInfo->m_pLineOfLogic[nIdx]));
-	if( fontNo ){
+	const auto emphasis = pInfo->m_markdownEmphasis.GetStyle(nPos);
+	const bool changeFont = fontNo != 0 || emphasis != CMarkdownEmphasis::Normal;
+	if( changeFont ){
 		CTypeSupport cCurrentType(pInfo->m_pcView, pInfo->GetCurrentColor());	// 周辺の色（現在の指定色/選択色）
 		CTypeSupport cCurrentType2(pInfo->m_pcView, pInfo->GetCurrentColor2());	// 周辺の色（現在の指定色）
 		bool blendColor = pInfo->GetCurrentColor() != pInfo->GetCurrentColor2() && cCurrentType.GetTextColor() == cCurrentType.GetBackColor();
 		SFONT sFont;
-		sFont.m_sFontAttr.m_bBoldFont  = (blendColor ? cCurrentType2.IsBoldFont() : cCurrentType.IsBoldFont());
+		sFont.m_sFontAttr.m_bBoldFont  = (blendColor ? cCurrentType2.IsBoldFont() : cCurrentType.IsBoldFont())
+			|| (emphasis & CMarkdownEmphasis::Bold) != 0;
 		sFont.m_sFontAttr.m_bUnderLine = (blendColor ? cCurrentType2.HasUnderLine() : cCurrentType.HasUnderLine());
-		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle(fontNo, sFont.m_sFontAttr);
+		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle(fontNo, sFont.m_sFontAttr,
+			(emphasis & CMarkdownEmphasis::Italic) != 0, (emphasis & CMarkdownEmphasis::Strike) != 0);
 		pInfo->m_gr.PushMyFont(sFont);
 	}
 	int nHeightMargin = pInfo->m_pcView->GetFontset().GetFontTopOffset(fontNo);
@@ -90,7 +96,7 @@ bool CFigure_Text::DrawImpBlock(SColorStrategyInfo* pInfo, int nPos, int nLength
 		nLength,
 		bTrans
 	);
-	if( fontNo ){
+	if( changeFont ){
 		pInfo->m_gr.PopMyFont();
 	}
 	// pInfo->m_nPosInLogic += nLength; ここでは進めない
@@ -209,14 +215,18 @@ void CFigureSpace::DrawImp_DrawUnderline(SColorStrategyInfo* pInfo, DispPos& sPo
 	CTypeSupport colorStyle(pcView, blendColor ? pInfo->GetCurrentColor2() : pInfo->GetCurrentColor());	// 周辺の色
 	CTypeSupport cSpaceType(pcView, GetDispColorIdx());	// 空白の指定色
 
-	if( !cSpaceType.HasUnderLine() && colorStyle.HasUnderLine() )
+	const auto emphasis = pInfo->m_markdownEmphasis.GetStyle(pInfo->GetPosInLogic());
+	const bool strike = (emphasis & CMarkdownEmphasis::Strike) != 0;
+	const bool underline = !cSpaceType.HasUnderLine() && colorStyle.HasUnderLine();
+	if( underline || strike )
 	{
 		int fontNo = WCODE::GetFontNo(' ');
-		// 下線を周辺の前景色で描画する
+		// 下線・取り消し線を周辺の前景色で描画する
 		SFONT sFont;
-		sFont.m_sFontAttr.m_bBoldFont = false;
-		sFont.m_sFontAttr.m_bUnderLine = true;
-		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle( fontNo, sFont.m_sFontAttr );
+		sFont.m_sFontAttr.m_bBoldFont = strike && (colorStyle.IsBoldFont() || (emphasis & CMarkdownEmphasis::Bold) != 0);
+		sFont.m_sFontAttr.m_bUnderLine = underline;
+		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle(fontNo, sFont.m_sFontAttr,
+			(emphasis & CMarkdownEmphasis::Italic) != 0, strike);
 		pInfo->m_gr.PushMyFont(sFont);
 
 		int nHeightMargin = pInfo->m_pcView->GetTextMetrics().GetCharHeightMarginByFontNo(fontNo);

@@ -16,6 +16,7 @@
 #include "view/CRuler.h"
 #include "view/colors/CColorStrategy.h"
 #include "view/colors/CColor_Found.h"
+#include "view/CMarkdownEmphasis.h"
 #include "view/figures/CFigureManager.h"
 #include "types/CTypeSupport.h"
 #include "doc/CEditDoc.h"
@@ -882,6 +883,9 @@ bool CEditView::DrawLogicLine(
 	bool bDispEOF = false;
 
 	//CColorStrategyPool初期化
+	if (CMarkdownEmphasis::IsEnabled(*m_pTypeData)) {
+		pInfo->m_markdownEmphasis.Prepare(pInfo->GetDocLine());
+	}
 	CColorStrategyPool* pool = CColorStrategyPool::getInstance();
 	pool->SetCurrentView(this);
 	pool->NotifyOnStartScanLogic();
