@@ -9,6 +9,7 @@
 #include "StdAfx.h"
 #include "view/CEditView.h" // SColorStrategyInfo
 #include "view/CViewFont.h"
+#include "view/CMarkdownEmphasis.h"
 #include "CFigureStrategy.h"
 #include "doc/layout/CLayout.h"
 #include "charset/charcode.h"

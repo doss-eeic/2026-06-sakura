@@ -21,6 +21,7 @@
 */
 #include "StdAfx.h"
 #include "view/CEditView.h"
+#include "view/CMarkdownEmphasis.h"
 #include "agent/CSearchAgent.h"
 #include "uiparts/CWaitCursor.h"
 #include "charset/charcode.h"
