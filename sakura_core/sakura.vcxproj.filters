@@ -880,6 +880,9 @@
     <ClInclude Include="..\sakura_core\dlg\CDlgAutoCloseBrackets.h">
       <Filter>Cpp Source Files\dlg</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\dlg\CDlgTypeKeyBind.h">
+      <Filter>Cpp Source Files\dlg</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\dlg\CDlgJump.h">
       <Filter>Cpp Source Files\dlg</Filter>
     </ClInclude>
@@ -2072,6 +2075,9 @@
       <Filter>Cpp Source Files\dlg</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\dlg\CDlgAutoCloseBrackets.cpp">
+      <Filter>Cpp Source Files\dlg</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\dlg\CDlgTypeKeyBind.cpp">
       <Filter>Cpp Source Files\dlg</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\dlg\CDlgJump.cpp">

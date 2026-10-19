@@ -54,6 +54,12 @@ struct KEYDATA {
 #define VKEX_WHEEL_LEFT		0x0109	// ホイール左
 #define VKEX_WHEEL_RIGHT	0x010A	// ホイール右
 
+//! タイプ別のキー割り当て
+struct STypeKeyBind {
+	bool m_bOverride[8]{};             // trueならタイプ別設定使用
+	EFunctionCode m_nFuncCodeArr[8]{}; //上書きする機能番号
+};
+
 extern const WCHAR* jpVKEXNames[];
 extern const int jpVKEXNamesLen;
 
@@ -77,9 +83,9 @@ public:
 	/*
 	||  参照系メンバ関数
 	*/
-	static HACCEL CreateAccerelator( int nKeyNameArrNum, KEYDATA* pKeyNameArr );
-	static EFunctionCode GetFuncCode( WORD nAccelCmd, int nKeyNameArrNum, KEYDATA* pKeyNameArr, BOOL bGetDefFuncCode = TRUE );
-	static EFunctionCode GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode = TRUE );	/* 特定のキー情報から機能コードを取得する */	// 2007.02.24 ryoji
+	static HACCEL CreateAccerelator( int nKeyNameArrNum, KEYDATA* pKeyNameArr, const STypeKeyBind* pTypeKeyBindings = nullptr, int nTypeKeyBindings = 0 );
+	static EFunctionCode GetFuncCode( WORD nAccelCmd, int nKeyNameArrNum, KEYDATA* pKeyNameArr, BOOL bGetDefFuncCode = TRUE , const STypeKeyBind* pTypeKeyBind = nullptr );
+	static EFunctionCode GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode = TRUE, const STypeKeyBind* pTypeKeyBind = nullptr );	/* 特定のキー情報から機能コードを取得する */	// 2007.02.24 ryoji
 	static EFunctionCode GetDefFuncCode( int nKeyCode, int nState );	/* キーのデフォルト機能を取得する */	// 2007.02.22 ryoji
 
 	//! キー割り当て一覧を作成する

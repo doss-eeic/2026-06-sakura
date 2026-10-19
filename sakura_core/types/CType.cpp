@@ -184,6 +184,7 @@ void _DefaultConfig(STypeConfig* pType)
 	pType->m_autoCloseBracketRules[0] = {true, L'(', L')'};
 	pType->m_autoCloseBracketRules[1] = {true, L'[', L']'};
 	pType->m_autoCloseBracketRules[2] = {true, L'{', L'}'};
+	pType->m_typeKeyBindings = {};
 
 	// 文字コード設定
 	pType->m_encoding.m_bPriorCesu8 = false;

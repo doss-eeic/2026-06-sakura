@@ -40,6 +40,7 @@
 #define IDC_EDIT_FONT_SIZE              1743
 #define IDC_BUTTON_CHANGE               1746
 #define IDD_AUTOCLOSEBRACKETS           143
+#define IDD_TYPEKEYBIND                 144
 #define IDB_MYTOOL                      200
 #define IDB_SCROLL_CENTER               201
 #define IDB_SCROLL_VERTICAL             202
@@ -808,6 +809,9 @@
 #define IDC_EDIT_BRACKET_OPENING       1752
 #define IDC_EDIT_BRACKET_CLOSING       1753
 #define IDC_CHECK_SELCOUNT_INCLUDE_EOL  1755
+#define IDC_BUTTON_KEYBIND_INHERIT      1757
+#define IDC_EDIT_TYPEKEYBIND_COMMON     1758
+#define IDC_STATIC_TYPEKEYBIND_SOURCE   1759
 #define IDS_AUTHOR_PAGE                 4054
 #define IDS_ABOUT_DESCRIPTION           4056
 #define IDD_TYPELIST                    5000
@@ -1872,15 +1876,18 @@
 #define STR_BRACKET_INVALID_CHAR       35062
 #define STR_BRACKET_DUPLICATE          35063
 #define STR_BRACKET_SAME_CHAR          35064
+#define STR_TYPEKEYBIND_INHERIT         35067
+#define STR_TYPEKEYBIND_OVERRIDE        35068
+#define STR_PROPTYPE_KEYBIND            35069
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35067
+#define _APS_NEXT_RESOURCE_VALUE        35070
 #define _APS_NEXT_COMMAND_VALUE         101
-#define _APS_NEXT_CONTROL_VALUE         1756
+#define _APS_NEXT_CONTROL_VALUE         1760
 #define _APS_NEXT_SYMED_VALUE           10000
 #endif
 #endif

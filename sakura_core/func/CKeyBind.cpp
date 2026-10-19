@@ -62,8 +62,11 @@ CKeyBind::~CKeyBind()
 	@date 2007.02.22 ryoji デフォルト機能割り当てに関する処理を追加
 */
 HACCEL CKeyBind::CreateAccerelator(
-		int			nKeyNameArrNum,
-		KEYDATA*	pKeyNameArr
+	int      			nKeyNameArrNum,
+	KEYDATA*	        pKeyNameArr,
+	const STypeKeyBind* pTypeKeyBindings,
+	int                 nTypeKeyBindings
+
 )
 {
 	ACCEL*	pAccelArr;
@@ -74,8 +77,14 @@ HACCEL CKeyBind::CreateAccerelator(
 	int nAccelArrNum = 0;
 	for( int i = 0; i < nKeyNameArrNum; ++i ){
 		if( 0 != pKeyNameArr[i].m_nKeyCode ){
+			const int nKeyCode = pKeyNameArr[i].m_nKeyCode;
+			const STypeKeyBind* pTypeKeyBind = nullptr;
+
+			if (pTypeKeyBindings != nullptr && 0 <= nKeyCode && nKeyCode < nTypeKeyBindings) {
+				pTypeKeyBind = &pTypeKeyBindings[nKeyCode];
+			}
 			for( j = 0; j < 8; ++j ){
-				if( 0 != GetFuncCodeAt( pKeyNameArr[i], j ) ){
+				if( 0 != GetFuncCodeAt( pKeyNameArr[i], j, TRUE, pTypeKeyBind) ){
 					nAccelArrNum++;
 				}
 			}
@@ -90,8 +99,14 @@ HACCEL CKeyBind::CreateAccerelator(
 	k = 0;
 	for( int i = 0; i < nKeyNameArrNum; ++i ){
 		if( 0 != pKeyNameArr[i].m_nKeyCode ){
+			const int nKeyCode = pKeyNameArr[i].m_nKeyCode;
+			const STypeKeyBind* pTypeKeyBind = nullptr;
+
+			if (pTypeKeyBindings != nullptr && 0 <= nKeyCode && nKeyCode < nTypeKeyBindings) {
+				pTypeKeyBind = &pTypeKeyBindings[nKeyCode];
+			}
 			for( j = 0; j < 8; ++j ){
-				if( 0 != GetFuncCodeAt( pKeyNameArr[i], j ) ){
+				if( 0 != GetFuncCodeAt( pKeyNameArr[i], j, TRUE, pTypeKeyBind ) ){
 					pAccelArr[k].fVirt = FNOINVERT | FVIRTKEY;
 					pAccelArr[k].fVirt |= ( j & _SHIFT ) ? FSHIFT   : 0;
 					pAccelArr[k].fVirt |= ( j & _CTRL  ) ? FCONTROL : 0;
@@ -116,10 +131,11 @@ HACCEL CKeyBind::CreateAccerelator(
 	@date 2007.02.22 ryoji デフォルト機能割り当てに関する処理を追加
 */
 EFunctionCode CKeyBind::GetFuncCode(
-		WORD		nAccelCmd,
-		int			nKeyNameArrNum,
-		KEYDATA*	pKeyNameArr,
-		BOOL		bGetDefFuncCode /* = TRUE */
+	WORD		  nAccelCmd,
+	int			  nKeyNameArrNum,
+	KEYDATA*	  pKeyNameArr,
+	BOOL		  bGetDefFuncCode, /* = TRUE */
+	const STypeKeyBind* pTypeKeyBind
 )
 {
 	int nCmd = (int)LOBYTE(nAccelCmd);
@@ -127,13 +143,13 @@ EFunctionCode CKeyBind::GetFuncCode(
 	if( nCmd == 0 ){ // mouse command
 		for( int i = 0; i < nKeyNameArrNum; ++i ){
 			if( nCmd == pKeyNameArr[i].m_nKeyCode ){
-				return GetFuncCodeAt( pKeyNameArr[i], nSts, bGetDefFuncCode );
+				return GetFuncCodeAt( pKeyNameArr[i], nSts, bGetDefFuncCode, pTypeKeyBind );
 			}
 		}
 	}else{
 		// 2012.12.10 aroka キーコード検索時のループを除去
 		DLLSHAREDATA* pShareData = &GetDllShareData();
-		return GetFuncCodeAt( pKeyNameArr[pShareData->m_Common.m_sKeyBind.m_VKeyToKeyNameArr[nCmd]], nSts, bGetDefFuncCode );
+		return GetFuncCodeAt( pKeyNameArr[pShareData->m_Common.m_sKeyBind.m_VKeyToKeyNameArr[nCmd]], nSts, bGetDefFuncCode, pTypeKeyBind );
 	}
 	return F_DEFAULT;
 }
@@ -518,8 +534,11 @@ EFunctionCode CKeyBind::GetDefFuncCode( int nKeyCode, int nState )
 
 	@date 2007.03.07 ryoji インライン関数から通常の関数に変更（BCCの最適化バグ対策）
 */
-EFunctionCode CKeyBind::GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode )
+EFunctionCode CKeyBind::GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode, const STypeKeyBind* pTypeKeyBind )
 {
+	if (pTypeKeyBind != nullptr && pTypeKeyBind->m_bOverride[nState]) {
+		return pTypeKeyBind->m_nFuncCodeArr[nState];
+	}
 	if( 0 != KeyData.m_nFuncCodeArr[nState] )
 		return KeyData.m_nFuncCodeArr[nState];
 	if( bGetDefFuncCode )

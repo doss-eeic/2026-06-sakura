@@ -1890,6 +1890,67 @@ void ShareData_IO_TypeConfig(
 		rule.closing = closing[0];
 	}
 
+	// タイプ別キー割り当て
+	if (cProfile.IsReadingMode()) {
+		int count = 0;
+		const int maxCount =
+			static_cast<int>(types.m_typeKeyBindings.size()) * 8;
+
+		if (cProfile.IOProfileData(pszSecName, L"TypeKeyBindCount", count)
+			&& 0 <= count && count <= maxCount) {
+			types.m_typeKeyBindings = {};
+
+			for (int i = 0; i < count; ++i) {
+				const auto key = L"TypeKeyBind" + std::to_wstring(i);
+				int keyCode = -1;
+				int state = -1;
+				EFunctionCode function = F_DEFAULT;
+
+				if (!cProfile.IOProfileData(pszSecName, key + L"Key", keyCode)
+					|| !cProfile.IOProfileData(pszSecName, key + L"State", state)
+					|| !cProfile.IOProfileData(pszSecName, key + L"Function", function)) {
+					continue;
+				}
+
+				if (keyCode < 0
+					|| keyCode >= static_cast<int>(types.m_typeKeyBindings.size())
+					|| state < 0 || state >= 8) {
+					continue;
+				}
+
+				auto& binding = types.m_typeKeyBindings[keyCode];
+				binding.m_bOverride[state] = true;
+				binding.m_nFuncCodeArr[state] = function;
+			}
+		}
+	}
+	else {
+		int count = 0;
+
+		for (int keyCode = 0;
+			keyCode < static_cast<int>(types.m_typeKeyBindings.size());
+			++keyCode) {
+			auto& binding = types.m_typeKeyBindings[keyCode];
+
+			for (int state = 0; state < 8; ++state) {
+				if (!binding.m_bOverride[state]) {
+					continue;
+				}
+
+				const auto key = L"TypeKeyBind" + std::to_wstring(count);
+				cProfile.IOProfileData(pszSecName, key + L"Key", keyCode);
+				cProfile.IOProfileData(pszSecName, key + L"State", state);
+				cProfile.IOProfileData(
+					pszSecName, key + L"Function",
+					binding.m_nFuncCodeArr[state]
+				);
+				++count;
+			}
+		}
+
+		cProfile.IOProfileData(pszSecName, L"TypeKeyBindCount", count);
+	}
+
 	//@@@ 2002.2.4 YAZAKI
 	cProfile.IOProfileData( pszSecName, L"szExtHelp"			, types.m_szExtHelp );
 
