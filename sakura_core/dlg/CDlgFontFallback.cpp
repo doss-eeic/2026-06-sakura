@@ -131,7 +131,8 @@ BOOL CDlgFontFallback::OnBnClicked(int id)
 			LOGFONT lf = m_settings.m_lf;
 			if (selected != LB_ERR) ::SendMessageW(list, LB_GETTEXT, selected, reinterpret_cast<LPARAM>(lf.lfFaceName));
 			INT size = m_settings.m_nPointSize;
-			if (MySelectFont(&lf, &size, GetHwnd(), false, true)) {
+			const bool editPrimary = id == IDC_BUTTON_CHANGE && selected == 0;
+			if (MySelectFont(&lf, &size, GetHwnd(), false, !editPrimary)) {
 				const int existing = static_cast<int>(::SendMessageW(list, LB_FINDSTRINGEXACT, static_cast<WPARAM>(-1), reinterpret_cast<LPARAM>(lf.lfFaceName)));
 				if (existing != LB_ERR) {
 					selected = existing;
@@ -140,6 +141,16 @@ BOOL CDlgFontFallback::OnBnClicked(int id)
 					::SendMessageW(list, LB_INSERTSTRING, selected, reinterpret_cast<LPARAM>(lf.lfFaceName));
 				} else {
 					selected = static_cast<int>(::SendMessageW(list, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(lf.lfFaceName)));
+				}
+				if (editPrimary && selected == 0) {
+					// Keep the selected style, not just its family name. In particular,
+					// Thin must retain FW_THIN instead of the previous font's weight.
+					m_settings.m_lf = lf;
+					m_settings.m_nPointSize = size;
+					m_displayPointSize = size;
+					wchar_t text[32];
+					::swprintf_s(text, L"%d.%d", size / 10, size % 10);
+					::SetDlgItemTextW(GetHwnd(), IDC_EDIT_FONT_SIZE, text);
 				}
 			}
 		}
