@@ -15,7 +15,7 @@
 #endif
 
 struct CFontFallback::Font {
-	std::array<HFONT, 8> handles{};
+	std::array<HFONT, 16> handles{};
 	HDC dc = nullptr;
 	HGDIOBJ oldFont = nullptr;
 	TEXTMETRIC metrics{};
@@ -29,6 +29,7 @@ struct CFontFallback::Font {
 			if (style & 1) lf.lfWeight = std::clamp<LONG>(lf.lfWeight + 300, FW_BOLD, 1000);
 			if (style & 2) lf.lfUnderline = TRUE;
 			if (style & 4) lf.lfItalic = TRUE;
+			if (style & 8) lf.lfStrikeOut = TRUE;
 			handles[style] = ::CreateFontIndirectW(&lf);
 		}
 		dc = ::CreateCompatibleDC(nullptr);
@@ -151,9 +152,9 @@ int CFontFallback::Resolve(char32_t codePoint) const
 	return selected;
 }
 
-HFONT CFontFallback::GetFont(int index, bool bold, bool underline, bool italic) const
+HFONT CFontFallback::GetFont(int index, bool bold, bool underline, bool italic, bool strike) const
 {
-	return m_fonts.at(index)->handles[(bold ? 1 : 0) | (underline ? 2 : 0) | (italic ? 4 : 0)];
+	return m_fonts.at(index)->handles[(bold ? 1 : 0) | (underline ? 2 : 0) | (italic ? 4 : 0) | (strike ? 8 : 0)];
 }
 
 HDC CFontFallback::GetDC(int index) const

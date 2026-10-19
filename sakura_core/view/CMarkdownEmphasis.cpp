@@ -119,30 +119,33 @@ std::vector<unsigned char> CMarkdownEmphasis::Parse(std::wstring_view text)
 				continue;
 			}
 		}
-		if (c != L'*' && c != L'_') { ++pos; continue; }
+		if (c != L'*' && c != L'_' && c != L'~') { ++pos; continue; }
 		const size_t end = RunEnd(text, pos);
+		// Only paired tildes are strikethrough; single tildes and fence runs stay literal.
+		if (c == L'~' && end - pos != 2) { pos = end; continue; }
 		const wchar_t before = pos ? text[pos - 1] : 0;
 		const wchar_t after = end < text.size() ? text[end] : 0;
 		const bool left = !IsSpace(after) && (!IsPunctuation(after) || IsSpace(before) || IsPunctuation(before));
 		const bool right = !IsSpace(before) && (!IsPunctuation(before) || IsSpace(after) || IsPunctuation(after));
 		delimiters.push_back({pos, end - pos, end - pos, c,
-			left && (c == L'*' || !right || IsPunctuation(before)),
-			right && (c == L'*' || !left || IsPunctuation(after))});
+			left && (c != L'_' || !right || IsPunctuation(before)),
+			right && (c != L'_' || !left || IsPunctuation(after))});
 		pos = end;
 	}
 
-	std::array<std::vector<size_t>, 2> openers;
-	std::vector<int> bold(text.size() + 1), italic(text.size() + 1);
+	std::array<std::vector<size_t>, 3> openers;
+	std::vector<int> bold(text.size() + 1), italic(text.size() + 1), strike(text.size() + 1);
 	std::vector<bool> syntax(text.size(), false);
 	for (size_t index = 0; index < delimiters.size(); ++index) {
 		auto& closer = delimiters[index];
-		auto& candidates = openers[closer.marker == L'*' ? 0 : 1];
+		const bool strikethrough = closer.marker == L'~';
+		auto& candidates = openers[strikethrough ? 2 : closer.marker == L'*' ? 0 : 1];
 		while (closer.close && closer.remaining) {
 			size_t match = candidates.size();
 			while (match > 0) {
 				const auto& opener = delimiters[candidates[match - 1]];
 				// CommonMark's rule of three prevents ambiguous intraword pairings.
-				if (!((opener.close || closer.open) && (opener.length + closer.length) % 3 == 0
+				if (strikethrough || !((opener.close || closer.open) && (opener.length + closer.length) % 3 == 0
 					&& (opener.length % 3 != 0 || closer.length % 3 != 0))) break;
 				--match;
 			}
@@ -152,7 +155,7 @@ std::vector<unsigned char> CMarkdownEmphasis::Parse(std::wstring_view text)
 			const size_t used = opener.remaining >= 2 && closer.remaining >= 2 ? 2 : 1;
 			const size_t from = opener.start + opener.remaining;
 			const size_t to = closer.start;
-			auto& changes = used == 2 ? bold : italic;
+			auto& changes = strikethrough ? strike : used == 2 ? bold : italic;
 			++changes[from];
 			--changes[to];
 			std::fill(syntax.begin() + from - used, syntax.begin() + from, true);
@@ -169,12 +172,14 @@ std::vector<unsigned char> CMarkdownEmphasis::Parse(std::wstring_view text)
 		if (closer.open && closer.remaining) candidates.push_back(index);
 	}
 	std::vector<unsigned char> styles(text.size(), Normal);
-	int boldDepth = 0, italicDepth = 0;
+	int boldDepth = 0, italicDepth = 0, strikeDepth = 0;
 	for (size_t pos = 0; pos < text.size(); ++pos) {
 		boldDepth += bold[pos];
 		italicDepth += italic[pos];
+		strikeDepth += strike[pos];
 		if (!literal[pos] && !syntax[pos]) {
-			styles[pos] = static_cast<unsigned char>((boldDepth ? Bold : Normal) | (italicDepth ? Italic : Normal));
+			styles[pos] = static_cast<unsigned char>((boldDepth ? Bold : Normal) | (italicDepth ? Italic : Normal)
+				| (strikeDepth ? Strike : Normal));
 		}
 	}
 	return styles;

@@ -16,7 +16,7 @@ struct STypeConfig;
 // Paint-local cache: never retains document pointers across edits or type changes.
 class CMarkdownEmphasis {
 public:
-	enum Style : unsigned char { Normal = 0, Bold = 1, Italic = 2 };
+	enum Style : unsigned char { Normal = 0, Bold = 1, Italic = 2, Strike = 4 };
 	struct BlockState {
 		wchar_t fence = 0;
 		size_t fenceLength = 0;

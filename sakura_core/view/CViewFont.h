@@ -37,7 +37,7 @@ public:
 		CreateFonts(plf, fallbacks);
 	}
 
-	HFONT ChooseFontHandle( int fontNo, SFontAttr sFontAttr, bool italic = false ) const;		/* フォントを選ぶ */
+	HFONT ChooseFontHandle( int fontNo, SFontAttr sFontAttr, bool italic = false, bool strike = false ) const;		/* フォントを選ぶ */
 	int GetFontTopOffset(int fontNo) const { return m_fallback ? m_fallback->GetTopOffset(fontNo) : 0; }
 	int GetFontHeight() const { return m_fallback ? m_fallback->GetHeight() : 0; }
 
@@ -60,6 +60,7 @@ private:
 	HFONT	m_hFont_HAN_UL;			/* 現在のフォントハンドル(下線) */
 	HFONT	m_hFont_HAN_BOLD_UL;	/* 現在のフォントハンドル(太字、下線) */
 	std::array<HFONT, 4> m_italicFonts{}; // 通常／太字／下線／太字下線の斜体
+	std::array<HFONT, 8> m_strikeFonts{}; // 太字／下線／斜体を組み合わせた取り消し線
 
 	LOGFONT	m_LogFont;
 	bool	m_bMiniMap;

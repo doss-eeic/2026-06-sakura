@@ -45,7 +45,7 @@ FigureRenderType CFigure_Text::GetRenderType(SColorStrategyInfo* pInfo)
 		}
 	}
 	const auto emphasis = pInfo->m_markdownEmphasis.GetStyle(nIdx);
-	return (fontNo << 3) | (emphasis << 1) | nType;
+	return (fontNo << 4) | (emphasis << 1) | nType;
 }
 
 int CFigure_Text::FowardChars(SColorStrategyInfo* pInfo)
@@ -84,7 +84,7 @@ bool CFigure_Text::DrawImpBlock(SColorStrategyInfo* pInfo, int nPos, int nLength
 			|| (emphasis & CMarkdownEmphasis::Bold) != 0;
 		sFont.m_sFontAttr.m_bUnderLine = (blendColor ? cCurrentType2.HasUnderLine() : cCurrentType.HasUnderLine());
 		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle(fontNo, sFont.m_sFontAttr,
-			(emphasis & CMarkdownEmphasis::Italic) != 0);
+			(emphasis & CMarkdownEmphasis::Italic) != 0, (emphasis & CMarkdownEmphasis::Strike) != 0);
 		pInfo->m_gr.PushMyFont(sFont);
 	}
 	int nHeightMargin = pInfo->m_pcView->GetFontset().GetFontTopOffset(fontNo);
@@ -215,14 +215,18 @@ void CFigureSpace::DrawImp_DrawUnderline(SColorStrategyInfo* pInfo, DispPos& sPo
 	CTypeSupport colorStyle(pcView, blendColor ? pInfo->GetCurrentColor2() : pInfo->GetCurrentColor());	// 周辺の色
 	CTypeSupport cSpaceType(pcView, GetDispColorIdx());	// 空白の指定色
 
-	if( !cSpaceType.HasUnderLine() && colorStyle.HasUnderLine() )
+	const auto emphasis = pInfo->m_markdownEmphasis.GetStyle(pInfo->GetPosInLogic());
+	const bool strike = (emphasis & CMarkdownEmphasis::Strike) != 0;
+	const bool underline = !cSpaceType.HasUnderLine() && colorStyle.HasUnderLine();
+	if( underline || strike )
 	{
 		int fontNo = WCODE::GetFontNo(' ');
-		// 下線を周辺の前景色で描画する
+		// 下線・取り消し線を周辺の前景色で描画する
 		SFONT sFont;
-		sFont.m_sFontAttr.m_bBoldFont = false;
-		sFont.m_sFontAttr.m_bUnderLine = true;
-		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle( fontNo, sFont.m_sFontAttr );
+		sFont.m_sFontAttr.m_bBoldFont = strike && (colorStyle.IsBoldFont() || (emphasis & CMarkdownEmphasis::Bold) != 0);
+		sFont.m_sFontAttr.m_bUnderLine = underline;
+		sFont.m_hFont = pInfo->m_pcView->GetFontset().ChooseFontHandle(fontNo, sFont.m_sFontAttr,
+			(emphasis & CMarkdownEmphasis::Italic) != 0, strike);
 		pInfo->m_gr.PushMyFont(sFont);
 
 		int nHeightMargin = pInfo->m_pcView->GetTextMetrics().GetCharHeightMarginByFontNo(fontNo);

@@ -41,6 +41,52 @@ TEST(MarkdownEmphasis, DelimiterRunCanCloseThenOpen)
 	ExpectStyles(L"a**b*c", "000000"); // rule of three
 }
 
+TEST(MarkdownEmphasis, StrikeAndCombinedEmphasis)
+{
+	ExpectStyles(L"~~取消~~", "004400");
+	ExpectStyles(L"~~a b~~", "0044400");
+	ExpectStyles(L"~~a\tb~~", "0044400");
+	ExpectStyles(L"~~a\nb~~", "0044400");
+	ExpectStyles(L"~~**b**~~", "000050000");
+	ExpectStyles(L"*~~i~~*", "0006000");
+	ExpectStyles(L"~~***x***~~", "00000700000");
+	ExpectStyles(L"~~a~~ ~~b~~", "00400000400");
+	ExpectStyles(L"前~~取消~~後", "00044000");
+}
+
+TEST(MarkdownEmphasis, StrikeIgnoresLiteralAndUnpairedTildes)
+{
+	for (const auto text : {L"~x~", L"~~~x~~~", L"~~~~x~~~~", L"~~unfinished", L"~~ x ~~",
+		L"\\~~x\\~~", L"`~~x~~`", L"[x](https://host/~~x~~)", L"<https://host/~~x~~>"}) {
+		const std::wstring_view value(text);
+		ExpectStyles(value, std::string(value.size(), '0'));
+	}
+	ExpectStyles(L"~~a `b` c~~", "00440004400");
+}
+
+TEST(MarkdownEmphasis, StrikeUsesParagraphAndFenceContext)
+{
+	CDocLineMgr document;
+	std::vector<CDocLine*> lines;
+	for (const auto text : {L"~~first", L"second~~", L"", L"~~~", L"~~literal~~", L"~~~", L"~~last~~"}) {
+		auto* line = document.AddNewLine();
+		line->_GetDocLineData().SetString(text);
+		lines.push_back(line);
+	}
+	CMarkdownEmphasis paint;
+	paint.Prepare(lines[1]);
+	EXPECT_EQ(CMarkdownEmphasis::Strike, paint.GetStyle(0));
+	EXPECT_EQ(CMarkdownEmphasis::Normal, paint.GetStyle(6));
+	paint.Prepare(lines[4]);
+	EXPECT_EQ(CMarkdownEmphasis::Normal, paint.GetStyle(2));
+	paint.Prepare(lines[6]);
+	EXPECT_EQ(CMarkdownEmphasis::Strike, paint.GetStyle(2));
+	lines[0]->_GetDocLineData().SetString(L"first");
+	CMarkdownEmphasis editedPaint;
+	editedPaint.Prepare(lines[1]);
+	EXPECT_EQ(CMarkdownEmphasis::Normal, editedPaint.GetStyle(0));
+}
+
 TEST(MarkdownEmphasis, UnmatchedEscapedAndIntrawordMarkersAreLiteral)
 {
 	for (const auto text : {L"*unfinished", L"** unfinished **", L"foo_bar_baz", L"\\*x\\*", L"* item", L"a_b_c"}) {
@@ -123,7 +169,7 @@ TEST(MarkdownEmphasis, AppliesToMarkdownTypesIncludingExistingCustomTypes)
 	EXPECT_FALSE(CMarkdownEmphasis::IsEnabled(*type));
 }
 
-TEST(MarkdownEmphasis, FontVariantsKeepBoldItalicAndUnderlineTogether)
+TEST(MarkdownEmphasis, FontVariantsKeepBoldItalicUnderlineAndStrikeTogether)
 {
 	LOGFONT source{};
 	source.lfHeight = -16;
@@ -131,14 +177,15 @@ TEST(MarkdownEmphasis, FontVariantsKeepBoldItalicAndUnderlineTogether)
 	wcscpy_s(source.lfFaceName, L"Consolas");
 	const SFontFallbacks fallbacks{};
 	CFontFallback fonts(source, fallbacks);
-	for (int style = 0; style < 8; ++style) {
+	for (int style = 0; style < 16; ++style) {
 		LOGFONT actual{};
-		const auto font = fonts.GetFont(0, (style & 1) != 0, (style & 2) != 0, (style & 4) != 0);
+		const auto font = fonts.GetFont(0, (style & 1) != 0, (style & 2) != 0, (style & 4) != 0, (style & 8) != 0);
 		ASSERT_NE(nullptr, font);
 		ASSERT_EQ(sizeof(actual), static_cast<size_t>(GetObject(font, sizeof(actual), &actual)));
 		EXPECT_EQ(style & 1 ? FW_BOLD : FW_NORMAL, actual.lfWeight);
 		EXPECT_EQ((style & 2) != 0, actual.lfUnderline != 0);
 		EXPECT_EQ((style & 4) != 0, actual.lfItalic != 0);
+		EXPECT_EQ((style & 8) != 0, actual.lfStrikeOut != 0);
 	}
 }
 
