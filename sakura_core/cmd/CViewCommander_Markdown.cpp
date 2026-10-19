@@ -7,6 +7,7 @@
 #include "cmd/CViewCommander.h"
 #include "cmd/CViewCommander_inline.h"
 #include "doc/logic/CDocLine.h"
+#include "parse/markdown/CMarkdownBlockParser.h"
 #include "dlg/CDlgInput1.h"
 #include "env/DLLSHAREDATA.h"
 #include "CSelectLang.h"
@@ -29,37 +30,6 @@ size_t LongestRun(const std::wstring& text, wchar_t marker)
 		longest = std::max(longest, run);
 	}
 	return longest;
-}
-
-size_t IndentLength(const std::wstring& text)
-{
-	const auto pos = text.find_first_not_of(L" \t");
-	return pos == std::wstring::npos ? text.size() : pos;
-}
-
-// Return the existing list marker's length, including an optional task checkbox.
-size_t ListMarkerLength(const std::wstring& text, size_t start, bool& ordered, bool& task)
-{
-	ordered = task = false;
-	size_t end = start;
-	if (end < text.size() && (text[end] == L'-' || text[end] == L'+' || text[end] == L'*')) {
-		++end;
-	} else {
-		while (end < text.size() && L'0' <= text[end] && text[end] <= L'9') ++end;
-		if (end == start || end - start > 9 || end == text.size() || (text[end] != L'.' && text[end] != L')')) return 0;
-		++end;
-		ordered = true;
-	}
-	if (end == text.size() || (text[end] != L' ' && text[end] != L'\t')) return 0;
-	while (end < text.size() && (text[end] == L' ' || text[end] == L'\t')) ++end;
-	if (end + 3 <= text.size() && text[end] == L'[' && text[end + 2] == L']'
-		&& (text[end + 1] == L' ' || text[end + 1] == L'x' || text[end + 1] == L'X')
-		&& (end + 3 == text.size() || text[end + 3] == L' ' || text[end + 3] == L'\t')) {
-		task = true;
-		end += 3;
-		if (end < text.size()) ++end;
-	}
-	return end - start;
 }
 
 std::wstring JoinLines(const std::vector<MarkdownLine>& lines)
@@ -229,9 +199,7 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 		if (command == F_MARKDOWN_FENCE) {
 			const auto& firstLine = lines.front().text;
 			const auto& lastLine = lines.back().text;
-			const size_t fenceLen = firstLine.find_first_not_of(L'`');
-			const size_t count = fenceLen == std::wstring::npos ? firstLine.size() : fenceLen;
-			if (lines.size() >= 3 && count >= 3 && lastLine.size() >= count && lastLine.find_first_not_of(L'`') == std::wstring::npos) {
+			if (lines.size() >= 3 && CMarkdownBlockParser::IsBacktickFence(firstLine, lastLine)) {
 				lines.erase(lines.begin());
 				lines.pop_back();
 				lines.back().eol.clear();
@@ -278,15 +246,15 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 			bool allChecked = true;
 			for (const auto& line : lines) {
 				bool ordered, task;
-				const size_t indent = IndentLength(line.text);
-				ListMarkerLength(line.text, indent, ordered, task);
+				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
+				CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
 				const size_t box = line.text.find(L'[', indent);
 				allChecked &= task && box != std::wstring::npos && line.text[box + 1] != L' ';
 			}
 			for (auto& line : lines) {
 				bool ordered, task;
-				const size_t indent = IndentLength(line.text);
-				const size_t length = ListMarkerLength(line.text, indent, ordered, task);
+				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
+				const size_t length = CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
 				if (task) line.text[line.text.find(L'[', indent) + 1] = allChecked ? L' ' : L'x';
 				else line.text.replace(indent, length, L"- [x] ");
 			}
@@ -298,33 +266,31 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 				: command == F_MARKDOWN_QUOTE ? L"> " : command == F_MARKDOWN_TASK ? L"- [ ] " : L"- ";
 			bool remove = true;
 			for (const auto& line : lines) {
-				const size_t indent = IndentLength(line.text);
+				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
 				if (heading || command == F_MARKDOWN_QUOTE) remove &= line.text.compare(indent, prefix.size(), prefix) == 0;
 				else {
 					bool ordered, task;
-					const size_t length = ListMarkerLength(line.text, indent, ordered, task);
+					const size_t length = CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
 					remove &= length > 0 && (command == F_MARKDOWN_TASK ? task : command == F_MARKDOWN_ORDERED ? ordered && !task : !ordered && !task);
 				}
 			}
 			int number = 1;
 			for (auto& line : lines) {
-				const size_t indent = IndentLength(line.text);
+				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
 				size_t length = 0;
 				if (heading) {
-					while (indent + length < line.text.size() && line.text[indent + length] == L'#') ++length;
-					if (length > 0 && length <= 6 && indent + length < line.text.size() && line.text[indent + length] == L' ') ++length;
-					else length = 0;
+					length = CMarkdownBlockParser::HeadingMarkerLength(line.text, indent);
 				} else if (command == F_MARKDOWN_QUOTE) {
 					if (remove) length = prefix.size();
 				} else {
 					bool ordered, task;
-					length = ListMarkerLength(line.text, indent, ordered, task);
+					length = CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
 				}
 				const std::wstring marker = remove ? L"" : command == F_MARKDOWN_ORDERED ? std::to_wstring(number++) + L". " : prefix;
 				line.text.replace(indent, length, marker);
 			}
 			result = JoinLines(lines);
-			caretOffset = IndentLength(lines.front().text);
+			caretOffset = CMarkdownBlockParser::IndentLength(lines.front().text);
 			if (!remove) caretOffset += command == F_MARKDOWN_ORDERED ? 3 : prefix.size();
 		}
 		// Tables and thematic breaks need a paragraph boundary before the block.

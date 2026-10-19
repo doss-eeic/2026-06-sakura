@@ -82,6 +82,9 @@
     <ClCompile Include="..\src\test\cpp\tests1\test-markdown-emphasis.cpp">
       <Filter>Test Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\test\cpp\tests1\test-markdown-parser.cpp">
+      <Filter>Test Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\test\cpp\tests1\test-int2dec.cpp">
       <Filter>Test Files</Filter>
     </ClCompile>
