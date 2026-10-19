@@ -4539,6 +4539,10 @@ void CEditWnd::ChangeLayoutParam( bool bShowProgress, CKetaXInt nTabSize, int nT
 	//	座標の保存
 	CLogicPointEx* posSave = SavePhysPosOfAllView();
 
+	for (int i = 0; i < GetAllViewCount(); i++) {
+		GetView(i).InvalidateImeDisplayLayout();
+	}
+
 	//	レイアウトの更新
 	GetDocument()->m_cLayoutMgr.ChangeLayoutParam( nTabSize, nTsvMode, nMaxLineKetas );
 	ClearViewCaretPosInfo();
@@ -4549,10 +4553,13 @@ void CEditWnd::ChangeLayoutParam( bool bShowProgress, CKetaXInt nTabSize, int nT
 	RestorePhysPosOfAllView( posSave );
 	SetDrawSwitchOfAllViews( bDrawSwitchOld );
 
-	for( int i = 0; i < GetAllViewCount(); i++ ){
-		if( GetView(i).GetHwnd() ){
-			InvalidateRect( GetView(i).GetHwnd(), nullptr, TRUE );
-			GetView(i).AdjustScrollBars();	// 2008.06.18 ryoji
+	for (int i = 0; i < GetAllViewCount(); i++) {
+		if (GetView(i).GetHwnd()) {
+			// 本文レイアウトと座標復元の完了後に作り直す。
+			GetView(i).RefreshImeDisplayAfterRelayout();
+
+			InvalidateRect(GetView(i).GetHwnd(), nullptr, TRUE);
+			GetView(i).AdjustScrollBars();
 		}
 	}
 	if( m_cMiniMapView.GetHwnd() ){
@@ -4586,16 +4593,9 @@ CLogicPointEx* CEditWnd::SavePhysPosOfAllView()
 	CLogicPointEx* pptPosArray = new CLogicPointEx[NUM_OF_VIEW * NUM_OF_POS];
 
 	for( int i = 0; i < NUM_OF_VIEW; ++i ){
-		CLayoutPoint tmp = CLayoutPoint(CLayoutInt(0), GetView(i).m_pcTextArea->GetViewTopLine());
-		if (const auto layoutLine = GetDocument()->m_cLayoutMgr.SearchLineByLayoutY(tmp.GetY2())) {
-			CLogicInt nLineCenter = layoutLine->GetLogicOffset() + layoutLine->GetLengthWithoutEOL() / 2;
-			pptPosArray[i * NUM_OF_POS + 0].x = nLineCenter;
-			pptPosArray[i * NUM_OF_POS + 0].y = layoutLine->GetLogicLineNo();
-		}else{
-			pptPosArray[i * NUM_OF_POS + 0].x = CLogicInt(0);
-			pptPosArray[i * NUM_OF_POS + 0].y = CLogicInt(0);
-		}
-		pptPosArray[i * NUM_OF_POS + 0].ext = CLayoutInt(0);
+		GetView(i).SaveDisplayTopPosition(
+			&pptPosArray[i * NUM_OF_POS + 0]
+		);
 		if( GetView(i).GetSelectionInfo().m_sSelectBgn.GetFrom().y >= 0 ){
 			GetDocument()->m_cLayoutMgr.LayoutToLogicEx(
 				GetView(i).GetSelectionInfo().m_sSelectBgn.GetFrom(),
@@ -4642,12 +4642,11 @@ void CEditWnd::RestorePhysPosOfAllView( CLogicPointEx* pptPosArray )
 	const int NUM_OF_POS = 6;
 
 	for( int i = 0; i < NUM_OF_VIEW; ++i ){
-		CLayoutPoint tmp;
-		GetDocument()->m_cLayoutMgr.LogicToLayoutEx(
-			pptPosArray[i * NUM_OF_POS + 0],
-			&tmp
+		const CLayoutInt top = GetView(i).RestoreDisplayTopPosition(
+			pptPosArray[i * NUM_OF_POS + 0]
 		);
-		GetView(i).m_pcTextArea->SetViewTopLine(tmp.GetY2());
+
+		GetView(i).m_pcTextArea->SetViewTopLine(top);
 
 		if( GetView(i).GetSelectionInfo().m_sSelectBgn.GetFrom().y >= 0 ){
 			GetDocument()->m_cLayoutMgr.LogicToLayoutEx(

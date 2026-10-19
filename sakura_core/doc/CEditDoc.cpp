@@ -809,6 +809,11 @@ void CEditDoc::OnChangeSetting(
 		nTabSpace = m_cLayoutMgr.GetTabSpaceKetas();	// 現在のタブ幅
 	}
 	CProgressSubject* pOld = CEditApp::getInstance()->m_pcVisualProgress->CProgressListener::Listen(&m_cLayoutMgr);
+	for (int view = 0;
+		view < GetEditWnd().GetAllViewCount();
+		++view) {
+		GetEditWnd().GetView(view).InvalidateImeDisplayLayout();
+	}
 	m_cLayoutMgr.SetLayoutInfo( bDoLayout, bBlockingHook, ref, nTabSpace, nTsvMode, nMaxLineKetas, CLayoutXInt(-1), &GetEditWnd().GetLogfont() );
 	CEditApp::getInstance()->m_pcVisualProgress->CProgressListener::Listen(pOld);
 	GetEditWnd().ClearViewCaretPosInfo();
@@ -830,8 +835,9 @@ void CEditDoc::OnChangeSetting(
 	if( posSaveAry ){
 		GetEditWnd().RestorePhysPosOfAllView( posSaveAry );
 	}
-	for( i = 0; i < viewCount; i++ ){
-		GetEditWnd().GetView(i).AdjustScrollBars();	// 2008.06.18 ryoji
+	for (i = 0; i < viewCount; i++) {
+		GetEditWnd().GetView(i).RefreshImeDisplayAfterRelayout();
+		GetEditWnd().GetView(i).AdjustScrollBars();
 	}
 	GetEditWnd().GetMiniMap().AdjustScrollBars();
 	if( hwndProgress ){

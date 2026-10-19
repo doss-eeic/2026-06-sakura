@@ -734,7 +734,11 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	//                         描画座標                            //
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
-	DispPos sPos(nCharDx, GetTextMetrics().GetHankakuDy());
+	DispPos sPos(
+		nCharDx,
+		GetTextMetrics().GetHankakuDy(),
+		this
+	);
 	sPos.InitDrawPos(CMyPoint(
 		GetTextArea().GetAreaLeft() - (Int)GetTextArea().GetViewLeftCol() * nCharDx,
 		GetTextArea().GetAreaTop() + (Int)( nLayoutLine - GetTextArea().GetViewTopLine() ) * nLineHeight
@@ -773,7 +777,7 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 			sPos.ForwardLayoutLineRef(1);	//レイアウト行＋＋
 		}
 	}else{
-		auto caretY = GetCaret().GetCaretLayoutPos().GetY2();
+		auto caretY = GetDisplayCaretLayoutPos().GetY2();
 		SColorStrategyInfo sInfo(gr);
 		sInfo.m_pDispPos = &sPos;
 		sInfo.m_pcView = this;
@@ -965,6 +969,9 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 	CTypeSupport cTextType(this,COLORIDX_TEXT);
 
 	const CLayout* pcLayout = pInfo->m_pDispPos->GetLayoutRef(); //m_pcEditDoc->m_cLayoutMgr.SearchLineByLayoutY( pInfo->pDispPos->GetLayoutLineRef() );
+	const CLayout* pcDisplayNext = SearchDisplayLine(
+		pInfo->m_pDispPos->GetLayoutLineRef() + CLayoutInt(1)
+	);
 
 	// レイアウト情報
 	if( pcLayout ){
@@ -1010,7 +1017,7 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 	CTypeSupport	cPageViewBg(this, COLORIDX_PAGEVIEW);
 	CEditView& cActiveView = GetEditWnd().GetActiveView();
 	CTypeSupport&	cBackType = (cCaretLineBg.IsDisp() &&
-		GetCaret().GetCaretLayoutPos().GetY() == pInfo->m_pDispPos->GetLayoutLineRef() && !m_bMiniMap
+		GetDisplayCaretLayoutPos().GetY() == pInfo->m_pDispPos->GetLayoutLineRef() && !m_bMiniMap
 			? cCaretLineBg
 			: cEvenLineBg.IsDisp() && pInfo->m_pDispPos->GetLayoutLineRef() % 2 == 1 && !m_bMiniMap
 				? cEvenLineBg
@@ -1056,7 +1063,7 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	bool bSkipRight = false; // 続きを描画しなくていい場合はスキップする
 	if(pcLayout){
-		const CLayout* pcLayoutNext = pcLayout->GetNextLayout();
+		const CLayout* pcLayoutNext = pcDisplayNext;
 		if( nullptr == pcLayoutNext ){
 			bSkipRight = true;
 		}else if( pcLayoutNext->GetLogicOffset() == 0 ){
@@ -1136,22 +1143,30 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 
 	// 必要ならEOF描画
 	void _DispEOF( CGraphics& gr, DispPos* pDispPos, const CEditView* pcView);
-	if(pcLayout && pcLayout->GetNextLayout()==nullptr && pcLayout->GetLayoutEol().GetLen()==0){
-		// 有文字行のEOF
-		_DispEOF(pInfo->m_gr,pInfo->m_pDispPos,this);
+	if (pcLayout &&
+		pcDisplayNext == nullptr &&
+		pcLayout->GetLayoutEol().GetLen() == 0) {
+		_DispEOF(pInfo->m_gr, pInfo->m_pDispPos, this);
 		bDispEOF = true;
 	}
-	else if(!pcLayout && pInfo->m_pDispPos->GetLayoutLineRef()==m_pcEditDoc->m_cLayoutMgr.GetLineCount()){
-		// 空行のEOF
-		const CLayout* pBottom = m_pcEditDoc->m_cLayoutMgr.GetBottomLayout();
-		if(pBottom==nullptr || (pBottom && pBottom->GetLayoutEol().GetLen())){
-			_DispEOF(pInfo->m_gr,pInfo->m_pDispPos,this);
+	else if (
+		!pcLayout &&
+		pInfo->m_pDispPos->GetLayoutLineRef() == GetDisplayLineCount()
+	) {
+		const CLayoutInt count = GetDisplayLineCount();
+
+		const CLayout* bottom = count > CLayoutInt(0)
+			? SearchDisplayLine(count - CLayoutInt(1))
+			: nullptr;
+
+		if (!bottom || bottom->GetLayoutEol().GetLen() != 0) {
+			_DispEOF(pInfo->m_gr, pInfo->m_pDispPos, this);
 			bDispEOF = true;
 		}
 	}
 
 	// 必要なら折り返し記号描画
-	if(pcLayout && pcLayout->GetLayoutEol().GetLen()==0 && pcLayout->GetNextLayout()!=nullptr){
+	if (pcLayout && pcLayout->GetLayoutEol().GetLen() == 0 && pcDisplayNext != nullptr) {
 		_DispWrap(pInfo->m_gr,pInfo->m_pDispPos,this,pInfo->m_pDispPos->GetLayoutLineRef());
 	}
 
@@ -1163,7 +1178,7 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 			cBackType.FillBack(pInfo->m_gr,rcClip);
 		}
 		CTypeSupport cSelectType(this, COLORIDX_SELECT);
-		if( GetSelectionInfo().IsTextSelected() && cSelectType.IsDisp() ){
+		if (!IsImeInlineDisplay() && GetSelectionInfo().IsTextSelected() && cSelectType.IsDisp()) {
 			// 選択範囲の指定色：必要ならテキストのない部分の矩形選択を作画
 			CLayoutRange selectArea = GetSelectionInfo().GetSelectAreaLine(pInfo->m_pDispPos->GetLayoutLineRef(), pcLayout);
 			// 2010.10.04 スクロール分の足し忘れ
@@ -1216,7 +1231,7 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 	}
 
 	// 反転描画
-	if( pcLayout && GetSelectionInfo().IsTextSelected() ){
+	if (!IsImeInlineDisplay() && pcLayout && GetSelectionInfo().IsTextSelected()) {
 		DispTextSelected(
 			pInfo->m_gr,
 			pInfo->m_pDispPos->GetLayoutLineRef(),
@@ -1230,7 +1245,88 @@ bool CEditView::DrawLayoutLine(SColorStrategyInfo* pInfo)
 		);
 	}
 
+	DrawImeDecoration(pInfo);
 	return bDispEOF;
+}
+
+void CEditView::DrawImeDecoration(SColorStrategyInfo* info)
+{
+	if (!m_ime.displayValid || !m_imeLayout) {
+		return;
+	}
+
+	const CLayout* line = info->m_pDispPos->GetLayoutRef();
+
+	if (!line || line->GetDocLineRef() != m_imeLine.get()) {
+		return;
+	}
+
+	const CLogicInt begin = m_ime.begin.x;
+	const CLogicInt end =
+		begin + CLogicInt(static_cast<int>(m_ime.text.size()));
+
+	HDC dc = info->m_gr;
+	HBRUSH brush = ::CreateSolidBrush(::GetTextColor(dc));
+
+	if (!brush) {
+		return;
+	}
+
+	auto iterator = m_imeLayout->CreateCMemoryIterator(line);
+
+	const int bottom =
+		info->m_pDispPos->GetDrawPos().y
+		+ GetTextMetrics().GetHankakuDy() - 1;
+
+	while (!iterator.end()) {
+		iterator.scanNext();
+
+		const CLogicInt index =
+			line->GetLogicOffset() + iterator.getIndex();
+
+		if (begin <= index && index < end) {
+			const size_t attributeIndex =
+				static_cast<size_t>(index - begin);
+
+			const BYTE attribute =
+				attributeIndex < m_ime.attributes.size()
+				? m_ime.attributes[attributeIndex]
+				: ATTR_INPUT;
+
+			const int thickness =
+				attribute == ATTR_TARGET_CONVERTED ||
+				attribute == ATTR_TARGET_NOTCONVERTED
+				? 2 : 1;
+
+			RECT rect{};
+			rect.left = GetTextArea().GetAreaLeft()
+				+ GetTextMetrics().GetCharPxWidth(
+					iterator.getColumn()
+						- GetTextArea().GetViewLeftCol()
+				);
+			rect.right = rect.left
+				+ GetTextMetrics().GetCharPxWidth(
+					iterator.getColumnDelta()
+				);
+			rect.top = bottom - thickness;
+			rect.bottom = bottom;
+
+			rect.left = std::max(
+				rect.left, LONG(GetTextArea().GetAreaLeft())
+			);
+			rect.right = std::min(
+				rect.right, LONG(GetTextArea().GetAreaRight())
+			);
+
+			if (rect.left < rect.right) {
+				::FillRect(dc, &rect, brush);
+			}
+		}
+
+		iterator.addDelta();
+	}
+
+	::DeleteObject(brush);
 }
 
 /* テキスト反転
@@ -1253,6 +1349,9 @@ void CEditView::DispTextSelected(
 	CLayoutInt		nX_Layout	//!< 対象行の終了桁位置。　[ABC\n]なら改行の後ろで4
 )
 {
+	if (IsImeInlineDisplay()) {
+		return;
+	}
 	CLayoutInt	nSelectFrom;
 	CLayoutInt	nSelectTo;
 	RECT		rcClip;

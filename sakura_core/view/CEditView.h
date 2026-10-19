@@ -269,6 +269,7 @@ public:
 	}
 	bool IsDrawCursorVLinePos(int posX);
 	void DrawBracketCursorLine(bool bDraw);
+	void DrawImeDecoration(SColorStrategyInfo* pInfo);
 
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	//                        スクロール                           //
@@ -315,6 +316,45 @@ public:
 public:
 	void SetIMECompFormPos( void );								/* IME編集エリアの位置を変更 */
 	void SetIMECompFormFont( void );							/* IME編集エリアの表示フォントを変更 */
+	void BeginImeComposition();
+	// false：通知に含まれる確定文字列を取得できず、未処理。
+	// true ：確定文字列を処理した、または確定文字列のない通知。
+	bool OnImeComposition(LPARAM flags);
+
+	// 取得済みの確定文字列を、既存の編集コマンドへ渡す。
+	void CommitImeResult(const std::wstring& text);
+	// 標準処理が同期的に生成するWM_IME_CHARを収集し、
+	// 確定文字列全体をまとめて処理する。
+	void CommitImeResultViaDefault( HWND hwnd, WPARAM wParam, LPARAM resultFlags );
+	void EndImeComposition();
+
+	void RebuildImeDisplayLayout();
+	void RefreshImeDisplay();
+	void UpdateImeCandidatePosition();
+
+	const CLayout* SearchDisplayLine(CLayoutInt y) const;
+	CLayoutInt GetDisplayLineCount() const;
+	CLayoutPoint GetDisplayCaretLayoutPos() const;
+	// IMEを確定できた場合だけ、カーソル移動などを許可する。
+	bool CompleteImeBeforeMouseAction();
+
+	// 元の選択範囲の描画を抑制するか。
+	bool IsImeInlineDisplay() const;
+
+	// 本文の再レイアウト前に表示用レイアウトを無効化する。
+	void InvalidateImeDisplayLayout();
+	bool ShouldUseNativeIme() const;
+
+	void EnsureDisplayCaretVisible();
+
+	// 表示上端専用の保存・復元。
+	// 保存結果は通常のLogicToLayoutEx()へ直接渡さない。
+	void SaveDisplayTopPosition(CLogicPointEx* position) const;
+	CLayoutInt RestoreDisplayTopPosition(
+		const CLogicPointEx& position
+	);
+
+	void RefreshImeDisplayAfterRelayout();
 
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	//                       テキスト選択                          //
@@ -739,6 +779,43 @@ public:
 	CDicMgr			m_cDicMgr;				/* 辞書マネージャ */
 
 	WCHAR			m_szComposition[512] = {}; // IMR_DOCUMENTFEED用入力中文字列データ
+	struct SImeComposition {
+		bool active = false;
+		bool displayValid = false;
+
+		// 本文上の置換範囲。
+		// 通常の挿入では begin == end。
+		CLogicPoint begin;
+		CLogicPoint end;
+
+		std::wstring text;
+		std::vector<BYTE> attributes;
+		std::vector<DWORD> clauses;
+		LONG cursor = 0;
+
+		// 本文レイアウトの置換対象。
+		CLayoutInt firstLayoutLine{0};
+		CLayoutInt originalLayoutLines{0};
+	};
+
+	SImeComposition m_ime;
+	// 矩形選択・上書きモードでは標準IME表示を使う。
+	// 変換開始から終了まで表示方式を固定する。
+	bool m_bImeNativeComposition = false;
+
+	// ImmNotifyIMEによる同期通知中の再入を防ぐ。
+	bool m_bImeCompleting = false;
+	// 押下時に拒否したクリックは、解放時も無効にする。
+	bool m_bImeRejectRightUp = false;
+	bool m_bImeRejectMiddleUp = false;
+
+	// 標準処理による確定文字の収集中だけ有効。
+	// バッファ本体はCommitImeResultViaDefault()のローカル変数。
+	std::wstring* m_pImeResultBuffer = nullptr;
+
+	// レイアウトが文字列を参照するため、この宣言順にする。
+	std::unique_ptr<CDocLine> m_imeLine;
+	std::unique_ptr<CLayoutMgr> m_imeLayout;
 
 	// IME
 private:
