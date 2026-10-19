@@ -1164,7 +1164,7 @@ void CViewCommander::Command_CREATEKEYBINDLIST( void )
 		GetDllShareData().m_Common.m_sKeyBind.m_pKeyNameArr,
 		cMemKeyList,
 		&GetDocument()->m_cFuncLookup,	//	Oct. 31, 2001 genta 追加
-		FALSE	// 2007.02.22 ryoji 追加
+		TRUE, GetDocument()->m_cDocType.GetDocumentAttribute().m_typeKeyBindings.data()
 	);
 
 	// Windowsクリップボードにコピー

@@ -57,6 +57,7 @@ void CDocType::SetDocumentType(CTypeConfig type, bool force, bool bTypeOnly )
 	CFigureManager::getInstance()->OnChangeSetting();
 	this->SetDocumentIcon();	// Sep. 11, 2002 genta
 	m_pcDocRef->SetBackgroundImage();
+	GetEditWnd().RefreshAccelTbl();
 }
 
 void CDocType::SetDocumentTypeIdx( int id, bool force )

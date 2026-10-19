@@ -1166,7 +1166,7 @@ LRESULT CEditWnd::DispatchEvent(
 				m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
 				(KEYDATA*)m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
 				&ppcAssignedKeyList,
-				uItem
+				uItem, TRUE, GetDocument()->m_cDocType.GetDocumentAttribute().m_typeKeyBindings.data()
 			);
 			if( 0 < nAssignedKeyNum ){
 				for( j = 0; j < nAssignedKeyNum; ++j ){
@@ -1688,12 +1688,6 @@ LRESULT CEditWnd::DispatchEvent(
 
 			// バー変更で画面が乱れないように	// 2006.12.19 ryoji
 			EndLayoutBars();
-
-			// アクセラレータテーブルを再作成する
-			// ウィンドウ毎に作成したアクセラレータテーブルを破棄する
-			DeleteAccelTbl();
-			// ウィンドウ毎にアクセラレータテーブルを作成する
-			CreateAccelTbl();
 
 			if( m_pShareData->m_Common.m_sTabBar.m_bDispTabWnd )
 			{
@@ -2236,10 +2230,15 @@ void CEditWnd::OnCommand( WORD wNotifyCode, WORD wID , HWND hwndCtl )
 			if( wID != F_SEARCH_BOX && m_nCurrentFocus == F_SEARCH_BOX )
 				::SetFocus( GetActiveView().GetHwnd() );
 
+			const auto& type = GetDocument()->m_cDocType.GetDocumentAttribute();
+			const auto& typeKeyBind = type.m_typeKeyBindings[LOBYTE(wID)];
+
 			EFunctionCode nFuncCode = CKeyBind::GetFuncCode(
 				wID,
 				m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
-				m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr
+				m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
+				TRUE,
+				&typeKeyBind
 			);
 			GetDocument()->HandleCommand( (EFunctionCode)(nFuncCode | FA_FROMKEYBOARD) );
 		}
@@ -4186,7 +4185,7 @@ void CEditWnd::GetTooltipText(WCHAR* pszBuf, size_t nBufCount, UINT_PTR idFrom) 
 		m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
 		m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
 		&ppcAssignedKeyList,
-		nID
+		nID, TRUE, GetDocument()->m_cDocType.GetDocumentAttribute().m_typeKeyBindings.data()
 	);
 
 	// pszBufへ結合
@@ -4732,9 +4731,13 @@ void CEditWnd::ClearMouseState( void )
 */
 void CEditWnd::CreateAccelTbl( void )
 {
+	const auto& type = GetDocument()->m_cDocType.GetDocumentAttribute();
+
 	m_hAccel = CKeyBind::CreateAccerelator(
 		m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
-		m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr
+		m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
+		type.m_typeKeyBindings.data(),
+		static_cast<int>(type.m_typeKeyBindings.size())
 	);
 
 	if( nullptr == m_hAccel ){
@@ -4753,6 +4756,16 @@ void CEditWnd::DeleteAccelTbl( void )
 	if( m_hAccel ){
 		m_hAccel = nullptr;
 	}
+}
+
+void CEditWnd::RefreshAccelTbl() {
+	if (GetHwnd() == nullptr) {
+		return;
+	}
+
+	DeleteAccelTbl();
+	CreateAccelTbl();
+	m_cFuncKeyWnd.RefreshBindings();
 }
 
 //プラグインコマンドをエディタに登録する

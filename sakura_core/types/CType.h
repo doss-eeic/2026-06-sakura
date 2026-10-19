@@ -17,6 +17,7 @@
 #include "charset/charset.h"  // ECodeType
 #include "env/CRegexKeyword.h"	// RegexKeywordInfo
 #include "charset/charcode.h"
+#include "func/CKeyBind.h"
 #include <array>
 
 //! タブ表示方法
@@ -210,6 +211,8 @@ struct STypeConfig{
 	// 2026/10/13 閉じ括弧
 	bool                m_bAutoCloseBrackets = false;   //!< 閉じ括弧を自動補完
 	std::array<SAutoCloseBracket, 16> m_autoCloseBracketRules{};
+	// キーゴードごとの上書き設定
+	std::array<STypeKeyBind, VKEX_WHEEL_RIGHT + 1> m_typeKeyBindings{};
 	//	2001/06/19 asa-o
 	bool				m_bHokanLoHiCase;				//!< 入力補完機能：英大文字小文字を同一視する
 
@@ -330,6 +333,7 @@ GEN_CTYPE(CType_Cpp)
 GEN_CTYPE(CType_Dos)
 GEN_CTYPE(CType_Html)
 GEN_CTYPE(CType_Ini)
+GEN_CTYPE(CType_Markdown)
 GEN_CTYPE(CType_Java)
 GEN_CTYPE(CType_Pascal)
 GEN_CTYPE(CType_Perl)
