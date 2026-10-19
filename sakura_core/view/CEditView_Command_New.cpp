@@ -306,6 +306,13 @@ void CEditView::InsertData_CEditView(
 				nLayoutTop = nStartLine;
 				nLayoutBottom = nStartLine + nModifyLayoutLinesOld;
 			}
+			// Markdown delimiters can change styling before/after the edited line.
+			if (CMarkdownEmphasis::IsEnabled(*m_pTypeData)) {
+				ps.rcPaint.top = GetTextArea().GetAreaTop();
+				ps.rcPaint.bottom = GetTextArea().GetAreaBottom();
+				nLayoutTop = CLayoutYInt(0);
+				nLayoutBottom = m_pcEditDoc->m_cLayoutMgr.GetLineCount() + CLayoutInt(1);
+			}
 			HDC hdc = this->GetDC();
 			OnPaint( hdc, &ps, FALSE );
 			this->ReleaseDC( hdc );
@@ -882,12 +889,17 @@ bool CEditView::ReplaceData_CEditView3(
 					ps.rcPaint.bottom = GetTextArea().GetAreaBottom();
 				}
 
+				const bool markdown = CMarkdownEmphasis::IsEnabled(*m_pTypeData);
+				if (markdown) {
+					ps.rcPaint.top = GetTextArea().GetAreaTop();
+					ps.rcPaint.bottom = GetTextArea().GetAreaBottom();
+				}
 				HDC hdc = this->GetDC();
 				OnPaint( hdc, &ps, FALSE );
 				this->ReleaseDC( hdc );
 
-				CLayoutYInt nLayoutTop = LRArg.nModLineFrom;
-				CLayoutYInt nLayoutBottom = LRArg.nModLineTo + 1 + nAddLine;
+				CLayoutYInt nLayoutTop = markdown ? CLayoutYInt(0) : LRArg.nModLineFrom;
+				CLayoutYInt nLayoutBottom = markdown ? m_pcEditDoc->m_cLayoutMgr.GetLineCount() + CLayoutInt(1) : LRArg.nModLineTo + 1 + nAddLine;
 				for(int i = 0; i < GetEditWnd().GetAllViewCount(); i++ ){
 					CEditView* pcView = &GetEditWnd().GetView(i);
 					if( pcView == this ){

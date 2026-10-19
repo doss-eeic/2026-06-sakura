@@ -71,6 +71,13 @@ void CViewFont::CreateFonts( const LOGFONT *plf, const SFontFallbacks* configure
 		lf.lfWeight = 1000;
 	}
 	m_hFont_HAN_BOLD_UL = CreateFontIndirect( &lf );
+	for (size_t style = 0; style < m_italicFonts.size(); ++style) {
+		lf = m_LogFont;
+		lf.lfItalic = TRUE;
+		if (style & 1) lf.lfWeight = std::min<LONG>(1000, lf.lfWeight + 300);
+		if (style & 2) lf.lfUnderline = TRUE;
+		m_italicFonts[style] = CreateFontIndirect(&lf);
+	}
 }
 
 /*! フォント削除
@@ -82,16 +89,21 @@ void CViewFont::DeleteFonts()
 	DeleteObject( m_hFont_HAN_BOLD );
 	DeleteObject( m_hFont_HAN_UL );
 	DeleteObject( m_hFont_HAN_BOLD_UL );
+	for (auto& font : m_italicFonts) {
+		DeleteObject(font);
+		font = nullptr;
+	}
 }
 
 /*! フォントを選ぶ
 	@param m_bBoldFont trueで太字
 	@param m_bUnderLine trueで下線
 */
-HFONT CViewFont::ChooseFontHandle( int fontNo, SFontAttr sFontAttr ) const
+HFONT CViewFont::ChooseFontHandle( int fontNo, SFontAttr sFontAttr, bool italic ) const
 {
-	if (m_fallback) return m_fallback->GetFont(fontNo, sFontAttr.m_bBoldFont, sFontAttr.m_bUnderLine);
+	if (m_fallback) return m_fallback->GetFont(fontNo, sFontAttr.m_bBoldFont, sFontAttr.m_bUnderLine, italic);
 	assert( fontNo == 0 );
+	if (italic) return m_italicFonts[(sFontAttr.m_bBoldFont ? 1 : 0) | (sFontAttr.m_bUnderLine ? 2 : 0)];
 	if( sFontAttr.m_bBoldFont ){	/* 太字か */
 		if( sFontAttr.m_bUnderLine ){	/* 下線か */
 			return m_hFont_HAN_BOLD_UL;

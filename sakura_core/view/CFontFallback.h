@@ -20,7 +20,7 @@ public:
 	CFontFallback& operator=(const CFontFallback&) = delete;
 
 	int Resolve(char32_t codePoint) const;
-	HFONT GetFont(int index, bool bold = false, bool underline = false) const;
+	HFONT GetFont(int index, bool bold = false, bool underline = false, bool italic = false) const;
 	HDC GetDC(int index) const;
 	int GetTopOffset(int index) const;
 	int GetHeight() const { return m_ascent + m_descent; }

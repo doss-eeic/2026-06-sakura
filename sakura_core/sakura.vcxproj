@@ -456,6 +456,7 @@
     <ClInclude Include="..\sakura_core\view\CViewCalc.h" />
     <ClInclude Include="..\sakura_core\view\CViewFont.h" />
     <ClInclude Include="..\sakura_core\view\CFontFallback.h" />
+    <ClInclude Include="..\sakura_core\view\CMarkdownEmphasis.h" />
     <ClInclude Include="..\sakura_core\env\SFontFallbacks.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgFontFallback.h" />
     <ClInclude Include="..\sakura_core\view\CViewParser.h" />
@@ -871,6 +872,7 @@
     <ClCompile Include="..\sakura_core\view\CViewCalc.cpp" />
     <ClCompile Include="..\sakura_core\view\CViewFont.cpp" />
     <ClCompile Include="..\sakura_core\view\CFontFallback.cpp" />
+    <ClCompile Include="..\sakura_core\view\CMarkdownEmphasis.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgFontFallback.cpp" />
     <ClCompile Include="..\sakura_core\view\CViewParser.cpp" />
     <ClCompile Include="..\sakura_core\view\CViewSelect.cpp" />
