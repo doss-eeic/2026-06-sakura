@@ -13,20 +13,12 @@
 #include "doc/layout/CLayoutMgr.h"
 #include "doc/layout/CLayout.h"
 
+class CEditView;
 struct DispPos{
 public:
-	DispPos(int nDx,int nDy)
-	: m_nDx(nDx)
-	, m_nDy(nDy)
-	{
-		m_ptDrawOrigin.x=0;
-		m_ptDrawOrigin.y=0;
-		m_ptDrawLayout.x=CLayoutInt(0);
-		m_ptDrawLayout.y=CLayoutInt(0);
-		m_nLineRef=CLayoutInt(0);
-		//キャッシュ
-		m_pcLayoutRef = CEditDoc::GetInstance(0)->m_cLayoutMgr.GetTopLayout();
-	}
+	DispPos(int nDx,int nDy, const CEditView* view = nullptr);
+
+	const CEditView* m_pView = nullptr;
 
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	//                         描画位置                            //
@@ -71,12 +63,8 @@ public:
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 
 	//変更
-	void SetLayoutLineRef(CLayoutInt nOffsetLine)
-	{
-		m_nLineRef = nOffsetLine;
-		//キャッシュ更新
-		m_pcLayoutRef = CEditDoc::GetInstance(0)->m_cLayoutMgr.SearchLineByLayoutY( m_nLineRef );
-	}
+	void SetLayoutLineRef(CLayoutInt line);
+
 	void ForwardLayoutLineRef(int nOffsetLine);
 
 	//取得

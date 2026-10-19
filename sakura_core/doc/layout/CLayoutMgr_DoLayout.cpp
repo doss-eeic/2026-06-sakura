@@ -756,6 +756,68 @@ void CLayoutMgr::_Prepare( const CLayoutMgr& other )
 	m_nTextWidthMaxLine		= CLayoutInt(0);
 }
 
+void CLayoutMgr::BuildDisplayLine(
+	const CLayoutMgr& source,
+	CDocLine* line,
+	CLogicInt logicalLine,
+	EColorIndexType initialColor,
+	const CLayoutColorInfo* initialColorInfo
+)
+{
+	// 元の折り返し幅・タブ幅・文字幅などを引き継ぐ。
+	_Prepare(source);
+
+	if (!line) {
+		return;
+	}
+
+	if (GetTabSpaceKetas() >= GetMaxLineKetas()) {
+		m_nTabSpace = CKetaXInt(4);
+	}
+
+	SLayoutWork work{};
+	work.pcDocLine = line;
+	work.pLayout = nullptr;
+	work.nCurLine = logicalLine;
+	work.colorPrev = initialColor;
+
+	work.pcColorStrategy =
+		CColorStrategyPool::getInstance()
+			->GetStrategyByColor(initialColor);
+
+	if (work.pcColorStrategy) {
+		work.pcColorStrategy->InitStrategyStatus();
+		work.pcColorStrategy->SetStrategyColorInfo(initialColorInfo);
+	}
+
+	// 元の色情報の所有権は移さず、表示用の色情報を取得する。
+	work.exInfoPrev.SetColorInfo(
+		CColorStrategy::GetStrategyColorInfoSafe(work.pcColorStrategy)
+	);
+
+	work.cLineStr = line->GetStringRefWithEOL();
+	work.eKinsokuType = KINSOKU_TYPE_NONE;
+	work.nBgn = CLogicInt(0);
+	work.nPos = CLogicInt(0);
+	work.nWordBgn = CLogicInt(0);
+	work.nWordLen = CLogicInt(0);
+	work.nPosX = CLayoutInt(0);
+	work.nIndent = CLayoutInt(0);
+
+	_MakeOneLine(&work, &CLayoutMgr::_OnLine1);
+
+	if (work.nPos > work.nBgn) {
+		AddLineBottom(work._CreateLayout(this));
+	}
+
+	m_nLineTypeBot =
+		CColorStrategy::GetStrategyColorSafe(work.pcColorStrategy);
+
+	m_cLayoutExInfoBot.SetColorInfo(
+		CColorStrategy::GetStrategyColorInfoSafe(work.pcColorStrategy)
+	);
+}
+
 /*!
 	@brief otherの内容を末尾に連結する (連結後はotherの内容は空になる)
 

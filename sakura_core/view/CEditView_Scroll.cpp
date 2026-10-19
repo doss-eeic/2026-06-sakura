@@ -182,7 +182,7 @@ CLayoutInt CEditView::OnVScroll( int nScrollCode, int nPos )
 		nScrollVal = ScrollAtV( CLayoutInt(0) );
 		break;
 	case SB_BOTTOM:
-		nScrollVal = ScrollAtV(( m_pcEditDoc->m_cLayoutMgr.GetLineCount() ) - GetTextArea().m_nViewRowNum );
+		nScrollVal = ScrollAtV( GetDisplayLineCount() - GetTextArea().m_nViewRowNum );
 		break;
 	default:
 		break;
@@ -309,7 +309,7 @@ void CEditView::AdjustScrollBars( BOOL bRedraw )
 	if( nullptr != m_hwndVScrollBar ){
 		/* 垂直スクロールバー */
 		const CLayoutInt	nEofMargin = CLayoutInt(2); // EOFとその下のマージン
-		const CLayoutInt	nAllLines = m_pcEditDoc->m_cLayoutMgr.GetLineCount() + nEofMargin;
+		const CLayoutInt nAllLines = GetDisplayLineCount() + nEofMargin;
 		int	nVScrollRate = 1;
 #ifdef _WIN64
 		/* nAllLines / nVScrollRate < INT_MAX となる整数nVScrollRateを求める */
@@ -376,8 +376,8 @@ CLayoutInt CEditView::ScrollAtV( CLayoutInt nPos, BOOL bRedrawScrollBar )
 	if( nPos < 0 ){
 		nPos = CLayoutInt(0);
 	}
-	else if( (m_pcEditDoc->m_cLayoutMgr.GetLineCount() + 2 )- GetTextArea().m_nViewRowNum < nPos ){
-		nPos = ( m_pcEditDoc->m_cLayoutMgr.GetLineCount() + CLayoutInt(2) ) - GetTextArea().m_nViewRowNum;
+	else if ( GetDisplayLineCount() + CLayoutInt(2) - GetTextArea().m_nViewRowNum < nPos) {
+		nPos = GetDisplayLineCount() + CLayoutInt(2) - GetTextArea().m_nViewRowNum;
 		if( nPos < 0 ){
 			nPos = CLayoutInt(0);
 		}
@@ -803,6 +803,19 @@ CLayoutInt CEditView::GetRightEdgeForScrollBar( void )
 	
 	if( m_pcEditDoc->m_nTextWrapMethodCur == WRAP_NO_TEXT_WRAP ){
 		CLayoutInt nRightEdge = m_pcEditDoc->m_cLayoutMgr.GetMaxTextWidth();	// テキストの最大幅
+
+		if (m_ime.displayValid && m_imeLayout) {
+			for (
+				const CLayout* line = m_imeLayout->GetTopLayout();
+				line;
+				line = line->GetNextLayout()
+			) {
+				nRightEdge = t_max(
+					nRightEdge,
+					line->CalcLayoutWidth(*m_imeLayout)
+				);
+			}
+		}
 
 		// 選択範囲あり かつ 範囲の右端がテキストの幅より右側
 		if( GetSelectionInfo().IsTextSelected() ){

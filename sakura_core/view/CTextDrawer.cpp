@@ -340,7 +340,7 @@ void CTextDrawer::DispLineNumber(
 ) const
 {
 	//$$ 高速化：SearchLineByLayoutYにキャッシュを持たせる
-	const CLayout*	pcLayout = CEditDoc::GetInstance(0)->m_cLayoutMgr.SearchLineByLayoutY( nLineNum );
+	const CLayout* pcLayout = m_pEditView->SearchDisplayLine(nLineNum);
 
 	const CEditView* pView=m_pEditView;
 	const STypeConfig* pTypes=&pView->m_pcEditDoc->m_cDocType.GetDocumentAttribute();
@@ -355,7 +355,7 @@ void CTextDrawer::DispLineNumber(
 	CTypeSupport cEvenLineBg(pView, COLORIDX_EVENLINEBG);
 	// 行がないとき・行の背景が透明のときの色
 	CTypeSupport &cBackType = (cCaretLineBg.IsDisp() &&
-		pView->GetCaret().GetCaretLayoutPos().GetY() == nLineNum
+		pView->GetDisplayCaretLayoutPos().GetY() == nLineNum
 			? cCaretLineBg
 			: cEvenLineBg.IsDisp() && nLineNum % 2 == 1
 				? cEvenLineBg
@@ -365,16 +365,27 @@ void CTextDrawer::DispLineNumber(
 	//                     nColorIndexを決定                       //
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	EColorIndexType nColorIndex = COLORIDX_GYOU;	/* 行番号 */
-	const CDocLine*	pCDocLine = nullptr;
+	const CDocLine* pCDocLine = nullptr;
 	bool bGyouMod = false;
-	if( pcLayout ){
-		pCDocLine = pcLayout->GetDocLineRef();
 
-		if( pView->GetDocument()->m_cDocEditor.IsModified() && CModifyVisitor().IsLineModified(pCDocLine, pView->GetDocument()->m_cDocEditor.m_cOpeBuf.GetNoModifiedSeq()) ){		/* 変更フラグ */
-			if( CTypeSupport(pView,COLORIDX_GYOU_MOD).IsDisp() ){	// 2006.12.12 ryoji
-				nColorIndex = COLORIDX_GYOU_MOD;	/* 行番号（変更行） */
-				bGyouMod = true;
-			}
+	if (pcLayout) {
+		// 仮の行にはブックマークや変更状態がない。
+		// 行番号に対応する本文の行から取得する。
+		pCDocLine = pView->GetDocument()->m_cDocLineMgr.GetLine(
+			pcLayout->GetLogicLineNo()
+		);
+	}
+
+	if (pCDocLine &&
+		pView->GetDocument()->m_cDocEditor.IsModified() &&
+		CModifyVisitor().IsLineModified(
+			pCDocLine,
+			pView->GetDocument()->m_cDocEditor
+				.m_cOpeBuf.GetNoModifiedSeq()
+		)) {
+		if (CTypeSupport(pView, COLORIDX_GYOU_MOD).IsDisp()) {
+			nColorIndex = COLORIDX_GYOU_MOD;
+			bGyouMod = true;
 		}
 	}
 

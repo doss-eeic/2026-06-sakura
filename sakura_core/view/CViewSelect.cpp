@@ -157,7 +157,11 @@ void CViewSelect::ChangeSelectAreaByCurrentCursorTEST(
 */
 void CViewSelect::DrawSelectArea(bool bDrawBracketCursorLine)
 {
-	CEditView* pView=GetEditView();
+	CEditView* pView = GetEditView();
+
+	if (pView->IsImeInlineDisplay()) {
+		return;
+	}
 
 	if( !pView->GetDrawSwitch() ){
 		return;
@@ -278,6 +282,10 @@ void CViewSelect::DrawSelectArea(bool bDrawBracketCursorLine)
 void CViewSelect::DrawSelectArea2( HDC hdc ) const
 {
 	CEditView const * const pView = GetEditView();
+
+	if (pView->IsImeInlineDisplay()) {
+		return;
+	}
 
 	// 2006.10.01 Moca 重複コード統合
 	HBRUSH      hBrush = ::CreateSolidBrush( SELECTEDAREA_RGB );
@@ -491,6 +499,10 @@ void CViewSelect::DrawSelectAreaLine(
 ) const
 {
 	CEditView const * const pView = m_pcEditView;
+
+	if (pView->IsImeInlineDisplay()) {
+		return;
+	}
 	bool bCompatBMP = pView->m_hbmpCompatBMP && hdc != pView->m_hdcCompatDC;
 
 	const CLayoutMgr& layoutMgr = pView->m_pcEditDoc->m_cLayoutMgr;
