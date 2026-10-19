@@ -6,6 +6,7 @@
 #include "StdAfx.h"
 #include "view/CFontFallback.h"
 #include <algorithm>
+#include <cstdlib>
 #include <dwrite.h>
 #include <wrl/client.h>
 
@@ -22,9 +23,10 @@ struct CFontFallback::Font {
 
 	Font(const LOGFONT& source, IDWriteGdiInterop* interop)
 	{
+		const LOGFONT base = CFontFallback::ResolveBaseFont(source);
 		for (size_t style = 0; style < handles.size(); ++style) {
-			LOGFONT lf = source;
-			if (style & 1) lf.lfWeight = std::min<LONG>(1000, lf.lfWeight + 300);
+			LOGFONT lf = base;
+			if (style & 1) lf.lfWeight = std::clamp<LONG>(lf.lfWeight + 300, FW_BOLD, 1000);
 			if (style & 2) lf.lfUnderline = TRUE;
 			if (style & 4) lf.lfItalic = TRUE;
 			handles[style] = ::CreateFontIndirectW(&lf);
@@ -74,6 +76,38 @@ bool CFontFallback::IsAvailable(const wchar_t* faceName)
 		}, reinterpret_cast<LPARAM>(&found), 0);
 	::DeleteDC(dc);
 	return found;
+}
+
+LOGFONT CFontFallback::ResolveBaseFont(const LOGFONT& source)
+{
+	LOGFONT result = source;
+	if (source.lfFaceName[0] == L'\0' || (source.lfWeight != FW_NORMAL && source.lfWeight != FW_DONTCARE)) return result;
+	// A named instance such as "Noto Sans JP Thin" has a nominal weight of
+	// 100, even though its Win32 style is called "Regular". Asking that face
+	// for 400 can select an unrelated instance on variable-font installations.
+	struct Match {
+		LONG weight = FW_NORMAL;
+		LONG distance = 1001;
+		bool italic;
+	} match{FW_NORMAL, 1001, source.lfItalic != FALSE};
+	LOGFONT query = source;
+	query.lfCharSet = DEFAULT_CHARSET;
+	HDC dc = ::CreateCompatibleDC(nullptr);
+	if (!dc) return result;
+	::EnumFontFamiliesExW(dc, &query,
+		[](const LOGFONT* font, const TEXTMETRIC*, DWORD, LPARAM data) -> int {
+			auto& match = *reinterpret_cast<Match*>(data);
+			if ((font->lfItalic != FALSE) != match.italic) return 1;
+			const LONG distance = std::abs(font->lfWeight - FW_NORMAL);
+			if (distance < match.distance) {
+				match.weight = font->lfWeight;
+				match.distance = distance;
+			}
+			return distance != 0;
+		}, reinterpret_cast<LPARAM>(&match), 0);
+	::DeleteDC(dc);
+	if (match.distance != 1001) result.lfWeight = match.weight;
+	return result;
 }
 
 CFontFallback::CFontFallback(const LOGFONT& primary, const SFontFallbacks& fallbacks)

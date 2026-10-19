@@ -141,3 +141,57 @@ TEST(MarkdownEmphasis, FontVariantsKeepBoldItalicAndUnderlineTogether)
 		EXPECT_EQ((style & 4) != 0, actual.lfItalic != 0);
 	}
 }
+
+TEST(MarkdownEmphasis, ThinAndLightFontsUseAtLeastBoldWeight)
+{
+	for (const LONG weight : {FW_THIN, FW_LIGHT, FW_NORMAL}) {
+		LOGFONT source{};
+		source.lfHeight = -20;
+		source.lfWeight = weight;
+		source.lfCharSet = DEFAULT_CHARSET;
+		wcscpy_s(source.lfFaceName, L"Segoe UI");
+		const SFontFallbacks fallbacks{};
+		CFontFallback fonts(source, fallbacks);
+		for (bool italic : {false, true}) {
+			LOGFONT actual{};
+			const auto font = fonts.GetFont(0, true, false, italic);
+			ASSERT_EQ(sizeof(actual), static_cast<size_t>(GetObject(font, sizeof(actual), &actual)));
+			EXPECT_EQ(FW_BOLD, actual.lfWeight);
+			HDC dc = CreateCompatibleDC(nullptr);
+			ASSERT_NE(nullptr, dc);
+			const auto old = SelectObject(dc, font);
+			TEXTMETRIC metrics{};
+			const BOOL measured = GetTextMetrics(dc, &metrics);
+			SelectObject(dc, old);
+			DeleteDC(dc);
+			ASSERT_TRUE(measured);
+			EXPECT_GE(metrics.tmWeight, FW_BOLD);
+		}
+	}
+}
+
+TEST(MarkdownEmphasis, NamedThinInstanceDoesNotReuseRegularWeight)
+{
+	if (!CFontFallback::IsAvailable(L"Noto Sans JP Thin")) GTEST_SKIP() << "Noto Sans JP Thin is not installed";
+	LOGFONT source{};
+	source.lfHeight = -20;
+	source.lfWeight = FW_NORMAL; // old font-list settings discarded the selected weight
+	source.lfCharSet = DEFAULT_CHARSET;
+	wcscpy_s(source.lfFaceName, L"Noto Sans JP Thin");
+	EXPECT_EQ(FW_THIN, CFontFallback::ResolveBaseFont(source).lfWeight);
+	const SFontFallbacks fallbacks{};
+	CFontFallback fonts(source, fallbacks);
+	HDC dc = CreateCompatibleDC(nullptr);
+	ASSERT_NE(nullptr, dc);
+	TEXTMETRIC normal{}, bold{};
+	const auto old = SelectObject(dc, fonts.GetFont(0));
+	const BOOL normalMeasured = GetTextMetrics(dc, &normal);
+	SelectObject(dc, fonts.GetFont(0, true));
+	const BOOL boldMeasured = GetTextMetrics(dc, &bold);
+	SelectObject(dc, old);
+	DeleteDC(dc);
+	ASSERT_TRUE(normalMeasured);
+	ASSERT_TRUE(boldMeasured);
+	EXPECT_EQ(FW_THIN, normal.tmWeight);
+	EXPECT_GE(bold.tmWeight, FW_BOLD);
+}

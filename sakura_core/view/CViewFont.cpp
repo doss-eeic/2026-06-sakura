@@ -10,6 +10,7 @@
 #include "CViewFont.h"
 #include "env/DLLSHAREDATA.h"
 #include "util/window.h"
+#include <algorithm>
 
 /*! フォント作成
 */
@@ -27,7 +28,8 @@ void CViewFont::CreateFonts( const LOGFONT *plf, const SFontFallbacks* configure
 		lf.lfQuality = BYTE(quality);
 		lf.lfOutPrecision = BYTE(outPrec);
 	}
-	m_hFont_HAN = CreateFontIndirect( &lf );
+	const LOGFONT base = CFontFallback::ResolveBaseFont(lf);
+	m_hFont_HAN = CreateFontIndirect( &base );
 	m_LogFont = lf;
 	const auto& fallbacks = configuredFallbacks ? *configuredFallbacks : GetDllShareData().m_Common.m_sView.m_fallbackFonts;
 	if (std::any_of(fallbacks.begin(), fallbacks.end(), [](const auto& name) { return name[0] != L'\0'; })) {
@@ -35,20 +37,17 @@ void CViewFont::CreateFonts( const LOGFONT *plf, const SFontFallbacks* configure
 	}
 
 	/* 太字フォント作成 */
-	lf = *plf;
+	lf = base;
 	if( m_bMiniMap ){
 		lf.lfHeight = miniSize;
 		lf.lfQuality = BYTE(quality);
 		lf.lfOutPrecision = BYTE(outPrec);
 	}
-	lf.lfWeight += 300;
-	if( 1000 < lf.lfWeight ){
-		lf.lfWeight = 1000;
-	}
+	lf.lfWeight = std::clamp<LONG>(lf.lfWeight + 300, FW_BOLD, 1000);
 	m_hFont_HAN_BOLD = CreateFontIndirect( &lf );
 
 	/* 下線フォント作成 */
-	lf = *plf;
+	lf = base;
 	if( m_bMiniMap ){
 		lf.lfHeight = miniSize;
 		lf.lfQuality = BYTE(quality);
@@ -59,22 +58,19 @@ void CViewFont::CreateFonts( const LOGFONT *plf, const SFontFallbacks* configure
 	m_hFont_HAN_UL = CreateFontIndirect( &lf );
 
 	/* 太字下線フォント作成 */
-	lf = *plf;
+	lf = base;
 	if( m_bMiniMap ){
 		lf.lfHeight = miniSize;
 		lf.lfQuality = BYTE(quality);
 		lf.lfOutPrecision = BYTE(outPrec);
 	}
 	lf.lfUnderline = TRUE;
-	lf.lfWeight += 300;
-	if( 1000 < lf.lfWeight ){
-		lf.lfWeight = 1000;
-	}
+	lf.lfWeight = std::clamp<LONG>(lf.lfWeight + 300, FW_BOLD, 1000);
 	m_hFont_HAN_BOLD_UL = CreateFontIndirect( &lf );
 	for (size_t style = 0; style < m_italicFonts.size(); ++style) {
-		lf = m_LogFont;
+		lf = base;
 		lf.lfItalic = TRUE;
-		if (style & 1) lf.lfWeight = std::min<LONG>(1000, lf.lfWeight + 300);
+		if (style & 1) lf.lfWeight = std::clamp<LONG>(lf.lfWeight + 300, FW_BOLD, 1000);
 		if (style & 2) lf.lfUnderline = TRUE;
 		m_italicFonts[style] = CreateFontIndirect(&lf);
 	}

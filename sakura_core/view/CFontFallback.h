@@ -25,6 +25,7 @@ public:
 	int GetTopOffset(int index) const;
 	int GetHeight() const { return m_ascent + m_descent; }
 	static bool IsAvailable(const wchar_t* faceName);
+	static LOGFONT ResolveBaseFont(const LOGFONT& source);
 	static char32_t DecodePair(wchar_t high, wchar_t low);
 
 private:

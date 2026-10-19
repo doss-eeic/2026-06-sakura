@@ -97,6 +97,13 @@ std::wstring EscapeDestination(const std::wstring& text)
 void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 {
 	auto& selection = m_pCommanderView->GetSelectionInfo();
+#ifdef _DEBUG
+	const auto debugRange = selection.m_sSelect;
+	MYTRACE(L"Markdown command=%d selection=(%d,%d)-(%d,%d) mouseSelecting=%d box=%d\n",
+		static_cast<int>(command), static_cast<int>(debugRange.GetFrom().GetX2()),
+		static_cast<int>(debugRange.GetFrom().GetY2()), static_cast<int>(debugRange.GetTo().GetX2()),
+		static_cast<int>(debugRange.GetTo().GetY2()), selection.IsMouseSelecting(), selection.IsBoxSelecting());
+#endif
 	if (selection.IsMouseSelecting()) {
 		ErrorBeep();
 		return;
@@ -125,7 +132,12 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 	size_t caretOffset = 0;
 	if (inlineCommand) {
 		CNativeW data;
-		if (selected && !m_pCommanderView->GetSelectedDataSimple(data)) return;
+		if (selected && !m_pCommanderView->GetSelectedDataSimple(data)) {
+#ifdef _DEBUG
+			MYTRACE(L"Markdown: GetSelectedDataSimple failed\n");
+#endif
+			return;
+		}
 		std::wstring text;
 		if (data.GetStringLength() > 0) text.assign(data.GetStringPtr(), static_cast<size_t>(data.GetStringLength()));
 		std::wstring opening, closing;
@@ -190,6 +202,9 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 		if (!removed) {
 			// Single-line delimiters share the bracket insertion/wrapping path.
 			if (command != F_MARKDOWN_LINK && command != F_MARKDOWN_IMAGE) {
+#ifdef _DEBUG
+				MYTRACE(L"Markdown: enclose selected=%d length=%d\n", selected, data.GetStringLength());
+#endif
 				Command_ENCLOSE(opening, closing);
 				return;
 			}
