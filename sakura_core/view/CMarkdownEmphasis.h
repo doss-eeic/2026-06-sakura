@@ -6,7 +6,7 @@
 #pragma once
 
 #include <cstddef>
-#include <string_view>
+#include "parse/markdown/MarkdownTypes.h"
 #include <unordered_map>
 #include <vector>
 
@@ -16,19 +16,7 @@ struct STypeConfig;
 // Paint-local cache: never retains document pointers across edits or type changes.
 class CMarkdownEmphasis {
 public:
-	enum Style : unsigned char { Normal = 0, Bold = 1, Italic = 2, Strike = 4 };
-	struct BlockState {
-		wchar_t fence = 0;
-		size_t fenceLength = 0;
-	};
-	struct BlockInfo {
-		bool code;
-		bool boundary;
-	};
-
 	static bool IsEnabled(const STypeConfig& type);
-	static std::vector<unsigned char> Parse(std::wstring_view text);
-	static BlockInfo ScanBlock(std::wstring_view text, BlockState& state);
 	void Prepare(const CDocLine* line);
 	unsigned char GetStyle(size_t position) const;
 
@@ -38,5 +26,5 @@ private:
 	std::vector<unsigned char> m_styles;
 	LineRange m_current{};
 	const CDocLine* m_nextLine = nullptr;
-	BlockState m_block;
+	Markdown::BlockState m_block;
 };

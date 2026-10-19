@@ -436,6 +436,18 @@
     <ClInclude Include="..\sakura_core\parse\CWordParse.h">
       <Filter>Cpp Source Files\parse</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\MarkdownParseUtil.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\MarkdownTypes.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\env\CAppNodeManager.h">
       <Filter>Cpp Source Files\env</Filter>
     </ClInclude>
@@ -1481,6 +1493,12 @@
       <Filter>Cpp Source Files\mem</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\parse\CWordParse.cpp">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.cpp">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.cpp">
       <Filter>Cpp Source Files\parse</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\env\CAppNodeManager.cpp">
