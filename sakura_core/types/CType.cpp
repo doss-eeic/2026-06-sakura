@@ -68,6 +68,7 @@ void CShareData::InitTypeConfigs(DLLSHAREDATA* pShareData, std::vector<STypeConf
 		new CType_Vb(),		//Visual Basic
 		new CType_Rich(),	//リッチテキスト
 		new CType_Ini(),	//設定ファイル
+		new CType_Markdown(), //Markdown
 	};
 	types.clear();
 	static_assert( int(std::size(table)) <= MAX_TYPES );

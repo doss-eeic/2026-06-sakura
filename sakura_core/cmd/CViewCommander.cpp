@@ -207,8 +207,27 @@ BOOL CViewCommander::HandleCommand(
 
 	switch( nCommand ){
 	case F_WCHAR:	            Command_WCHAR( (wchar_t)lparam1 );break;
-	case F_MARKDOWN_BOLD:       Command_ENCLOSE(L"**", L"**"); break;
-	case F_MARKDOWN_ITALIC:     Command_ENCLOSE(L"*", L"*"); break;
+	case F_MARKDOWN_BOLD:
+	case F_MARKDOWN_ITALIC:
+	case F_MARKDOWN_STRIKE:
+	case F_MARKDOWN_H1:
+	case F_MARKDOWN_H2:
+	case F_MARKDOWN_H3:
+	case F_MARKDOWN_H4:
+	case F_MARKDOWN_H5:
+	case F_MARKDOWN_H6:
+	case F_MARKDOWN_QUOTE:
+	case F_MARKDOWN_BULLET:
+	case F_MARKDOWN_ORDERED:
+	case F_MARKDOWN_TASK:
+	case F_MARKDOWN_TASKCHECK:
+	case F_MARKDOWN_CODE:
+	case F_MARKDOWN_FENCE:
+	case F_MARKDOWN_LINK:
+	case F_MARKDOWN_IMAGE:
+	case F_MARKDOWN_TABLE:
+	case F_MARKDOWN_HR:
+		Command_MARKDOWN(nCommand); break;
 
 	/* ファイル操作系 */
 	case F_FILENEW:				Command_FILENEW();break;			/* 新規作成 */

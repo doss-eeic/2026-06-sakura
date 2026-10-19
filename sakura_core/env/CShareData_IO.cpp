@@ -8,6 +8,8 @@
 */
 
 #include "StdAfx.h"
+#include "env/CDocTypeManager.h"
+#include <algorithm>
 #include "env/CShareData_IO.h"
 
 #include "basis/primitive.h"
@@ -1323,6 +1325,15 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 	SetValueLimit( pShare->m_nTypesCount, 1, MAX_TYPES );
 	// 注：コントロールプロセス専用
 	std::vector<STypeConfig*>& types = CShareData::getInstance()->GetTypeSettings();
+	if (cProfile.IsReadingMode()) {
+		// A saved custom type may occupy the newly added default Markdown slot.
+		// Clear that seed before reading it, so its overrides cannot leak into user types.
+		for (int index = 0; index < nCountOld; ++index) {
+			if (wcscmp(types[index]->m_szTypeName, L"Markdown") == 0) {
+				CType_Basis().InitTypeConfig(index, *types[index]);
+			}
+		}
+	}
 	for( i = GetDllShareData().m_nTypesCount; i < nCountOld; i++ ){
 		delete types[i];
 		types[i] = nullptr;
@@ -1348,6 +1359,26 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 			wcscpy(pShare->m_TypeMini[i].m_szTypeName, type.m_szTypeName);
 			pShare->m_TypeMini[i].m_id = type.m_id;
 			pShare->m_TypeMini[i].m_encoding = type.m_encoding;
+		}
+	}
+	bool markdownTypeInitialized = cProfile.IsWritingMode();
+	cProfile.IOProfileData(L"Other", L"MarkdownTypeInitialized", markdownTypeInitialized);
+	if (cProfile.IsReadingMode() && !markdownTypeInitialized && pShare->m_nTypesCount < MAX_TYPES) {
+		const bool exists = std::any_of(types.begin(), types.end(), [](const STypeConfig* type) {
+			return _wcsicmp(type->m_szTypeName, L"Markdown") == 0
+				|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.md")
+				|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.markdown")
+				|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.mdown");
+		});
+		if (!exists) {
+			const int index = pShare->m_nTypesCount++;
+			auto* type = new STypeConfig;
+			CType_Markdown().InitTypeConfig(index, *type);
+			types.push_back(type);
+			wcscpy(pShare->m_TypeMini[index].m_szTypeExts, type->m_szTypeExts);
+			wcscpy(pShare->m_TypeMini[index].m_szTypeName, type->m_szTypeName);
+			pShare->m_TypeMini[index].m_encoding = type->m_encoding;
+			pShare->m_TypeMini[index].m_id = type->m_id;
 		}
 	}
 	if( cProfile.IsReadingMode() ){

@@ -572,6 +572,7 @@
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_CustMenu.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Diff.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit.cpp" />
+    <ClCompile Include="..\sakura_core\cmd\CViewCommander_Markdown.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_advanced.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_word_line.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_File.cpp" />
@@ -803,6 +804,7 @@
     <ClCompile Include="..\sakura_core\types\CType_Erlang.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Html.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Ini.cpp" />
+    <ClCompile Include="..\sakura_core\types\CType_Markdown.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Java.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Others.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Pascal.cpp" />

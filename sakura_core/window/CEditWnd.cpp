@@ -1166,7 +1166,7 @@ LRESULT CEditWnd::DispatchEvent(
 				m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
 				(KEYDATA*)m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
 				&ppcAssignedKeyList,
-				uItem
+				uItem, TRUE, GetDocument()->m_cDocType.GetDocumentAttribute().m_typeKeyBindings.data()
 			);
 			if( 0 < nAssignedKeyNum ){
 				for( j = 0; j < nAssignedKeyNum; ++j ){
@@ -4185,7 +4185,7 @@ void CEditWnd::GetTooltipText(WCHAR* pszBuf, size_t nBufCount, UINT_PTR idFrom) 
 		m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
 		m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
 		&ppcAssignedKeyList,
-		nID
+		nID, TRUE, GetDocument()->m_cDocType.GetDocumentAttribute().m_typeKeyBindings.data()
 	);
 
 	// pszBufへ結合
@@ -4765,6 +4765,7 @@ void CEditWnd::RefreshAccelTbl() {
 
 	DeleteAccelTbl();
 	CreateAccelTbl();
+	m_cFuncKeyWnd.RefreshBindings();
 }
 
 //プラグインコマンドをエディタに登録する

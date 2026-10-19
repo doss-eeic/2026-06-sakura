@@ -1657,6 +1657,9 @@
     <ClCompile Include="..\sakura_core\types\CType_Ini.cpp">
       <Filter>Cpp Source Files\types</Filter>
     </ClCompile>
+    <ClCompile Include="..\sakura_core\types\CType_Markdown.cpp">
+      <Filter>Cpp Source Files\types</Filter>
+    </ClCompile>
     <ClCompile Include="..\sakura_core\types\CType_Java.cpp">
       <Filter>Cpp Source Files\types</Filter>
     </ClCompile>
@@ -2258,6 +2261,9 @@
       <Filter>Cpp Source Files\cmd</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit.cpp">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\cmd\CViewCommander_Markdown.cpp">
       <Filter>Cpp Source Files\cmd</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_advanced.cpp">

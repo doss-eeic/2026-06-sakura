@@ -84,7 +84,7 @@ HACCEL CKeyBind::CreateAccerelator(
 				pTypeKeyBind = &pTypeKeyBindings[nKeyCode];
 			}
 			for( j = 0; j < 8; ++j ){
-				if( 0 != GetFuncCodeAt( pKeyNameArr[i], j, TRUE, pTypeKeyBind) ){
+				if( 0 != GetFuncCodeAt( pKeyNameArr[i], j, TRUE, pTypeKeyBind ) ){
 					nAccelArrNum++;
 				}
 			}
@@ -166,7 +166,8 @@ int CKeyBind::CreateKeyBindList(
 	KEYDATA*		pKeyNameArr,	//!< [out]
 	CNativeW&		cMemList,		//!<
 	CFuncLookup*	pcFuncLookup,	//!< [in] 機能番号→名前の対応を取る
-	BOOL			bGetDefFuncCode //!< [in] ON:デフォルト機能割り当てを使う/OFF:使わない デフォルト:TRUE
+	BOOL			bGetDefFuncCode,
+	const STypeKeyBind* pTypeKeyBindings
 )
 {
 	int		i;
@@ -191,7 +192,9 @@ int CKeyBind::CreateKeyBindList(
 
 	for( j = 0; j < 8; ++j ){
 		for( i = 0; i < nKeyNameArrNum; ++i ){
-			int iFunc = GetFuncCodeAt( pKeyNameArr[i], j, bGetDefFuncCode );
+			const int key = pKeyNameArr[i].m_nKeyCode;
+			int iFunc = GetFuncCodeAt( pKeyNameArr[i], j, bGetDefFuncCode,
+				pTypeKeyBindings && 0 <= key && key <= VKEX_WHEEL_RIGHT ? &pTypeKeyBindings[key] : nullptr );
 
 			if( 0 != iFunc ){
 				nValidKeys++;
@@ -280,7 +283,8 @@ bool CKeyBind::GetKeyStrSub(
 		int			nShiftState,
 		CNativeW&	cMemList,
 		int			nFuncId,
-		BOOL		bGetDefFuncCode /* = TRUE */
+		BOOL		bGetDefFuncCode,
+		const STypeKeyBind* pTypeKeyBindings
 )
 {
 	const WCHAR*	pszSHIFT = L"Shift+";
@@ -289,7 +293,9 @@ bool CKeyBind::GetKeyStrSub(
 
 	int i;
 	for( i = nKeyNameArrBegin; i < nKeyNameArrEnd; ++i ){
-		if( nFuncId == GetFuncCodeAt( pKeyNameArr[i], nShiftState, bGetDefFuncCode ) ){
+		const int key = pKeyNameArr[i].m_nKeyCode;
+		if( nFuncId == GetFuncCodeAt( pKeyNameArr[i], nShiftState, bGetDefFuncCode,
+			pTypeKeyBindings && 0 <= key && key <= VKEX_WHEEL_RIGHT ? &pTypeKeyBindings[key] : nullptr ) ){
 			if( nShiftState & _SHIFT ){
 				cMemList.AppendString( pszSHIFT );
 			}
@@ -319,7 +325,8 @@ int CKeyBind::GetKeyStr(
 		KEYDATA*	pKeyNameArr,
 		CNativeW&	cMemList,
 		int			nFuncId,
-		BOOL		bGetDefFuncCode /* = TRUE */
+		BOOL		bGetDefFuncCode,
+		const STypeKeyBind* pTypeKeyBindings
 )
 {
 	int		i;
@@ -329,7 +336,7 @@ int CKeyBind::GetKeyStr(
 	//	先にキー部分を調査する
 	for( j = 0; j < 8; ++j ){
 		for( i = MOUSEFUNCTION_KEYBEGIN; i < nKeyNameArrNum; /* 1を加えてはいけない */ ){
-			if( GetKeyStrSub( i, nKeyNameArrNum, pKeyNameArr, j, cMemList, nFuncId, bGetDefFuncCode )){
+			if( GetKeyStrSub( i, nKeyNameArrNum, pKeyNameArr, j, cMemList, nFuncId, bGetDefFuncCode, pTypeKeyBindings )){
 				return 1;
 			}
 		}
@@ -338,7 +345,7 @@ int CKeyBind::GetKeyStr(
 	//	後にマウス部分を調査する
 	for( j = 0; j < 8; ++j ){
 		for( i = 0; i < MOUSEFUNCTION_KEYBEGIN; /* 1を加えてはいけない */ ){
-			if( GetKeyStrSub( i, nKeyNameArrNum, pKeyNameArr, j, cMemList, nFuncId, bGetDefFuncCode )){
+			if( GetKeyStrSub( i, nKeyNameArrNum, pKeyNameArr, j, cMemList, nFuncId, bGetDefFuncCode, pTypeKeyBindings )){
 				return 1;
 			}
 		}
@@ -356,7 +363,8 @@ int CKeyBind::GetKeyStrList(
 	KEYDATA*	pKeyNameArr,
 	CNativeW***	pppcMemList,
 	int			nFuncId,
-	BOOL		bGetDefFuncCode /* = TRUE */
+	BOOL		bGetDefFuncCode,
+	const STypeKeyBind* pTypeKeyBindings
 )
 {
 	int		i;
@@ -369,7 +377,9 @@ int CKeyBind::GetKeyStrList(
 	}
 	for( j = 0; j < 8; ++j ){
 		for( i = 0; i < nKeyNameArrNum; ++i ){
-			if( nFuncId == GetFuncCodeAt( pKeyNameArr[i], j, bGetDefFuncCode ) ){
+			const int key = pKeyNameArr[i].m_nKeyCode;
+			if( nFuncId == GetFuncCodeAt( pKeyNameArr[i], j, bGetDefFuncCode,
+				pTypeKeyBindings && 0 <= key && key <= VKEX_WHEEL_RIGHT ? &pTypeKeyBindings[key] : nullptr ) ){
 				nAssignedKeysNum++;
 			}
 		}
@@ -388,7 +398,7 @@ int CKeyBind::GetKeyStrList(
 		for( i = 0; i < nKeyNameArrNum; /* 1を加えてはいけない */ ){
 			//	2007.11.04 genta 共通機能のサブルーチン化
 			if( GetKeyStrSub( i, nKeyNameArrNum, pKeyNameArr, j,
-					*((*pppcMemList)[nAssignedKeysNum]), nFuncId, bGetDefFuncCode )){
+					*((*pppcMemList)[nAssignedKeysNum]), nFuncId, bGetDefFuncCode, pTypeKeyBindings )){
 				nAssignedKeysNum++;
 			}
 		}
@@ -457,7 +467,8 @@ WCHAR* CKeyBind::GetMenuLabel(
 		const WCHAR*	pszKey,
 		BOOL		bKeyStr,
 		int			nLabelSize,
-		BOOL		bGetDefFuncCode /* = TRUE */
+		BOOL		bGetDefFuncCode,
+		const STypeKeyBind* pTypeKeyBindings
 )
 {
 	const unsigned int LABEL_MAX = nLabelSize;
@@ -478,7 +489,7 @@ WCHAR* CKeyBind::GetMenuLabel(
 		// 2010.07.11 Moca メニューラベルの「\t」の付加条件変更
 		// [ファイル/フォルダー/ウィンドウ一覧以外]から[アクセスキーがあるときのみ]に付加するように変更
 		/* 機能に対応するキー名の取得 */
-		if( GetKeyStr( hInstance, nKeyNameArrNum, pKeyNameArr, cMemAccessKey, nFuncId, bGetDefFuncCode ) ){
+		if( GetKeyStr( hInstance, nKeyNameArrNum, pKeyNameArr, cMemAccessKey, nFuncId, bGetDefFuncCode, pTypeKeyBindings ) ){
 			// バッファが足りないときは入れない
 			if( wcslen( pszLabel ) + (Int)cMemAccessKey.GetStringLength() + 1 < LABEL_MAX ){
 				wcscat( pszLabel, L"\t" );
@@ -536,6 +547,7 @@ EFunctionCode CKeyBind::GetDefFuncCode( int nKeyCode, int nState )
 */
 EFunctionCode CKeyBind::GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode, const STypeKeyBind* pTypeKeyBind )
 {
+	if (nState < 0 || nState >= 8) return F_DEFAULT;
 	if (pTypeKeyBind != nullptr && pTypeKeyBind->m_bOverride[nState]) {
 		return pTypeKeyBind->m_nFuncCodeArr[nState];
 	}
