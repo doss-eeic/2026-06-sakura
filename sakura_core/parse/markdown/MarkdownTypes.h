@@ -23,14 +23,14 @@ struct BlockInfo {
 };
 
 // 原文上の位置。0origin
-struct SoucePosition {
-	size_t = line = 0;
+struct SourcePosition {
+	size_t line = 0;
 	size_t offset = 0;
 };
 
 struct SourceRange {
-	SoucePosition begin;
-	SoucePosition end;
+	SourcePosition begin;
+	SourcePosition end;
 };
 
 enum class ListKind {
@@ -47,7 +47,7 @@ struct ListMarkerInfo {
 	ListKind kind = ListKind::Bullet;
 	wchar_t marker = L'-';
 	unsigned int number = 1; // Orderedの原文の番号
-	SourceRange Range = range; // リスト記号本体。空白除く
+	SourceRange range; // リスト記号本体。空白除く
 	std::optional<TaskMarkerInfo> task;
 };
 
@@ -58,16 +58,16 @@ enum class ContainerKind {
 
 struct ContainerInfo {
 	ContainerKind kind = ContainerKind::Quote;
-	SoucePosition start; // コンテナの原文での開始位置
-	std::optional<SoucePosition> parentItem; //所属する親リスト項目
+	SourcePosition start; // コンテナの原文での開始位置
+	std::optional<SourcePosition> parentItem; //所属する親リスト項目
 	std::optional<SourceRange> prefixRange; //現在行で明示された接頭辞の範囲
-	size_t contentColumn = 0; // コンテナの内容が始まる列（タブの数）
+	size_t contentColumn = 0; // タブを4列区切りで展開した、0始まりの構文上の列
 	std::optional<ListMarkerInfo> list;
 };
 
 enum class LineKind {
-	Unknown, Paragraph, ListItem, Coutinuation, Blank,
-	Fence, FencedCode, IndentdCode, Heading, ThemanticBreak
+	Unknown, Paragraph, ListItem, Continuation, Blank,
+	Fence, FencedCode, IndentedCode, Heading, ThematicBreak
 };
 
 struct LineContext {
@@ -80,7 +80,7 @@ struct LineContext {
 struct FenceInfo {
 	wchar_t marker = L'`';
 	size_t length = 0;
-	SoucePosition start;
+	SourcePosition start;
 	size_t containerDepth = 0;
 	size_t indentColumns = 0; // コンテナ開始列からの字下げ量
 };
