@@ -2513,6 +2513,9 @@ BEGIN
     F_MARKDOWN_IMAGE "Markdown image"
     F_MARKDOWN_TABLE "Markdown table"
     F_MARKDOWN_HR "Markdown horizontal rule"
+    F_MARKDOWN_ENTER "Markdown new line"
+    F_MARKDOWN_INDENT "Markdown indent"
+    F_MARKDOWN_UNINDENT "Markdown unindent"
 END
 
 STRINGTABLE

@@ -2431,6 +2431,9 @@ BEGIN
     F_MARKDOWN_IMAGE "Markdown 图片"
     F_MARKDOWN_TABLE "Markdown 表格"
     F_MARKDOWN_HR "Markdown 水平线"
+    F_MARKDOWN_ENTER "Markdown 换行"
+    F_MARKDOWN_INDENT "Markdown 缩进"
+    F_MARKDOWN_UNINDENT "Markdown 取消缩进"
 END
 
 STRINGTABLE

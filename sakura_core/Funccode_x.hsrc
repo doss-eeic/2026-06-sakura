@@ -156,6 +156,9 @@ F_MARKDOWN_IMAGE    = 31714,    //Markdown画像
 F_MARKDOWN_TABLE    = 31715,    //Markdown表
 F_MARKDOWN_HR       = 31716,    //Markdown水平線
 F_MARKDOWN_TASKCHECK = 31717,   //Markdownタスク完了切り替え
+F_MARKDOWN_ENTER    = 31718,    //Markdown改行
+F_MARKDOWN_INDENT   = 31719,    //Markdownインデント
+F_MARKDOWN_UNINDENT = 31720,    //Markdown逆インデント
 
 
 // カーソル移動系

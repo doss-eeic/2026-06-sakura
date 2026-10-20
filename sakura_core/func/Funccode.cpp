@@ -159,7 +159,10 @@ const EFunctionCode pnFuncList_Edit[] = {	//Oct. 16, 2000 JEPRO 変数名変更(
 	F_MARKDOWN_LINK,
 	F_MARKDOWN_IMAGE,
 	F_MARKDOWN_TABLE,
-	F_MARKDOWN_HR
+	F_MARKDOWN_HR,
+	F_MARKDOWN_ENTER,
+	F_MARKDOWN_INDENT,
+	F_MARKDOWN_UNINDENT
 //		F_WORDSREFERENCE		//単語リファレンス
 };
 constexpr auto nFincList_Edit_Num = int(std::size(pnFuncList_Edit));	//Oct. 16, 2000 JEPRO 変数名変更(List3→List_Edit)

@@ -30,6 +30,9 @@ void CType_Markdown::InitTypeConfigImp(STypeConfig* type)
 	bind('8', _CTRL | _SHIFT, F_MARKDOWN_BULLET);
 	bind('9', _CTRL | _SHIFT, F_MARKDOWN_TASK);
 	bind(VK_RETURN, _CTRL, F_MARKDOWN_TASKCHECK);
+	bind(VK_RETURN, 0, F_MARKDOWN_ENTER);
+	bind(VK_TAB, 0, F_MARKDOWN_INDENT);
+	bind(VK_TAB, _SHIFT, F_MARKDOWN_UNINDENT);
 	bind('E', _CTRL, F_MARKDOWN_CODE);
 	bind('C', _CTRL | _SHIFT, F_MARKDOWN_FENCE);
 	bind('T', _CTRL | _SHIFT, F_MARKDOWN_TABLE);

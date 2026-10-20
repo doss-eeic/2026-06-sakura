@@ -151,6 +151,9 @@ static constexpr EFunctionCode EIsModificationForbidden[] = {
 	F_MARKDOWN_TABLE,
 	F_MARKDOWN_HR,
 	F_MARKDOWN_TASKCHECK,
+	F_MARKDOWN_ENTER,
+	F_MARKDOWN_INDENT,
+	F_MARKDOWN_UNINDENT,
 };
 
 static_assert([] {
