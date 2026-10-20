@@ -2800,6 +2800,9 @@ END
 STRINGTABLE
 BEGIN
     F_SHOWMINIMAP           "Hide/Show Mini Map"
+    F_NOTE_VIEW             "Note View"
+    STR_NOTE_LOADING        "Loading"
+    STR_NOTE_ERROR          "Cannot display image"
     F_TYPE_LIST             "File type list"
     F_OPTION_TYPE           "File type settings"
     F_OPTION                "Common Settings"

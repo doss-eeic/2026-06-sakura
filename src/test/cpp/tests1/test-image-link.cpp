@@ -4,6 +4,7 @@
  */
 #include "pch.h"
 #include "util/ImageLink.h"
+#include "view/NoteProjection.h"
 #include "window/CImagePreviewWnd.h"
 #include "cxx/com_pointer.hpp"
 #include "window/EditorTestSuite.hpp"
@@ -81,6 +82,70 @@ TEST(ImageLink, UnrepresentablePathsAreNotGenerated)
 		EXPECT_FALSE(ImageLink::MakeLink(path));
 	}
 	EXPECT_FALSE(ImageLink::MakeLink(std::wstring(L"C:/a\0b.png", 10)));
+}
+
+TEST(ImageLink, StandaloneLogicalLines)
+{
+	for (const auto text : {L"![a](C:/a.png)", L" \t![a](<C:/My Pictures/a.jpg>)\t ", LR"(![a](C:\a.PNG))"}) {
+		ASSERT_TRUE(ImageLink::FindStandalone(text));
+	}
+	for (const auto text : {L"", L" \t", L"text ![a](C:/a.png)", L"![a](C:/a.png) text",
+		L"![a](C:/a.png) ![b](C:/b.jpg)", L"[a](C:/a.png)", L"![a](a.png)", L"![a](C:/a.png",
+		L"![a](C:/a.png)\nnext"}) {
+		EXPECT_FALSE(ImageLink::FindStandalone(text));
+	}
+	constexpr wchar_t embeddedNull[] = L"![a](C:/a.png)\0suffix";
+	EXPECT_FALSE(ImageLink::FindStandalone(std::wstring_view(embeddedNull, std::size(embeddedNull) - 1)));
+}
+
+TEST(NoteProjection, TextAndVirtualRowsRoundTrip)
+{
+	NoteView::Projection projection;
+	for (std::int64_t line = 0; line < 30; ++line) EXPECT_EQ(line, projection.FromLayout(line).value);
+	projection.Reset({{0, 2, L"C:/a.png"}, {1, 3, L"C:/a.png"}, {9, 12, L"C:/b.jpg"}});
+	for (std::int64_t line = 0; line < 30; ++line) {
+		const auto hit = projection.ToLayout(projection.FromLayout(line));
+		EXPECT_EQ(line, hit.layoutLine);
+		EXPECT_EQ(nullptr, hit.block);
+	}
+	for (size_t index = 0; index < projection.Blocks().size(); ++index) {
+		for (int offset = 0; offset < 12; ++offset) {
+			const auto hit = projection.ToLayout(NoteView::DisplayRow(projection.BlockStart(index).value + offset));
+			ASSERT_NE(nullptr, hit.block);
+			EXPECT_EQ(&projection.Blocks()[index], hit.block);
+			EXPECT_EQ(offset, hit.offset);
+		}
+	}
+	EXPECT_EQ(30, projection.FromLayout(6).value); // two blocks before layout row 6
+	projection.Clear();
+	EXPECT_EQ(13, projection.ToLayout(NoteView::DisplayRow(13)).layoutLine);
+}
+
+TEST(NoteProjection, IncrementalEditsShiftAndRemoveAnchors)
+{
+	NoteView::Projection projection;
+	projection.Reset({{1, 2, L"a"}, {4, 6, L"b"}});
+	projection.Replace(0, 0, 2, 3, {});
+	EXPECT_EQ(3, projection.Blocks()[0].logicalLine);
+	EXPECT_EQ(5, projection.Blocks()[0].lastLayoutLine);
+	projection.Replace(3, 3, 0, 0, {});
+	ASSERT_EQ(1u, projection.Blocks().size());
+	EXPECT_EQ(L"b", projection.Blocks()[0].path);
+	projection.Replace(3, 3, 0, 0, {{3, 5, L"new"}});
+	EXPECT_EQ(2u, projection.Blocks().size());
+	EXPECT_EQ(L"new", projection.ToLayout(NoteView::DisplayRow(6)).block->path);
+}
+
+TEST(NoteProjection, SaturatingArithmetic)
+{
+	constexpr auto maximum = (std::numeric_limits<std::int64_t>::max)();
+	constexpr auto minimum = (std::numeric_limits<std::int64_t>::min)();
+	EXPECT_EQ(maximum, NoteView::Projection::Add(maximum - 1, 12));
+	EXPECT_EQ(minimum, NoteView::Projection::Add(minimum + 1, -12));
+	NoteView::Projection projection;
+	projection.Reset({{0, 0, L"a"}});
+	EXPECT_EQ(maximum, projection.FromLayout(maximum).value);
+	EXPECT_EQ(0, projection.FromLayout(0).value);
 }
 
 TEST(ImagePreview, DimensionLimits)
@@ -223,6 +288,73 @@ TEST_F(ImagePreviewFile, PopupDoesNotActivateAndCancelledResultsStayHidden)
 	::DestroyWindow(owner);
 }
 
+static NoteView::ImageCache::Result WaitForImage(NoteView::ImageCache& cache, const NoteView::ImageKey& key)
+{
+	const auto started = ::GetTickCount64();
+	auto result = cache.Get(key);
+	while (result.state == NoteView::ImageCache::State::Loading && ::GetTickCount64() - started < 5000) {
+		::Sleep(5);
+		result = cache.Get(key);
+	}
+	return result;
+}
+
+TEST_F(ImagePreviewFile, NoteCacheLoadsAsynchronouslyAndResetRejectsOldWork)
+{
+	WriteImage(GUID_ContainerFormatPng, 800, 200);
+	NoteView::ImageCache cache;
+	const NoteView::ImageKey key{path.native(), 640, 640};
+	EXPECT_EQ(NoteView::ImageCache::State::Loading, cache.Get(key).state);
+	cache.Reset();
+	::Sleep(100);
+	EXPECT_EQ(0u, cache.EntryCount());
+	EXPECT_EQ(0u, cache.ByteCount());
+	const auto result = WaitForImage(cache, key);
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, result.state);
+	EXPECT_EQ(640u, result.image->width);
+	EXPECT_EQ(160u, result.image->height);
+	EXPECT_EQ(640u * 160 * 4, cache.ByteCount());
+}
+
+TEST_F(ImagePreviewFile, NoteCacheFailuresStayFailedUntilReset)
+{
+	std::filesystem::remove(path);
+	NoteView::ImageCache cache;
+	const NoteView::ImageKey key{path.native(), 640, 640};
+	ASSERT_EQ(NoteView::ImageCache::State::Failed, WaitForImage(cache, key).state);
+	WriteImage(GUID_ContainerFormatPng, 10, 20);
+	EXPECT_EQ(NoteView::ImageCache::State::Failed, cache.Get(key).state);
+	cache.Reset();
+	const auto result = WaitForImage(cache, key);
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, result.state);
+	EXPECT_EQ(10u, result.image->width);
+	EXPECT_EQ(20u, result.image->height);
+}
+
+TEST_F(ImagePreviewFile, NoteCacheBoundsEntriesAndDecodedBytes)
+{
+	WriteImage(GUID_ContainerFormatPng, 1000, 1000);
+	NoteView::ImageCache cache;
+	for (UINT width = 900; width < 924; ++width) {
+		const auto result = WaitForImage(cache, {path.native(), width, 1000});
+		ASSERT_EQ(NoteView::ImageCache::State::Ready, result.state);
+		EXPECT_LE(cache.EntryCount(), NoteView::ImageCache::MaxEntries);
+		EXPECT_LE(cache.ByteCount(), NoteView::ImageCache::MaxBytes);
+	}
+	EXPECT_EQ(NoteView::ImageCache::State::Loading, cache.Get({path.native(), 900, 1000}).state);
+}
+
+TEST_F(ImagePreviewFile, NoteCacheLargeValidImageFitsMemoryBudget)
+{
+	WriteImage(GUID_ContainerFormatPng, 4096, 4096);
+	NoteView::ImageCache cache;
+	const auto result = WaitForImage(cache, {path.native(), 4096, 4096});
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, result.state);
+	EXPECT_EQ(result.image->width, result.image->height);
+	EXPECT_LE(result.image->pixels.size(), NoteView::ImageCache::MaxBytes);
+	EXPECT_GT(result.image->width, 0u);
+}
+
 class ImageLinkEditor : public testing::Test, public window::EditorTestSuite {
 protected:
 	std::filesystem::path path;
@@ -243,6 +375,7 @@ protected:
 	}
 	void TearDown() override
 	{
+		pcEditWnd->SetNoteView(false);
 		CAppMode::getInstance()->SetViewMode(false);
 		pcEditWnd->GetActiveView().GetSelectionInfo().SetBoxSelect(false);
 		pcEditDoc->m_cDocEditor.m_bIsDocModified = false;
@@ -345,4 +478,215 @@ TEST_F(ImageLinkEditor, MixedDirectoryMissingAndReadOnlyDrops)
 	CAppMode::getInstance()->SetViewMode(true);
 	EXPECT_TRUE(view.TryInsertImageFiles(static_cast<HDROP>(drop.Get()), DropPoint()));
 	EXPECT_EQ(L"keep", Text());
+}
+
+TEST_F(ImageLinkEditor, NoteTogglePreservesTextCaretAndUndo)
+{
+	const std::wstring text = L"before\r\n![a](C:/a.png)\r\nafter";
+	Insert(text);
+	auto& view = pcEditWnd->GetActiveView();
+	const auto caret = view.GetCaret().GetCaretLogicPos();
+	pcEditWnd->SetNoteView(true);
+	ASSERT_EQ(1u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	EXPECT_EQ(caret, view.GetCaret().GetCaretLogicPos());
+	EXPECT_EQ(text, Text());
+	EXPECT_EQ(static_cast<Int>(view.GetTextArea().GetNoteProjection().Blocks()[0].lastLayoutLine) + 13,
+		view.GetTextArea().GetNoteProjection().FromLayout(view.GetTextArea().GetNoteProjection().Blocks()[0].lastLayoutLine + 1).value);
+	pcEditWnd->SetNoteView(false);
+	EXPECT_FALSE(view.HasNoteBlocks());
+	EXPECT_EQ(caret, view.GetCaret().GetCaretLogicPos());
+	Command(F_UNDO);
+	EXPECT_EQ(L"", Text());
+	Command(F_REDO);
+	EXPECT_EQ(text, Text());
+}
+
+TEST_F(ImageLinkEditor, NoteEditingAndUndoRebuildWithoutPainting)
+{
+	Insert(L"![a](C:/a.png)\r\nafter");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	Command(F_GOFILETOP);
+	Insert(L"prefix");
+	EXPECT_FALSE(view.HasNoteBlocks());
+	Command(F_UNDO);
+	ASSERT_TRUE(view.HasNoteBlocks());
+	Command(F_GOFILETOP);
+	Insert(L"before\r\n");
+	ASSERT_EQ(1u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	EXPECT_EQ(1, view.GetTextArea().GetNoteProjection().Blocks()[0].logicalLine);
+	Command(F_UNDO);
+	EXPECT_EQ(0, view.GetTextArea().GetNoteProjection().Blocks()[0].logicalLine);
+}
+
+TEST_F(ImageLinkEditor, NoteBlockScrollHitTestingAndCaretSkip)
+{
+	Insert(L"![a](C:/a.png)\r\nafter\r\nend");
+	auto& view = pcEditWnd->GetActiveView();
+	auto& area = view.GetTextArea();
+	pcEditWnd->SetNoteView(true);
+	area.TextArea_OnSize(CMySize(800, area.GetAreaTop() + view.GetTextMetrics().GetHankakuDy() * 3 + 1), 0, 0);
+	const auto start = area.GetNoteProjection().BlockStart(0).value;
+	for (int offset = 0; offset < 12; ++offset) {
+		view.ScrollDisplayAtV(NoteView::DisplayRow(start + offset));
+		EXPECT_EQ(start + offset, area.GetDisplayTop().value);
+		const POINT point{area.GetAreaLeft() + 1, area.GetAreaTop() + 1};
+		ASSERT_TRUE(view.IsNoteBlockPoint(point));
+		EXPECT_EQ(offset, area.HitClientRow(point.y).offset);
+		EXPECT_EQ(CLayoutPoint(0, 0), view.NoteBlockTextPosition(point, false));
+		CLayoutPoint after;
+		pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(0, 1), &after);
+		EXPECT_EQ(12 - offset, area.RelativeRow(after.y));
+		if (12 - offset <= static_cast<int>(area.m_nViewRowNum))
+			EXPECT_EQ(area.GetAreaTop() + (12 - offset) * view.GetTextMetrics().GetHankakuDy(), area.LayoutToClientY(after.y));
+	}
+	Command(F_GOFILETOP);
+	Command(F_DOWN);
+	EXPECT_EQ(CLogicPoint(0, 1), view.GetCaret().GetCaretLogicPos());
+	// The headless fixture disables painting, so exercise the scrolling branch explicitly.
+	view.GetCaret().MoveCursor(view.GetCaret().GetCaretLayoutPos(), true);
+	EXPECT_GE(area.RelativeRow(view.GetCaret().GetCaretLayoutPos().y), 0);
+	EXPECT_LT(area.RelativeRow(view.GetCaret().GetCaretLayoutPos().y), static_cast<int>(area.m_nViewRowNum));
+}
+
+TEST_F(ImageLinkEditor, NoteToggleKeepsSelectionAndNoLinkDocumentGeometry)
+{
+	Insert(L"first\r\ninline ![a](C:/a.png)\r\nlast");
+	Command(F_SELECTALL);
+	auto& view = pcEditWnd->GetActiveView();
+	const auto range = view.GetSelectionInfo().m_sSelect;
+	const auto caret = view.GetCaret().GetCaretLogicPos();
+	const auto top = view.GetTextArea().GetDisplayTop();
+	Command(F_NOTE_VIEW);
+	EXPECT_TRUE(pcEditWnd->IsNoteView());
+	EXPECT_FALSE(view.HasNoteBlocks());
+	EXPECT_EQ(top, view.GetTextArea().GetDisplayTop());
+	EXPECT_EQ(range.GetFrom(), view.GetSelectionInfo().m_sSelect.GetFrom());
+	EXPECT_EQ(range.GetTo(), view.GetSelectionInfo().m_sSelect.GetTo());
+	EXPECT_EQ(caret, view.GetCaret().GetCaretLogicPos());
+	CAppMode::getInstance()->SetViewMode(true);
+	Command(F_NOTE_VIEW);
+	EXPECT_FALSE(pcEditWnd->IsNoteView());
+	EXPECT_TRUE(CAppMode::getInstance()->IsViewMode());
+}
+
+TEST_F(ImageLinkEditor, NoteBlocksRejectFileDropsWithoutChangingSelection)
+{
+	Insert(L"![a](C:/a.png)\r\nnext");
+	pcEditWnd->SetNoteView(true);
+	Command(F_SELECTALL);
+	auto& view = pcEditWnd->GetActiveView();
+	auto& area = view.GetTextArea();
+	area.SetDisplayTop(NoteView::DisplayRow(0));
+	const POINT point{area.GetAreaLeft() + 1, area.GetAreaTop() + view.GetTextMetrics().GetHankakuDy() * 2};
+	ASSERT_TRUE(view.IsNoteBlockPoint(point));
+	const auto before = Text();
+	const auto range = view.GetSelectionInfo().m_sSelect;
+	const std::array files{path};
+	auto drop = cxx::MakeDropFiles(files);
+	EXPECT_TRUE(view.TryInsertImageFiles(static_cast<HDROP>(drop.Get()), point));
+	EXPECT_EQ(before, Text());
+	EXPECT_EQ(range.GetFrom(), view.GetSelectionInfo().m_sSelect.GetFrom());
+	EXPECT_EQ(range.GetTo(), view.GetSelectionInfo().m_sSelect.GetTo());
+}
+
+TEST_F(ImageLinkEditor, NoteMenuInsertionAddsOnlyNecessaryLineBreaks)
+{
+	pcEditWnd->SetNoteView(true);
+	const auto link = *ImageLink::MakeLink(path.native());
+	const auto eol = std::wstring(pcEditDoc->m_cDocEditor.GetNewLineCode().GetValue2());
+	struct Example { std::wstring before; CLogicPoint caret; std::wstring after; };
+	const Example examples[] = {
+		{L"abcd", {2, 0}, L"ab" + eol + link + eol + L"cd"},
+		{L"abcd", {0, 0}, link + eol + L"abcd"},
+		{L"abcd", {4, 0}, L"abcd" + eol + link},
+		{L"", {0, 0}, link},
+		{L"a\r\n", {0, 1}, L"a\r\n" + link},
+		{L" \t ", {1, 0}, L" " + link + L"\t "},
+	};
+	for (const auto& example : examples) {
+		Command(F_SELECTALL);
+		Command(F_DELETE);
+		Insert(example.before);
+		CLayoutPoint caret;
+		pcEditDoc->m_cLayoutMgr.LogicToLayout(example.caret, &caret);
+		pcEditWnd->GetActiveView().GetCaret().MoveCursor(caret, false);
+		MockComdlg32::gm_Files.push_back(path.native());
+		Command(F_INS_IMAGE_LINK);
+		EXPECT_EQ(example.after, Text());
+		EXPECT_EQ(1u, pcEditWnd->GetActiveView().GetTextArea().GetNoteProjection().Blocks().size());
+		Command(F_UNDO);
+		EXPECT_EQ(example.before, Text());
+	}
+}
+
+TEST_F(ImageLinkEditor, NoteMultiImageDropIsOneUndo)
+{
+	Insert(L"abcd");
+	pcEditWnd->SetNoteView(true);
+	const std::array files{path, path};
+	auto drop = cxx::MakeDropFiles(files);
+	auto& view = pcEditWnd->GetActiveView();
+	ASSERT_TRUE(view.TryInsertImageFiles(static_cast<HDROP>(drop.Get()), DropPoint(2)));
+	const auto link = *ImageLink::MakeLink(path.native());
+	const auto eol = std::wstring(pcEditDoc->m_cDocEditor.GetNewLineCode().GetValue2());
+	EXPECT_EQ(L"ab" + eol + link + eol + link + eol + L"cd", Text());
+	EXPECT_EQ(2u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	Command(F_UNDO);
+	EXPECT_EQ(L"abcd", Text());
+	EXPECT_FALSE(view.HasNoteBlocks());
+}
+
+TEST_F(ImageLinkEditor, NoteWrappedFinalLineAndReflowKeepVirtualOffset)
+{
+	Insert(L"before\r\n![image](C:/directory/long-file-name-for-wrapping.png)");
+	auto& manager = pcEditDoc->m_cLayoutMgr;
+	const auto previousWidth = manager.GetMaxLineKetas();
+	pcEditWnd->SetNoteView(true);
+	manager.ChangeLayoutParam(8, 0, 20);
+	auto& view = pcEditWnd->GetActiveView();
+	auto& area = view.GetTextArea();
+	ASSERT_EQ(1u, area.GetNoteProjection().Blocks().size());
+	EXPECT_GT(static_cast<int>(manager.GetLineCount()), 2);
+	EXPECT_EQ(static_cast<int>(manager.GetLineCount()) - 1, area.GetNoteProjection().Blocks()[0].lastLayoutLine);
+	EXPECT_EQ(static_cast<int>(manager.GetLineCount()) + 12,
+		area.GetNoteProjection().FromLayout(static_cast<int>(manager.GetLineCount())).value);
+	area.TextArea_OnSize(CMySize(800, area.GetAreaTop() + view.GetTextMetrics().GetHankakuDy() * 3 + 1), 0, 0);
+	view.ScrollDisplayAtV(NoteView::DisplayRow(area.GetNoteProjection().BlockStart(0).value + 4));
+	const auto saved = pcEditWnd->SavePhysPosOfAllView();
+	manager.ChangeLayoutParam(8, 0, 25);
+	pcEditWnd->RestorePhysPosOfAllView(saved);
+	const auto hit = area.HitClientRow(area.GetAreaTop());
+	ASSERT_NE(nullptr, hit.block);
+	EXPECT_EQ(4, hit.offset);
+	manager.ChangeLayoutParam(8, 0, previousWidth);
+}
+
+TEST_F(ImageLinkEditor, NoteOffscreenCaretKeepsSurvivingBlockOrNextTextAnchor)
+{
+	Insert(L"before\r\n![a](C:/a.png)\r\nafter\r\ntail\r\ntail\r\ntail\r\nend");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	auto& area = view.GetTextArea();
+	area.TextArea_OnSize(CMySize(800, area.GetAreaTop() + view.GetTextMetrics().GetHankakuDy() * 3 + 1), 0, 0);
+	view.ScrollDisplayAtV(NoteView::DisplayRow(area.GetNoteProjection().BlockStart(0).value + 4));
+	auto insertWithoutMovingCaret = [&](CLogicInt line, const wchar_t* text) {
+		COpeLineData data;
+		auto& inserted = data.emplace_back();
+		inserted.cmemLine.SetString(text);
+		inserted.nSeq = 0;
+		CLayoutPoint point;
+		pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(0, line), &point);
+		LayoutReplaceArg arg{};
+		arg.sDelRange.Set(point);
+		arg.pInsData = &data;
+		pcEditDoc->m_cLayoutMgr.ReplaceData_CLayoutMgr(&arg);
+	};
+	insertWithoutMovingCaret(CLogicInt(1), L"\r\n");
+	ASSERT_EQ(1u, area.GetNoteProjection().Blocks().size());
+	EXPECT_EQ(2, area.GetNoteProjection().Blocks()[0].logicalLine);
+	EXPECT_EQ(4, area.HitClientRow(area.GetAreaTop()).offset);
+	insertWithoutMovingCaret(CLogicInt(2), L"x");
+	EXPECT_FALSE(view.HasNoteBlocks());
+	EXPECT_EQ(CLayoutInt(3), area.GetViewTopLine()); // The text below the vanished block.
 }

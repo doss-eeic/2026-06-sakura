@@ -25,6 +25,7 @@
 #ifndef SAKURA_CEDITWND_6C771A35_3CC8_4932_BF15_823C40487A9F_H_
 #define SAKURA_CEDITWND_6C771A35_3CC8_4932_BF15_823C40487A9F_H_
 #pragma once
+#include "view/NoteImageCache.h"
 
 #include <shellapi.h>// HDROP
 #include "_main/global.h"
@@ -276,6 +277,9 @@ public:
 	CMiniMapView&       GetMiniMap( void ) { return m_cMiniMapView; }
 	bool                IsEnablePane(int n) const { return 0 <= n && n < m_nEditViewCount; }
 	int                 GetAllViewCount() const { return m_nEditViewCount; }
+	bool IsNoteView() const { return m_noteView; }
+	void SetNoteView(bool enabled);
+	NoteView::ImageCache& GetNoteImageCache() { return m_noteImageCache; }
 
 	CEditView*			GetDragSourceView() const					{ return m_pcDragSourceView; }
 	void				SetDragSourceView( CEditView* pcDragSourceView )	{ m_pcDragSourceView = pcDragSourceView; }
@@ -395,6 +399,8 @@ private:
 	CMenuDrawer		m_cMenuDrawer;
 
 	//状態
+	bool m_noteView = false; // Per-window, deliberately not serialized.
+	NoteView::ImageCache m_noteImageCache;
 	bool			m_bIsActiveApp = false;		//!< 自アプリがアクティブかどうか	// 2007.03.08 ryoji
 	LPWSTR			m_pszLastCaption = nullptr;
 	SMenubarMessage m_pszMenubarMessage;		//!< メニューバー右端に表示するメッセージ

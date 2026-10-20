@@ -1370,6 +1370,7 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 		SMenuItem{ 1, 31103, 'M' },
 		SMenuItem{ 1, 31102, 'S' },
 		SMenuItem{ 1, 31104, 'N' },
+		SMenuItem{ 1, 31105 },
 		SMenuItem{ 1, 1 },
 		SMenuItem{ 1, 31110, 'L' },
 		SMenuItem{ 1, 31111, 'Y' },
@@ -1468,8 +1469,8 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 		200,
 		240,
 		259,
-		287,
-		327,
+		288,
+		328,
 	};
 
 	for (size_t i = 0; i < std::size(mainMenuTopIdxs); ++i) {

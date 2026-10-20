@@ -4660,7 +4660,8 @@ void CEditWnd::RestorePhysPosOfAllView( CLogicPointEx* pptPosArray )
 			pptPosArray[i * NUM_OF_POS + 0],
 			&tmp
 		);
-		GetView(i).m_pcTextArea->SetViewTopLine(tmp.GetY2());
+		// The note projection already restored the caret/virtual-row viewport anchor.
+		if (!GetView(i).HasNoteBlocks()) GetView(i).m_pcTextArea->SetViewTopLine(tmp.GetY2());
 
 		if( GetView(i).GetSelectionInfo().m_sSelectBgn.GetFrom().y >= 0 ){
 			GetDocument()->m_cLayoutMgr.LogicToLayoutEx(

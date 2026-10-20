@@ -16,6 +16,7 @@ void CEditView::CancelImagePreview()
 
 void CEditView::UpdateImagePreview(bool mouseMoved)
 {
+	if (IsNoteView()) { CancelImagePreview(); return; }
 	POINT screen{};
 	::GetCursorPos(&screen);
 	const bool moved = screen.x != m_imageMousePoint.x || screen.y != m_imageMousePoint.y;
@@ -73,6 +74,7 @@ void CEditView::UpdateImagePreview(bool mouseMoved)
 
 bool CEditView::TryInsertImageFiles(HDROP hDrop, POINT clientPoint)
 {
+	if (IsNoteBlockPoint(clientPoint)) return true;
 	const RECT area = GetTextArea().GetAreaRect();
 	if (m_bMiniMap || !::PtInRect(&area, clientPoint)) return false;
 	const UINT count = ::DragQueryFileW(hDrop, 0xffffffff, nullptr, 0);
@@ -99,6 +101,7 @@ bool CEditView::TryInsertImageFiles(HDROP hDrop, POINT clientPoint)
 	GetEditWnd().SetActivePane(m_nMyIndex);
 	GetSelectionInfo().DisableSelectArea(true);
 	GetCaret().MoveCursorToClientPoint(CMyPoint(clientPoint.x, clientPoint.y));
+	text = PrepareNoteInsertion(std::move(text));
 	GetCommander().HandleCommand(F_INSTEXT_W, true, reinterpret_cast<LPARAM>(text.c_str()), text.size(), TRUE, 0);
 	return true;
 }

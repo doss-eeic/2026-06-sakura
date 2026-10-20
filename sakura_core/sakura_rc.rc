@@ -2744,6 +2744,9 @@ END
 STRINGTABLE
 BEGIN
     F_SHOWMINIMAP           "ミニマップの表示／非表示"
+    F_NOTE_VIEW             "ノート表示"
+    STR_NOTE_LOADING        "読み込み中"
+    STR_NOTE_ERROR          "画像を表示できません"
     F_TYPE_LIST             "タイプ別設定一覧..."
     F_OPTION_TYPE           "タイプ別設定..."
     F_OPTION                "共通設定..."

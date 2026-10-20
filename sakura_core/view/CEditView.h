@@ -44,6 +44,7 @@
 #include "window/CTipWnd.h"
 #include "window/CImagePreviewWnd.h"
 #include "util/ImageLink.h"
+#include "view/NoteImageCache.h"
 #include "window/CAutoScrollWnd.h"
 #include "env/CDicMgr.h"
 #include "env/CMarkMgr.h"
@@ -188,7 +189,8 @@ public:
 public:
 	//ドキュメントイベント
 	void OnAfterLoad(const SLoadInfo& sLoadInfo) override;
-	void OnBeforeLoad(SLoadInfo*) override { CancelImagePreview(); }
+	void OnBeforeLoad(SLoadInfo*) override { CancelImagePreview(); BeginNoteLoad(); }
+	void OnFinalLoad(ELoadResult) override { m_noteLoading = false; }
 	ECallbackResult OnBeforeClose() override { CancelImagePreview(); return CALLBACK_CONTINUE; }
 	/* メッセージディスパッチャ */
 	LRESULT DispatchEvent(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -200,6 +202,23 @@ public:
 	void OnTimer(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
 	void CancelImagePreview();
 	void UpdateImagePreview(bool mouseMoved);
+	bool IsNoteView() const;
+	bool HasNoteBlocks() const { return !GetTextArea().GetNoteProjection().Blocks().empty(); }
+	void OnBeforeViewLayout() override;
+	void OnAfterViewLayout(const SViewLayoutChange& change) override;
+	void RebuildNoteProjection();
+	void ApplyNoteView();
+	void DrawNoteBlocks(HDC dc);
+	bool IsNoteBlockPoint(POINT point) const;
+	CLayoutPoint NoteBlockTextPosition(POINT point, bool selecting);
+	void ExcludeNoteBlocks(HDC dc) const;
+	CLayoutInt ScrollDisplayAtV(NoteView::DisplayRow row, BOOL redraw = TRUE);
+	CLayoutInt ScrollDisplayByV(CLayoutInt rows);
+	void MoveNotePage(CLayoutInt rows, bool selecting, bool scrollPage);
+	void PollNoteImages();
+	void BeginNoteLoad();
+	void InvalidateNoteRequests();
+	std::wstring PrepareNoteInsertion(std::wstring text);
 	static constexpr UINT_PTR IDT_IMAGE_PREVIEW = 0x494d47;
 	//ウィンドウ
 	void OnSize(int cx, int cy);							/* ウィンドウサイズの変更処理 */
@@ -301,7 +320,7 @@ public:
 	CLayoutInt  ScrollAtV(CLayoutInt nPos, BOOL bRedrawScrollBar = TRUE);		/* 指定上端行位置へスクロール */
 	CLayoutInt  ScrollAtH(CLayoutInt nPos, BOOL bRedrawScrollBar = TRUE);		/* 指定左端桁位置へスクロール */
 	//	From Here Sep. 11, 2004 genta ずれ維持の同期スクロール
-	CLayoutInt  ScrollByV( CLayoutInt vl ){	return ScrollAtV( GetTextArea().GetViewTopLine() + vl );}	/* 指定行スクロール*/
+	CLayoutInt  ScrollByV( CLayoutInt vl ){	return ScrollDisplayByV(vl);}	/* 指定表示行スクロール */
 	CLayoutInt  ScrollByH( CLayoutInt hl ){	return ScrollAtH( GetTextArea().GetViewLeftCol() + hl );}	/* 指定桁スクロール */
 	void ScrollDraw(CLayoutInt nScrollRowNum, CLayoutInt nScrollColNum, const RECT& rcScroll, const RECT& rcClip, const RECT& rcClip2);
 	void MiniMapRedraw(bool bUpdateAll);
@@ -742,6 +761,23 @@ public:
 	bool			m_bDoing_UndoRedo = false;	/* アンドゥ・リドゥの実行中か */
 
 	CImagePreviewWnd m_imagePreview;
+	struct NoteAnchor {
+		bool valid = false;
+		bool caretVisible = false;
+		CLogicPoint text;
+		std::int64_t relativeRow = 0;
+		std::wstring path;
+		CLogicInt blockLine{-1};
+		int blockOffset = -1;
+	} m_noteAnchor;
+	struct NotePending {
+		std::int64_t logicalLine;
+		NoteView::ImageKey key;
+		std::uint64_t generation;
+	};
+	std::vector<NotePending> m_notePending;
+	std::uint64_t m_noteGeneration = 0;
+	bool m_noteLoading = false;
 	std::optional<ImageLink::Link> m_imageHover;
 	CLogicInt m_imageHoverLine = CLogicInt(-1);
 	DWORD m_imageHoverStarted = 0;

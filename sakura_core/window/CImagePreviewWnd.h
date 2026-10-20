@@ -12,15 +12,12 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "util/ImageDecoder.h"
 
 // A display-only popup. The worker never accesses editor state or HWNDs.
 class CImagePreviewWnd {
 public:
-	struct Image {
-		UINT width;
-		UINT height;
-		std::vector<BYTE> pixels;
-	};
+	using Image = ImageDecoder::Image;
 	CImagePreviewWnd() = default;
 	~CImagePreviewWnd();
 	CImagePreviewWnd(const CImagePreviewWnd&) = delete;

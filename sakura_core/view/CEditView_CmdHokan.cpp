@@ -92,10 +92,10 @@ void CEditView::ShowHokanMgr( CNativeW& cmemData, BOOL bAutoDecided )
 	}else{
 		poWin.x = GetTextArea().GetAreaLeft() + GetTextMetrics().GetCharPxWidth(nX);
 	}
-	CLayoutYInt nY = GetCaret().GetCaretLayoutPos().GetY2() - GetTextArea().GetViewTopLine();
+	const auto nY = GetTextArea().RelativeRow(GetCaret().GetCaretLayoutPos().GetY2());
 	if( nY < 0 ){
 		poWin.y = 0;
-	}else if( GetTextArea().m_nViewRowNum < nY ){
+	}else if( static_cast<int>(GetTextArea().m_nViewRowNum) < nY ){
 		poWin.y = GetTextArea().GetAreaBottom();
 	}else{
 		poWin.y = GetTextArea().GetAreaTop() + (Int)(nY) * GetTextMetrics().GetHankakuDy();

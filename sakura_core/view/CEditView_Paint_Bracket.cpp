@@ -180,7 +180,7 @@ void CEditView::DrawBracketPair( bool bDraw )
 					int nWidth  = GetTextMetrics().GetHankakuDx();
 					int nHeight = GetTextMetrics().GetHankakuDy();
 					int nLeft = (GetTextArea().GetDocumentLeftClientPointX()) + GetTextMetrics().GetCharPxWidth(ptColLine.x);
-					int nTop  = (Int)( ptColLine.GetY2() - GetTextArea().GetViewTopLine() ) * nHeight + GetTextArea().GetAreaTop();
+					int nTop = GetTextArea().LayoutToClientY(ptColLine.GetY2());
 					CLayoutXInt charsWidth = m_pcEditDoc->m_cLayoutMgr.GetLayoutXOfChar(pLine, nLineLen, OutputX);
 
 					//色設定

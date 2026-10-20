@@ -153,6 +153,23 @@ CLayoutInt CEditView::OnVScroll( int nScrollCode, int nPos )
 		}
 	}
 
+	if (HasNoteBlocks()) {
+		auto top = GetTextArea().GetDisplayTop().value;
+		const auto page = static_cast<Int>(GetTextArea().m_nViewRowNum);
+		const auto step = static_cast<int>(GetDllShareData().m_Common.m_sGeneral.m_nRepeatedScrollLineNum);
+		switch (nScrollCode) {
+		case SB_LINEDOWN: top = NoteView::Projection::Add(top, step); break;
+		case SB_LINEUP: top = NoteView::Projection::Add(top, -step); break;
+		case SB_PAGEDOWN: top = NoteView::Projection::Add(top, page); break;
+		case SB_PAGEUP: top = NoteView::Projection::Add(top, -page); break;
+		case SB_THUMBPOSITION:
+		case SB_THUMBTRACK: top = static_cast<std::int64_t>(nPos) * m_nVScrollRate; break;
+		case SB_TOP: top = 0; break;
+		case SB_BOTTOM: top = GetTextArea().GetNoteProjection().FromLayout(static_cast<Int>(m_pcEditDoc->m_cLayoutMgr.GetLineCount())).value; break;
+		default: return CLayoutInt(0);
+		}
+		return ScrollDisplayAtV(NoteView::DisplayRow(top));
+	}
 	switch( nScrollCode ){
 	case SB_LINEDOWN:
 //		for( i = 0; i < 4; ++i ){
@@ -309,20 +326,19 @@ void CEditView::AdjustScrollBars( BOOL bRedraw )
 	if( nullptr != m_hwndVScrollBar ){
 		/* 垂直スクロールバー */
 		const CLayoutInt	nEofMargin = CLayoutInt(2); // EOFとその下のマージン
-		const CLayoutInt	nAllLines = m_pcEditDoc->m_cLayoutMgr.GetLineCount() + nEofMargin;
+		const auto nAllLines = NoteView::Projection::Add(GetTextArea().GetNoteProjection().FromLayout(
+			static_cast<int>(m_pcEditDoc->m_cLayoutMgr.GetLineCount())).value, static_cast<int>(nEofMargin));
 		int	nVScrollRate = 1;
-#ifdef _WIN64
 		/* nAllLines / nVScrollRate < INT_MAX となる整数nVScrollRateを求める */
 		// 64bit版用スクロール率
 		while( nAllLines / nVScrollRate > INT_MAX ){
 			++nVScrollRate;
 		}
-#endif
 
 		setScrollInfoIfNeeded(m_hwndVScrollBar,
-							  (Int)nAllLines / nVScrollRate - 1,					/* 全行数 */
+							  static_cast<int>(nAllLines / nVScrollRate) - 1,
 							  (Int)GetTextArea().m_nViewRowNum / nVScrollRate,		/* 表示域の行数 */
-							  (Int)GetTextArea().GetViewTopLine() / nVScrollRate,	/* 表示域の一番上の行(0開始) */
+							  static_cast<int>(GetTextArea().GetDisplayTop().value / nVScrollRate),
 							  bRedraw
 		);
 		m_nVScrollRate = nVScrollRate;				/* 垂直スクロールバーの縮尺 */
@@ -331,7 +347,7 @@ void CEditView::AdjustScrollBars( BOOL bRedraw )
 		//	縦スクロールバーがDisableになったときは必ず全体が画面内に収まるように
 		//	スクロールさせる
 		//	2005.11.01 aroka 判定条件誤り修正 (バーが消えてもスクロールしない)
-		bEnable = ( GetTextArea().m_nViewRowNum < nAllLines );
+		bEnable = ( static_cast<int>(GetTextArea().m_nViewRowNum) < nAllLines );
 		if( bEnable != (::IsWindowEnabled( m_hwndVScrollBar ) != 0) ){
 			::EnableWindow( m_hwndVScrollBar, bEnable? TRUE: FALSE );	// SIF_DISABLENOSCROLL 誤動作時の強制切替
 		}
@@ -369,6 +385,7 @@ void CEditView::AdjustScrollBars( BOOL bRedraw )
 */
 CLayoutInt CEditView::ScrollAtV( CLayoutInt nPos, BOOL bRedrawScrollBar )
 {
+	if (HasNoteBlocks()) return ScrollDisplayAtV(GetTextArea().GetNoteProjection().FromLayout(static_cast<Int>(nPos)), bRedrawScrollBar);
 	CancelImagePreview();
 	CLayoutInt	nScrollRowNum;
 	RECT		rcScrol;
@@ -528,9 +545,9 @@ void CEditView::ScrollDraw(CLayoutInt nScrollRowNum, CLayoutInt nScrollColNum, c
 	const CTextArea& area = GetTextArea();
 
 	// 背景は画面に対して固定か
-	bool bBackImgFixed = IsBkBitmap() &&
+	bool bBackImgFixed = (HasNoteBlocks() && nScrollColNum != 0) || (IsBkBitmap() &&
 		((0 != nScrollRowNum && !m_pTypeData->m_backImgScrollY) ||
-		 (0 != nScrollColNum && !m_pTypeData->m_backImgScrollX));
+		 (0 != nScrollColNum && !m_pTypeData->m_backImgScrollX)));
 	if( bBackImgFixed ){
 		CMyRect rcBody = area.GetAreaRect();
 		rcBody.left = 0; // 行番号も移動
@@ -694,6 +711,7 @@ void CEditView::MiniMapRedraw(bool bUpdateAll)
 */
 void CEditView::SyncScrollV( CLayoutInt line )
 {
+	if (IsNoteView()) return;
 	if( GetDllShareData().m_Common.m_sWindow.m_bSplitterWndVScroll && line != 0 
 		&& GetEditWnd().IsEnablePane(m_nMyIndex^0x01)
 		&& 0 <= m_nMyIndex
@@ -722,6 +740,7 @@ void CEditView::SyncScrollV( CLayoutInt line )
 */
 void CEditView::SyncScrollH( CLayoutInt col )
 {
+	if (IsNoteView()) return;
 	if( GetDllShareData().m_Common.m_sWindow.m_bSplitterWndHScroll && col != 0
 		&& GetEditWnd().IsEnablePane(m_nMyIndex^0x02)
 		&& 0 <= m_nMyIndex
