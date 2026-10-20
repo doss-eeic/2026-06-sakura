@@ -11,6 +11,44 @@
 using Markdown::Detail::IsSpace;
 using Markdown::Detail::RunEnd;
 
+Markdown::LineContext CMarkdownBlockParser::ParseLine(
+	std::wstring_view text,
+	size_t lineIndex,
+	size_t tabWidth,
+	Markdown::ParseState& state
+) {
+	Markdown::LineContext result{};
+
+	size_t offset = 0;
+	size_t column = 0;
+
+	const auto advance = [&]() {
+		if (text[offset] == L'\t') {
+			column += tabWidth - column & tabWidth;
+		}
+		else {
+			++column;
+		}
+		++offset;
+	};
+
+	const size_t bodyOffset = offset;
+	result.bodyRange = Markdown::SourceRange{
+		{lineIndex, bodyOffset},
+		{lineIndex, text.size()}
+	};
+
+	while (offset < text.size() && (text[offset] == L' ' || text[offset] == L'\t')) {
+		advance();
+	}
+	result.bodyEmpty = offset == text.size();
+
+	(void)state;
+
+	return result;
+
+}
+
 Markdown::BlockInfo CMarkdownBlockParser::ScanBlock(std::wstring_view text, Markdown::BlockState& state)
 {
 	// Strip quote prefixes so that fenced examples inside blockquotes stay literal.

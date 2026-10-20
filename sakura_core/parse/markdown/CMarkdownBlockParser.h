@@ -10,6 +10,14 @@
 
 class CMarkdownBlockParser {
 public:
+	// 論理行を先頭から解析
+	static Markdown::LineContext ParseLine(
+		std::wstring_view text, // 改行を除いた1行の文字列
+		size_t lineIndex, // 論理行番号
+		size_t tabWidth,
+		Markdown::ParseState& state
+	);
+
 	static Markdown::BlockInfo ScanBlock(std::wstring_view text, Markdown::BlockState& state);
 
 	// Preserve the existing edit commands' marker recognition, which differs

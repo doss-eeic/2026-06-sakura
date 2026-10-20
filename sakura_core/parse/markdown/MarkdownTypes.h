@@ -61,7 +61,7 @@ struct ContainerInfo {
 	SourcePosition start; // コンテナの原文での開始位置
 	std::optional<SourcePosition> parentItem; //所属する親リスト項目
 	std::optional<SourceRange> prefixRange; //現在行で明示された接頭辞の範囲
-	size_t contentColumn = 0; // タブを4列区切りで展開した、0始まりの構文上の列
+	size_t contentColumn = 0; // タブを展開した、0始まりの構文上の列
 	std::optional<ListMarkerInfo> list;
 };
 
