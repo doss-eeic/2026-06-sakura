@@ -609,10 +609,10 @@ void CCaret::ShowEditCaret()
 	}
 
 	//	キャレット色の取得
-	const ColorInfo* ColorInfoArr = pTypes->m_ColorInfoArr;
-	int nCaretColor = ( ColorInfoArr[COLORIDX_CARET_IME].m_bDisp && m_pEditView->IsImeON() )? COLORIDX_CARET_IME: COLORIDX_CARET;
-	COLORREF crCaret = ColorInfoArr[nCaretColor].m_sColorAttr.m_cTEXT;
-	COLORREF crBack = ColorInfoArr[COLORIDX_TEXT].m_sColorAttr.m_cBACK;
+	const int nCaretColor = (m_pEditView->GetDisplayColorInfo(COLORIDX_CARET_IME).m_bDisp
+			&& m_pEditView->IsImeON()) ? COLORIDX_CARET_IME : COLORIDX_CARET;
+	const COLORREF crCaret = m_pEditView->GetDisplayColorInfo(nCaretColor).m_sColorAttr.m_cTEXT;
+	const COLORREF crBack = m_pEditView->GetDisplayColorInfo(COLORIDX_TEXT).m_sColorAttr.m_cBACK;
 
 	if( !ExistCaretFocus() ){
 		/* キャレットがなかった場合 */

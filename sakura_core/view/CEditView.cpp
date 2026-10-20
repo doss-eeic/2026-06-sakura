@@ -125,7 +125,9 @@ CEditView::CEditView( void )
 , m_cTextDrawer(this)			// warning C4355: 'this' : ベース メンバー初期化子リストで使用されました。
 , m_cCommander(this)			// warning C4355: 'this' : ベース メンバー初期化子リストで使用されました。
 {
-	constexpr bool bMiniMap = false;	// TODO: パラメーターで受け取るようにしたい
+	UpdateDisplayColors();
+
+	constexpr bool bMiniMap = false;
 
 	m_bMiniMap = bMiniMap;	// SetFont内で使用するため、初期化しておく必要がある
 
@@ -142,6 +144,9 @@ BOOL CEditView::Create(
 	bool		bMiniMap
 )
 {
+	m_pTypeData = &m_pcEditDoc->m_cDocType.GetDocumentAttribute();
+	UpdateDisplayColors();
+
 	m_bMiniMap = bMiniMap;
 
 	m_pcViewFont = GetEditWnd().GetViewFont(m_bMiniMap);
@@ -1712,6 +1717,105 @@ int	CEditView::CreatePopUpMenuSub( HMENU hMenu, int nMenuIdx, int* pParentMenus,
 //                         設定反映                            //
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 
+const ColorInfo& CEditView::GetDisplayColorInfo(int nColorIdx) const
+{
+	assert(0 <= nColorIdx && nColorIdx < COLORIDX_LAST);
+
+	return m_bFullDarkColors
+		? m_displayColorInfo[nColorIdx]
+		: m_pTypeData->m_ColorInfoArr[nColorIdx];
+}
+
+void CEditView::UpdateDisplayColors()
+{
+	m_bFullDarkColors = IsFullDarkModeActive(
+		GetDllShareData().m_Common.m_sWindow.m_bFullDarkMode
+	);
+
+	if( !m_bFullDarkColors ){
+		m_crBack = m_pTypeData->m_ColorInfoArr[COLORIDX_TEXT]
+			.m_sColorAttr.m_cBACK;
+		return;
+	}
+
+	const COLORREF background = RGB(30, 30, 30);
+	const COLORREF foreground = RGB(220, 220, 220);
+	const COLORREF originalBackground =
+		m_pTypeData->m_ColorInfoArr[COLORIDX_TEXT].m_sColorAttr.m_cBACK;
+
+	// 構文色のRGBの傾向を残しながら、暗い背景で読める明るさにする。
+	const auto lighten = [foreground](COLORREF color) -> COLORREF {
+		if( GetRValue(color) == GetGValue(color)
+			&& GetGValue(color) == GetBValue(color) ){
+			return foreground;
+		}
+
+		return RGB(
+			168 + GetRValue(color) * 72 / 255,
+			168 + GetGValue(color) * 72 / 255,
+			168 + GetBValue(color) * 72 / 255
+		);
+	};
+
+	// 検索結果・差分など、通常背景と異なる背景色を暗色化する。
+	const auto darken = [](COLORREF color) -> COLORREF {
+		return RGB(
+			24 + GetRValue(color) * 40 / 255,
+			24 + GetGValue(color) * 40 / 255,
+			24 + GetBValue(color) * 40 / 255
+		);
+	};
+
+	for( int i = 0; i < COLORIDX_LAST; ++i ){
+		const ColorInfo& source = m_pTypeData->m_ColorInfoArr[i];
+		ColorInfo& target = m_displayColorInfo[i];
+
+		// 表示の有無・太字・下線・名前なども引き継ぐ。
+		target = source;
+
+		target.m_sColorAttr.m_cBACK =
+			source.m_sColorAttr.m_cBACK == originalBackground
+				? background
+				: darken(source.m_sColorAttr.m_cBACK);
+
+		target.m_sColorAttr.m_cTEXT =
+			lighten(source.m_sColorAttr.m_cTEXT);
+
+		// 既存描画では「前景色 == 背景色」が反転・合成の指定になる。
+		if( source.m_sColorAttr.m_cTEXT == source.m_sColorAttr.m_cBACK ){
+			target.m_sColorAttr.m_cTEXT = target.m_sColorAttr.m_cBACK;
+		}
+	}
+
+	const auto setColors = [this](
+		int index, COLORREF text, COLORREF back
+	) {
+		m_displayColorInfo[index].m_sColorAttr.m_cTEXT = text;
+		m_displayColorInfo[index].m_sColorAttr.m_cBACK = back;
+	};
+
+	setColors(COLORIDX_TEXT, foreground, background);
+	setColors(COLORIDX_RULER, RGB(170, 170, 170), RGB(37, 37, 38));
+	setColors(COLORIDX_GYOU, RGB(150, 150, 150), RGB(37, 37, 38));
+	setColors(COLORIDX_GYOU_MOD, RGB(220, 190, 120), RGB(37, 37, 38));
+
+	setColors(COLORIDX_CARET, RGB(240, 240, 240), background);
+	setColors(COLORIDX_CARET_IME, RGB(255, 120, 120), background);
+
+	setColors(COLORIDX_CARETLINEBG, foreground, RGB(42, 42, 42));
+	setColors(COLORIDX_EVENLINEBG, foreground, RGB(35, 35, 35));
+
+	setColors(COLORIDX_UNDERLINE, RGB(80, 80, 80), background);
+	setColors(COLORIDX_CURSORVLINE, RGB(80, 80, 80), background);
+	setColors(COLORIDX_NOTELINE, RGB(60, 60, 60), background);
+	setColors(COLORIDX_VERTLINE, RGB(70, 70, 70), background);
+
+	// 選択範囲は反転ではなく、明るい文字＋暗い青で表示する。
+	setColors(COLORIDX_SELECT, RGB(240, 240, 240), RGB(38, 79, 120));
+
+	m_crBack = background;
+}
+
 /* 設定変更を反映させる */
 void CEditView::OnChangeSetting()
 {
@@ -1725,6 +1829,7 @@ void CEditView::OnChangeSetting()
 
 	// 文書種別更新
 	m_pTypeData = &m_pcEditDoc->m_cDocType.GetDocumentAttribute();
+	UpdateDisplayColors();
 
 	/* ルーラー表示 */
 	if( m_pTypeData->m_ColorInfoArr[COLORIDX_RULER].m_bDisp && !m_bMiniMap ){
@@ -2478,7 +2583,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 		HDC		hdc = ::GetDC( GetHwnd() );
 		{
 			CGraphics gr(hdc);
-			gr.SetPen( m_pTypeData->m_ColorInfoArr[COLORIDX_CURSORVLINE].m_sColorAttr.m_cTEXT );
+			gr.SetPen( GetDisplayColorInfo(COLORIDX_CURSORVLINE).m_sColorAttr.m_cTEXT );
 			::MoveToEx( gr, m_nOldCursorLineX, GetTextArea().GetAreaTop(), nullptr );
 			::LineTo(   gr, m_nOldCursorLineX, GetTextArea().GetAreaBottom() );
 			int nBoldX = m_nOldCursorLineX - 1;
@@ -2521,7 +2626,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 		HDC		hdc = ::GetDC( GetHwnd() );
 		{
 			CGraphics gr(hdc);
-			gr.SetPen( m_pTypeData->m_ColorInfoArr[COLORIDX_UNDERLINE].m_sColorAttr.m_cTEXT );
+			gr.SetPen( GetDisplayColorInfo(COLORIDX_UNDERLINE).m_sColorAttr.m_cTEXT );
 			::MoveToEx(
 				gr,
 				GetTextArea().GetAreaLeft(),

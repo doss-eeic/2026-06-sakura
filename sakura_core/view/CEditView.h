@@ -120,7 +120,8 @@ public:
 	//! 背景にビットマップを使用するかどうか
 	//! 2010.10.03 背景実装
 	bool IsBkBitmap() const{
-		return nullptr != m_pcEditDoc->m_hBackImg
+		return !m_bFullDarkColors
+			&& nullptr != m_pcEditDoc->m_hBackImg
 			&& 0 != GetDocument()->m_cDocType.GetDocumentAttribute().m_backImgOpacity;
 	}
 
@@ -190,6 +191,8 @@ public:
 	LRESULT DispatchEvent(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	//
 	void OnChangeSetting();										/* 設定変更を反映させる */
+	const ColorInfo& GetDisplayColorInfo(int nColorIdx) const;
+	void UpdateDisplayColors();
 	void OnPaint(HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp);			/* 通常の描画処理 */
 	void OnPaint2(HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp);			/* 通常の描画処理 */
 	void DrawBackImage(HDC hdc, RECT& rcPaint, HDC hdcBgImg);
@@ -662,6 +665,12 @@ public:
 	//参照
 	CEditDoc*		m_pcEditDoc = GetListeningDoc();	//!< ドキュメント
 	const STypeConfig*	m_pTypeData = &m_pcEditDoc->m_cDocType.GetDocumentAttribute();
+
+private:
+	ColorInfo m_displayColorInfo[COLORIDX_LAST]{};
+	bool m_bFullDarkColors = false;
+
+public:
 
 	//主要構成部品
 	CTextAreaHolder	m_pcTextArea = std::make_unique<CTextArea>(this);

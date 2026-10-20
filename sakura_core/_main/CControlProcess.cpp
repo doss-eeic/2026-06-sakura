@@ -174,7 +174,7 @@ bool CControlProcess::InitializeProcess()
 	}
 
 	/* ダークモード設定を反映する */
-	ApplyDarkModeSetting(GetDllShareData().m_Common.m_sWindow.m_bDarkMode);
+	ApplyDarkModeSetting( GetDllShareData().m_Common.m_sWindow.m_bDarkMode, GetDllShareData().m_Common.m_sWindow.m_bFullDarkMode );
 
 	/* 言語を選択する */
 	CSelectLang::ChangeLang( GetDllShareData().m_Common.m_sWindow.m_szLanguageDll );
