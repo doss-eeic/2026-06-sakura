@@ -13,6 +13,8 @@
 #include "types/CType.h"
 #include "util/MessageBoxF.h"
 
+#include <string>
+
 class CEditView;
 enum EFunctionCode;
 class CEditDoc;
@@ -115,6 +117,8 @@ public:
 
 	/* 編集系 */
 	void Command_WCHAR(wchar_t wcChar, bool bConvertEOL = true );			/* 文字入力 */ //2007.09.02 kobake Command_CHAR(char)→Command_WCHAR(wchar_t)に変更
+	void Command_ENCLOSE(const std::wstring& opening, const std::wstring& closing);
+	void Command_MARKDOWN(EFunctionCode command);
 	wchar_t GetAutoCloseBracket(wchar_t opening);	/* 現在の入力条件で補完する閉じ文字を取得 */
 	void Command_IME_CHAR(WORD wChar);			/* 全角文字入力 */
 	void Command_UNDO( void );				/* 元に戻す(Undo) */
@@ -395,8 +399,9 @@ public:
 
 private:
 	void MoveViewTopLine(CLayoutInt nViewTopLine);
-	bool HandleBracketWrapping(wchar_t opening, wchar_t closing);
-	void WrapBoxSelectionWithBrackets(wchar_t opening, wchar_t closing);
+	bool HandleBracketWrapping(const std::wstring& opening, const std::wstring& closing);
+	void WrapBoxSelectionWithBrackets(const std::wstring& opening, const std::wstring& closing);
+	void InsertBracketPair(const std::wstring& opening, const std::wstring& closing);
 	bool HandleBracketPairDeletion(bool backspace);
 	/*!
 	 * @brief 検索で見つからないときの警告（メッセージボックス／サウンド）

@@ -549,7 +549,7 @@ void CCaret::ShowEditCaret()
 	}
 	CMySize caretSizeOld = GetCaretSize();
 	SetCaretSize(nCaretWidth,nCaretHeight);
-	POINT ptDrawPos=CalcCaretDrawPos(GetCaretLayoutPos());
+	POINT ptDrawPos = CalcCaretDrawPos(m_pEditView->GetDisplayCaretLayoutPos());
 	SetCaretSize(caretSizeOld.cx, caretSizeOld.cy); // 後で比較するので戻す
 	if ( m_pEditView->GetTextArea().GetAreaLeft() <= ptDrawPos.x && m_pEditView->GetTextArea().GetAreaTop() <= ptDrawPos.y
 		&& ptDrawPos.x < m_pEditView->GetTextArea().GetAreaRight() && ptDrawPos.y < m_pEditView->GetTextArea().GetAreaBottom() ){

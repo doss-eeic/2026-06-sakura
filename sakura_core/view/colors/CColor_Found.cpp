@@ -29,6 +29,9 @@ bool CColor_Select::BeginColorEx(const CStringRef& cStr, int nPos, CLayoutInt nL
 	if(!cStr.IsValid())return false;
 
 	const CEditView& view = *(CColorStrategyPool::getInstance()->GetCurrentView());
+	if (view.IsImeInlineDisplay()) {
+		return false;
+	}
 	if( !view.GetSelectionInfo().IsTextSelected() || !CTypeSupport(&view,COLORIDX_SELECT).IsDisp() ){
 		return false;
 	}

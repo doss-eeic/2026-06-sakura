@@ -54,6 +54,12 @@ struct KEYDATA {
 #define VKEX_WHEEL_LEFT		0x0109	// ホイール左
 #define VKEX_WHEEL_RIGHT	0x010A	// ホイール右
 
+//! タイプ別のキー割り当て
+struct STypeKeyBind {
+	bool m_bOverride[8]{};             // trueならタイプ別設定使用
+	EFunctionCode m_nFuncCodeArr[8]{}; //上書きする機能番号
+};
+
 extern const WCHAR* jpVKEXNames[];
 extern const int jpVKEXNamesLen;
 
@@ -77,16 +83,17 @@ public:
 	/*
 	||  参照系メンバ関数
 	*/
-	static HACCEL CreateAccerelator( int nKeyNameArrNum, KEYDATA* pKeyNameArr );
-	static EFunctionCode GetFuncCode( WORD nAccelCmd, int nKeyNameArrNum, KEYDATA* pKeyNameArr, BOOL bGetDefFuncCode = TRUE );
-	static EFunctionCode GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode = TRUE );	/* 特定のキー情報から機能コードを取得する */	// 2007.02.24 ryoji
+	static HACCEL CreateAccerelator( int nKeyNameArrNum, KEYDATA* pKeyNameArr, const STypeKeyBind* pTypeKeyBindings = nullptr, int nTypeKeyBindings = 0 );
+	static EFunctionCode GetFuncCode( WORD nAccelCmd, int nKeyNameArrNum, KEYDATA* pKeyNameArr, BOOL bGetDefFuncCode = TRUE , const STypeKeyBind* pTypeKeyBind = nullptr );
+	static EFunctionCode GetFuncCodeAt( KEYDATA& KeyData, int nState, BOOL bGetDefFuncCode = TRUE, const STypeKeyBind* pTypeKeyBind = nullptr );	/* 特定のキー情報から機能コードを取得する */	// 2007.02.24 ryoji
 	static EFunctionCode GetDefFuncCode( int nKeyCode, int nState );	/* キーのデフォルト機能を取得する */	// 2007.02.22 ryoji
 
 	//! キー割り当て一覧を作成する
-	static int CreateKeyBindList( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, CNativeW& cMemList, CFuncLookup* pcFuncLookup, BOOL bGetDefFuncCode = TRUE );
-	static int GetKeyStr( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, CNativeW& cMemList, int nFuncId, BOOL bGetDefFuncCode = TRUE );	/* 機能に対応するキー名の取得 */
-	static int GetKeyStrList( HINSTANCE	hInstance, int nKeyNameArrNum,KEYDATA* pKeyNameArr, CNativeW*** pppcMemList, int nFuncId, BOOL bGetDefFuncCode = TRUE );	/* 機能に対応するキー名の取得(複数) */
-	static WCHAR* GetMenuLabel( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, int nFuncId, WCHAR* pszLabel, const WCHAR* pszKey, BOOL bKeyStr, int nLabelSize, BOOL bGetDefFuncCode = TRUE );	/* メニューラベルの作成 */	// add pszKey	2010/5/17 Uchi
+	// pTypeKeyBindings points to the complete per-type array (VKEX_WHEEL_RIGHT + 1 entries).
+	static int CreateKeyBindList( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, CNativeW& cMemList, CFuncLookup* pcFuncLookup, BOOL bGetDefFuncCode = TRUE, const STypeKeyBind* pTypeKeyBindings = nullptr );
+	static int GetKeyStr( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, CNativeW& cMemList, int nFuncId, BOOL bGetDefFuncCode = TRUE, const STypeKeyBind* pTypeKeyBindings = nullptr );
+	static int GetKeyStrList( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, CNativeW*** pppcMemList, int nFuncId, BOOL bGetDefFuncCode = TRUE, const STypeKeyBind* pTypeKeyBindings = nullptr );
+	static WCHAR* GetMenuLabel( HINSTANCE hInstance, int nKeyNameArrNum, KEYDATA* pKeyNameArr, int nFuncId, WCHAR* pszLabel, const WCHAR* pszKey, BOOL bKeyStr, int nLabelSize, BOOL bGetDefFuncCode = TRUE, const STypeKeyBind* pTypeKeyBindings = nullptr );
 
 	static WCHAR* MakeMenuLabel(const WCHAR* sName, const WCHAR* sKey);
 
@@ -95,6 +102,6 @@ protected:
 	||  実装ヘルパ関数
 	*/
 	static bool GetKeyStrSub(int& nKeyNameArrBegin, int nKeyNameArrEnd, KEYDATA* pKeyNameArr,
-			int nShiftState, CNativeW& cMemList, int nFuncId, BOOL bGetDefFuncCode );
+			int nShiftState, CNativeW& cMemList, int nFuncId, BOOL bGetDefFuncCode, const STypeKeyBind* pTypeKeyBindings );
 };
 #endif /* SAKURA_CKEYBIND_9B930CDD_DCA8_4096_B61C_37CED61C575A_H_ */

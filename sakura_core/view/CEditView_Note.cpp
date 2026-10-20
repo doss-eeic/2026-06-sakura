@@ -46,7 +46,7 @@ CLayoutInt CEditView::ScrollDisplayAtV(NoteView::DisplayRow row, BOOL redraw)
 	if (!HasNoteBlocks()) return ScrollAtV(CLayoutInt(std::clamp<std::int64_t>(row.value, 0, INT_MAX)), redraw);
 	CancelImagePreview();
 	auto& area = GetTextArea();
-	const auto total = area.GetNoteProjection().FromLayout(static_cast<Int>(GetDocument()->m_cLayoutMgr.GetLineCount())).value;
+	const auto total = area.GetNoteProjection().FromLayout(static_cast<int>(GetDisplayLineCount())).value;
 	const auto maximum = std::max<std::int64_t>(0, NoteView::Projection::Add(total, 2) - static_cast<Int>(area.m_nViewRowNum));
 	row.value = std::clamp<std::int64_t>(row.value, 0, maximum);
 	const auto delta = row.value - area.GetDisplayTop().value;
@@ -78,7 +78,7 @@ void CEditView::OnBeforeViewLayout()
 	if (m_bMiniMap || m_noteLoading || m_noteAnchor.valid) return;
 	const auto& area = GetTextArea();
 	m_noteAnchor.valid = true;
-	m_noteAnchor.relativeRow = area.RelativeRow(GetCaret().GetCaretLayoutPos().y);
+	m_noteAnchor.relativeRow = area.RelativeRow(GetDisplayCaretLayoutPos().y);
 	m_noteAnchor.caretVisible = m_noteAnchor.relativeRow >= 0 &&
 		m_noteAnchor.relativeRow < static_cast<Int>(area.m_nViewRowNum);
 	m_noteAnchor.path.clear();
@@ -89,7 +89,7 @@ void CEditView::OnBeforeViewLayout()
 	} else {
 		const auto hit = area.GetNoteProjection().ToLayout(area.GetDisplayTop());
 		GetDocument()->m_cLayoutMgr.LayoutToLogic(CLayoutPoint(CLayoutInt(0),
-			CLayoutInt(hit.layoutLine + (hit.block ? 1 : 0))), &m_noteAnchor.text);
+			DisplayToDocumentLayoutLine(CLayoutInt(hit.layoutLine + (hit.block ? 1 : 0)))), &m_noteAnchor.text);
 		m_noteAnchor.relativeRow = 0;
 		if (hit.block) {
 			m_noteAnchor.path = hit.block->path;
@@ -101,9 +101,41 @@ void CEditView::OnBeforeViewLayout()
 
 void CEditView::RebuildNoteProjection()
 {
+	m_noteImeBaseProjection.reset();
 	auto& projection = GetTextArea().GetNoteProjection();
 	if (IsNoteView()) projection.Reset(ScanBlocks(*GetDocument(), CLogicInt(0), GetDocument()->m_cDocLineMgr.GetLineCount()));
 	else projection.Clear();
+	RefreshNoteImeProjection();
+}
+
+void CEditView::RestoreNoteDocumentProjection()
+{
+	if (m_noteImeBaseProjection) {
+		GetTextArea().GetNoteProjection() = std::move(*m_noteImeBaseProjection);
+		m_noteImeBaseProjection.reset();
+		InvalidateNoteRequests();
+	}
+}
+
+void CEditView::RefreshNoteImeProjection()
+{
+	RestoreNoteDocumentProjection();
+	if (!IsNoteView() || !IsImeInlineDisplay() || !m_imeLayout || !m_imeLine) return;
+	auto& projection = GetTextArea().GetNoteProjection();
+	m_noteImeBaseProjection = projection;
+	std::vector<NoteView::Block> replacement;
+	const auto link = ImageLink::FindStandalone(std::wstring_view(m_imeLine->GetPtr(),
+		static_cast<size_t>(m_imeLine->GetLengthWithoutEOL())));
+	const auto count = m_imeLayout->GetLineCount();
+	if (link && count > 0) {
+		replacement.push_back({static_cast<int>(m_ime.begin.y),
+			static_cast<std::int64_t>(static_cast<int>(m_ime.firstLayoutLine)) + static_cast<int>(count) - 1, link->path});
+	}
+	// Logical anchors remain document positions; only the displayed text rows are replaced.
+	// This hides links covered by an IME replacement selection and shifts subsequent blocks.
+	projection.Replace(m_ime.begin.y, m_ime.end.y, 0,
+		static_cast<int>(count) - static_cast<int>(m_ime.originalLayoutLines), std::move(replacement));
+	InvalidateNoteRequests();
 }
 
 void CEditView::OnAfterViewLayout(const SViewLayoutChange& change)
@@ -112,8 +144,12 @@ void CEditView::OnAfterViewLayout(const SViewLayoutChange& change)
 	auto& area = GetTextArea();
 	bool changed;
 	if (IsNoteView() && change.firstLine >= 0) {
+		const bool hadImeProjection = m_noteImeBaseProjection.has_value();
+		RestoreNoteDocumentProjection();
 		changed = area.GetNoteProjection().Replace(change.firstLine, change.oldLastLine, change.logicalDelta,
 			static_cast<Int>(change.layoutDelta), ScanBlocks(*GetDocument(), change.firstLine, change.newLastLine));
+		RefreshNoteImeProjection();
+		changed = changed || hadImeProjection || m_noteImeBaseProjection.has_value();
 	} else {
 		const auto previous = area.GetNoteProjection().Blocks();
 		RebuildNoteProjection();
@@ -121,36 +157,69 @@ void CEditView::OnAfterViewLayout(const SViewLayoutChange& change)
 	}
 	if (changed || change.firstLine < 0) InvalidateNoteRequests();
 	if (m_noteAnchor.valid && (changed || (IsNoteView() && change.firstLine < 0))) {
-		CLayoutPoint text;
-		auto anchor = m_noteAnchor.text;
-		if (change.firstLine >= 0 && anchor.y > change.oldLastLine) anchor.y += change.logicalDelta;
-		else if (change.firstLine >= 0 && !m_noteAnchor.caretVisible && anchor.y > change.firstLine)
-			anchor.y = change.newLastLine;
-		GetDocument()->m_cLayoutMgr.LogicToLayout(anchor, &text);
-		auto top = area.GetNoteProjection().FromLayout(static_cast<Int>(text.y)).value - m_noteAnchor.relativeRow;
-		if (!m_noteAnchor.caretVisible && m_noteAnchor.blockOffset >= 0) {
-			auto blockLine = m_noteAnchor.blockLine;
-			if (change.firstLine >= 0) {
-				if (blockLine > change.oldLastLine) blockLine += change.logicalDelta;
-				else if (blockLine >= change.firstLine) blockLine = change.newLastLine;
-			}
-			const auto& blocks = area.GetNoteProjection().Blocks();
-			for (size_t i = 0; i < blocks.size(); ++i) {
-				if (blocks[i].logicalLine == static_cast<int>(blockLine) && blocks[i].path == m_noteAnchor.path) {
-					top = area.GetNoteProjection().BlockStart(i).value + m_noteAnchor.blockOffset;
-					break;
-				}
-			}
-		}
-		const auto maxTop = std::max<std::int64_t>(0, area.GetNoteProjection().FromLayout(
-			static_cast<Int>(GetDocument()->m_cLayoutMgr.GetLineCount())).value + 2 - static_cast<Int>(area.m_nViewRowNum));
-		area.SetDisplayTop(NoteView::DisplayRow(std::clamp<std::int64_t>(top, 0, maxTop)));
+		RestoreNoteViewportAnchor(change);
 	}
 	m_noteAnchor.valid = false;
 	if (changed && GetHwnd()) {
 		AdjustScrollBars();
 		InvalidateRect(nullptr, FALSE);
 	}
+}
+
+void CEditView::RestoreNoteViewportAnchor(const SViewLayoutChange& change)
+{
+	auto& area = GetTextArea();
+	CLayoutPoint text;
+	auto anchor = m_noteAnchor.text;
+	if (change.firstLine >= 0 && anchor.y > change.oldLastLine) anchor.y += change.logicalDelta;
+	else if (change.firstLine >= 0 && !m_noteAnchor.caretVisible && anchor.y > change.firstLine)
+		anchor.y = change.newLastLine;
+	GetDocument()->m_cLayoutMgr.LogicToLayout(anchor, &text);
+	text.y = m_noteAnchor.caretVisible && IsImeInlineDisplay()
+		? GetDisplayCaretLayoutPos().y : DocumentToDisplayLayoutLine(text.y);
+	auto top = area.GetNoteProjection().FromLayout(static_cast<Int>(text.y)).value - m_noteAnchor.relativeRow;
+	if (!m_noteAnchor.caretVisible && m_noteAnchor.blockOffset >= 0) {
+		auto blockLine = m_noteAnchor.blockLine;
+		if (change.firstLine >= 0) {
+			if (blockLine > change.oldLastLine) blockLine += change.logicalDelta;
+			else if (blockLine >= change.firstLine) blockLine = change.newLastLine;
+		}
+		const auto& blocks = area.GetNoteProjection().Blocks();
+		for (size_t i = 0; i < blocks.size(); ++i) {
+			if (blocks[i].logicalLine == static_cast<int>(blockLine) && blocks[i].path == m_noteAnchor.path) {
+				top = area.GetNoteProjection().BlockStart(i).value + m_noteAnchor.blockOffset;
+				break;
+			}
+		}
+	}
+	const auto maxTop = std::max<std::int64_t>(0, area.GetNoteProjection().FromLayout(
+		static_cast<int>(GetDisplayLineCount())).value + 2 - static_cast<Int>(area.m_nViewRowNum));
+	area.SetDisplayTop(NoteView::DisplayRow(std::clamp<std::int64_t>(top, 0, maxTop)));
+}
+
+void CEditView::SaveNoteReflowAnchor()
+{
+	m_noteReflowAnchor.reset();
+	if (!IsNoteView() || (!HasNoteBlocks() &&
+		(!m_noteImeBaseProjection || m_noteImeBaseProjection->Blocks().empty()))) return;
+	const auto previous = m_noteAnchor;
+	m_noteAnchor.valid = false;
+	OnBeforeViewLayout();
+	if (m_noteAnchor.valid) m_noteReflowAnchor = m_noteAnchor;
+	m_noteAnchor = previous;
+}
+
+bool CEditView::RestoreNoteReflowAnchor()
+{
+	if (!m_noteReflowAnchor) return false;
+	const auto saved = std::move(*m_noteReflowAnchor);
+	m_noteReflowAnchor.reset();
+	if (!IsNoteView()) return false;
+	const auto previous = m_noteAnchor;
+	m_noteAnchor = saved;
+	RestoreNoteViewportAnchor({});
+	m_noteAnchor = previous;
+	return true;
 }
 
 void CEditView::ApplyNoteView()

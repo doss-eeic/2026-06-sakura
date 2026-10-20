@@ -14,6 +14,7 @@
 #include "uiparts/CMenuDrawer.h"
 #include "util/window.h"
 #include "util/file.h"
+#include "util/os.h"
 #include "version.h"
 #include "sakura_rc.h"
 
@@ -873,7 +874,8 @@ MATCHER(IsInitializedCommonSettingToolBar, "Checks if CommonSetting_ToolBar is p
 		EXPECT_THAT(sToolBar.m_nToolBarButtonIdxArr[i], Eq(defaultTools[i]));
 	}
 
-	EXPECT_THAT(sToolBar.m_bToolBarIsFlat, IsFalse());
+	// Classic/noninteractive desktops use the flat toolbar; visual styles use normal.
+	EXPECT_THAT(sToolBar.m_bToolBarIsFlat != FALSE, Eq(IsVisualStyle() == FALSE));
 
 	return true;
 }
@@ -1603,7 +1605,7 @@ MATCHER_P4(IsInitializedShareData, pszProfileName, isMultiUserSettings, userRoot
 	EXPECT_THAT(shareData.m_maxTBNum, 0);
 
 	//InitTypeConfigs
-	const std::array<std::unique_ptr<CType>, 17> table = {{
+	const std::array<std::unique_ptr<CType>, 18> table = {{
 		std::make_unique<CType_Basis>(),
 		std::make_unique<CType_Text>(),
 		std::make_unique<CType_Cpp>(),
@@ -1620,7 +1622,8 @@ MATCHER_P4(IsInitializedShareData, pszProfileName, isMultiUserSettings, userRoot
 		std::make_unique<CType_Python>(),
 		std::make_unique<CType_Vb>(),
 		std::make_unique<CType_Rich>(),
-		std::make_unique<CType_Ini>()
+		std::make_unique<CType_Ini>(),
+		std::make_unique<CType_Markdown>()
 	}};
 
 	EXPECT_THAT(shareData.m_nTypesCount, std::size(table));

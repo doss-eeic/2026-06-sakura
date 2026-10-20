@@ -327,6 +327,7 @@ protected:
 	void DeleteAccelTbl( void ); // ウィンドウ毎のアクセラレータテーブル破棄(Wine用)
 
 public:
+	void RefreshAccelTbl();
 	//D&Dフラグ管理
 	void SetDragPosOrg(CMyPoint ptDragPosOrg){ m_ptDragPosOrg=ptDragPosOrg; }
 	void SetDragMode(bool bDragMode){ m_bDragMode = bDragMode; }

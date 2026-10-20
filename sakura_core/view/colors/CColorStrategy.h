@@ -16,6 +16,7 @@
 #include "uiparts/CGraphics.h"
 
 #include "view/DispPos.h"
+#include "view/CMarkdownEmphasis.h"
 #include "util/design_template.h"
 
 struct DispPos;
@@ -101,6 +102,7 @@ struct SColorStrategyInfo{
 	CColor_Select*		m_pStrategySelect = nullptr;
 	EColorIndexType		m_colorIdxBackLine = COLORIDX_TEXT;
 	CColor3Setting		m_cIndex = { COLORIDX_TEXT, COLORIDX_TEXT, COLORIDX_TEXT };
+	CMarkdownEmphasis	m_markdownEmphasis;
 
 	//! 色の切り替え
 	bool CheckChangeColor(const CStringRef& cLineStr);

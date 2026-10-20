@@ -40,6 +40,7 @@ public:
 	void Close( void );	/* ウィンドウ クローズ */
 	void SizeBox_ONOFF(bool bSizeBox);	/* サイズボックスの表示／非表示切り替え */
 	void Timer_ONOFF(bool bStart); /* 更新の開始／停止 20060126 aroka */
+	void RefreshBindings();
 	/*
 	|| メンバ変数
 	*/

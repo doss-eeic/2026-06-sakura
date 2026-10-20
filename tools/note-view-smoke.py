@@ -5,6 +5,7 @@ Fixtures and screenshots remain in build/phase3-gui for inspection.
 """
 import ctypes as c
 from ctypes import wintypes as w
+import argparse
 import os
 from pathlib import Path
 import shutil
@@ -14,9 +15,16 @@ import time
 import zlib
 
 root = Path(__file__).resolve().parents[1]
-out = root / 'build' / 'phase3-gui'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--bin-dir', type=Path, default=root / 'x64' / 'Debug')
+parser.add_argument('--output-dir', type=Path, default=root / 'build' / 'phase3-gui')
+args = parser.parse_args()
+session = w.DWORD()
+if c.windll.kernel32.ProcessIdToSessionId(os.getpid(), c.byref(session)) and session.value == 0:
+    parser.error('Run this GUI test from the Windows desktop; SSH session 0 cannot display the editor.')
+out = args.output_dir.resolve()
 out.mkdir(parents=True, exist_ok=True)
-for source in (root / 'x64' / 'Debug').iterdir():
+for source in args.bin_dir.resolve().iterdir():
     if source.name == 'sakura.exe' or source.suffix.lower() == '.dll':
         shutil.copy2(source, out / source.name)
 

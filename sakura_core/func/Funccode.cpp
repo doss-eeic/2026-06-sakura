@@ -139,7 +139,27 @@ const EFunctionCode pnFuncList_Edit[] = {	//Oct. 16, 2000 JEPRO 変数名変更(
 	F_SORT_ASC			,	//選択行の昇順ソート	2001.12.06 hor
 	F_SORT_DESC			,	//選択行の降順ソート	2001.12.06 hor
 	F_MERGE				,	//選択行のマージ		2001.12.06 hor
-	F_RECONVERT				//再変換 				2002.04.09 minfu
+	F_RECONVERT			,	//再変換 				2002.04.09 minfu
+	F_MARKDOWN_BOLD     ,
+	F_MARKDOWN_ITALIC,
+	F_MARKDOWN_STRIKE,
+	F_MARKDOWN_H1,
+	F_MARKDOWN_H2,
+	F_MARKDOWN_H3,
+	F_MARKDOWN_H4,
+	F_MARKDOWN_H5,
+	F_MARKDOWN_H6,
+	F_MARKDOWN_QUOTE,
+	F_MARKDOWN_BULLET,
+	F_MARKDOWN_ORDERED,
+	F_MARKDOWN_TASK,
+	F_MARKDOWN_TASKCHECK,
+	F_MARKDOWN_CODE,
+	F_MARKDOWN_FENCE,
+	F_MARKDOWN_LINK,
+	F_MARKDOWN_IMAGE,
+	F_MARKDOWN_TABLE,
+	F_MARKDOWN_HR
 //		F_WORDSREFERENCE		//単語リファレンス
 };
 constexpr auto nFincList_Edit_Num = int(std::size(pnFuncList_Edit));	//Oct. 16, 2000 JEPRO 変数名変更(List3→List_Edit)

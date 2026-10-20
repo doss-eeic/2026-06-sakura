@@ -294,6 +294,13 @@ public:
 public:
 	void _DoLayout(bool bBlockingHook);	/* 現在の折り返し文字数に合わせて全データのレイアウト情報を再生成します */
 	void _DoLayoutSub(CDocLine* pDocLineBegin, const CDocLine* pDocLineEnd, int nLineIndexBegin, int nLineCount, std::atomic<bool>* pbCanceled);
+	void BuildDisplayLine(
+		const CLayoutMgr& source,
+		CDocLine* line,
+		CLogicInt logicalLine,
+		EColorIndexType initialColor,
+		const CLayoutColorInfo* initialColorInfo
+	);
 protected:
 	// 2005.11.21 Moca 引用符の色分け情報を引数から除去
 	// 2009.08.28 nasukoji	テキスト最大幅算出用引数追加

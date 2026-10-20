@@ -39,7 +39,7 @@ void CEditView::UpdateImagePreview(bool mouseMoved)
 	if (!::PtInRect(&area, client)) { CancelImagePreview(); return; }
 	CLayoutPoint layoutPoint;
 	GetTextArea().ClientToLayout(CMyPoint(client.x, client.y), &layoutPoint);
-	const auto layout = GetDocument()->m_cLayoutMgr.SearchLineByLayoutY(layoutPoint.y);
+	const auto layout = SearchDisplayLine(layoutPoint.y);
 	if (!layout || layoutPoint.x < layout->GetIndent()) { CancelImagePreview(); return; }
 	const auto index = LineColumnToIndex(layout, layoutPoint.x);
 	// Do not clamp empty space, wrap indentation, or EOL to the last link character.

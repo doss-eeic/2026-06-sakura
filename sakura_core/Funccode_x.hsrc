@@ -136,6 +136,26 @@ F_SORT_ASC			= 30282,	//選択行の昇順ソート						なし
 F_SORT_DESC			= 30283,	//選択行の降順ソート						なし
 F_MERGE				= 30284,	//選択行のマージ							なし
 F_RECONVERT			= 30285,	//再変換									なし
+F_MARKDOWN_BOLD     = 30286,    //Markdown太字
+F_MARKDOWN_ITALIC   = 30287,    //Markdown斜体
+F_MARKDOWN_STRIKE   = 31700,    //Markdown取り消し線
+F_MARKDOWN_H1       = 31701,    //Markdown見出し1
+F_MARKDOWN_H2       = 31702,    //Markdown見出し2
+F_MARKDOWN_H3       = 31703,    //Markdown見出し3
+F_MARKDOWN_H4       = 31704,    //Markdown見出し4
+F_MARKDOWN_H5       = 31705,    //Markdown見出し5
+F_MARKDOWN_H6       = 31706,    //Markdown見出し6
+F_MARKDOWN_QUOTE    = 31707,    //Markdown引用
+F_MARKDOWN_BULLET   = 31708,    //Markdown箇条書き
+F_MARKDOWN_ORDERED  = 31709,    //Markdown番号付きリスト
+F_MARKDOWN_TASK     = 31710,    //Markdownタスクリスト
+F_MARKDOWN_CODE     = 31711,    //Markdownインラインコード
+F_MARKDOWN_FENCE    = 31712,    //Markdownコードブロック
+F_MARKDOWN_LINK     = 31713,    //Markdownリンク
+F_MARKDOWN_IMAGE    = 31714,    //Markdown画像
+F_MARKDOWN_TABLE    = 31715,    //Markdown表
+F_MARKDOWN_HR       = 31716,    //Markdown水平線
+F_MARKDOWN_TASKCHECK = 31717,   //Markdownタスク完了切り替え
 
 
 // カーソル移動系

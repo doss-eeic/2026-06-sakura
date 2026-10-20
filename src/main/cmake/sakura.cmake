@@ -524,7 +524,7 @@ if(MINGW)
 endif(MINGW)
 
 # define header files of sakura-editor
-file(GLOB_RECURSE HEADERS
+file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/src/main/cpp/*.hpp
   ${CMAKE_SOURCE_DIR}/src/main/cpp/*.h
   ${CMAKE_SOURCE_DIR}/sakura_core/*.hpp
@@ -532,7 +532,7 @@ file(GLOB_RECURSE HEADERS
 )
 
 # define source files of sakura_core
-file(GLOB_RECURSE SOURCES
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/src/main/cpp/*.cpp
   ${CMAKE_SOURCE_DIR}/sakura_core/*.cpp
 )

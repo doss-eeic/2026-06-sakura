@@ -20,6 +20,8 @@
 	Please contact the copyright holder to use this code for other purpose.
 */
 #include "StdAfx.h"
+#include "window/CEditWnd.h"
+#include "doc/CEditDoc.h"
 #include "CMenuDrawer.h"
 #include "env/CShareData.h"
 #include "env/DLLSHAREDATA.h"
@@ -847,6 +849,8 @@ void CMenuDrawer::MyAppendMenu(
 	wcscpy( szKey, pszKey); 
 	if( nFuncId != 0 ){
 		/* メニューラベルの作成 */
+		const auto* editWnd = CEditWnd::getInstance();
+		const auto* document = editWnd ? editWnd->GetDocument() : nullptr;
 		CKeyBind::GetMenuLabel(
 			m_hInstance,
 			m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
@@ -855,7 +859,8 @@ void CMenuDrawer::MyAppendMenu(
 			szLabel,
 			szKey,
 			bAddKeyStr,
-			int(std::size(szLabel))
+			int(std::size(szLabel)), TRUE,
+			document ? document->m_cDocType.GetDocumentAttribute().m_typeKeyBindings.data() : nullptr
 		 );
 
 		{

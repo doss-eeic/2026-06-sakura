@@ -113,14 +113,16 @@ void CCharWidthCache::Init(const LOGFONT &lf, const LOGFONT &lfFull, HDC hdcOrg,
 	}
 
 	m_hdc1 = ::CreateCompatibleDC(hdcOrg);
-	m_hFont1 = ::CreateFontIndirectW(&lf);
+	const LOGFONT base = fallbacks ? CFontFallback::ResolveBaseFont(lf) : lf;
+	m_hFont1 = ::CreateFontIndirectW(&base);
 	m_hFont1Old.updateBound(m_hdc1);
 	m_hFont1Old = ::SelectObject(m_hdc1, m_hFont1);
 
 	m_bMultiFont = &lf != &lfFull && 0 != memcmp(&lf, &lfFull, sizeof(lf));
 	if (m_bMultiFont) {
 		m_hdc2 = ::CreateCompatibleDC(hdcOrg);
-		m_hFont2 = ::CreateFontIndirectW(&lfFull);
+		const LOGFONT full = fallbacks ? CFontFallback::ResolveBaseFont(lfFull) : lfFull;
+		m_hFont2 = ::CreateFontIndirectW(&full);
 		m_hFont2Old.updateBound(m_hdc2);
 		m_hFont2Old = ::SelectObject(m_hdc2, m_hFont2);
 	}

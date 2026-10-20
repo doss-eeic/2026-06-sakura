@@ -27,10 +27,55 @@
 #include "charset/CShiftJis.h"
 #include "doc/CEditDoc.h"
 #include "window/CEditWnd.h"
+#include <string>
+#include <vector>
+#include <memory>
+#include <utility>
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 //                           IME                               //
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
+
+namespace {
+
+template<class T>
+bool ReadImeData(
+	HIMC context,
+	DWORD index,
+	std::vector<T>& destination
+)
+{
+	const LONG bytes =
+		::ImmGetCompositionStringW(context, index, nullptr, 0);
+
+	if (bytes < 0 || bytes % sizeof(T) != 0) {
+		return false;
+	}
+
+	std::vector<T> buffer(bytes / sizeof(T));
+
+	if (bytes > 0) {
+		const LONG copied = ::ImmGetCompositionStringW(
+			context,
+			index,
+			buffer.data(),
+			static_cast<DWORD>(bytes)
+		);
+
+		if (copied < 0 ||
+			copied > bytes ||
+			copied % sizeof(T) != 0) {
+			return false;
+		}
+
+		buffer.resize(copied / sizeof(T));
+	}
+
+	destination = std::move(buffer);
+	return true;
+}
+
+}
 
 /*!	IME ONか
 
@@ -72,6 +117,11 @@ void CEditView::SetIMECompFormPos( void )
 	// composition window position.
 	//
 	//
+	if (m_ime.active && !m_bImeNativeComposition) {
+		UpdateImeCandidatePosition();
+		return;
+	}
+
 	HIMC hIMC = ::ImmGetContext( GetHwnd() );
 	if ( hIMC ){
 		if ( ::ImmGetOpenStatus( hIMC ) ){
@@ -80,7 +130,11 @@ void CEditView::SetIMECompFormPos( void )
 			COMPOSITIONFORM CompForm;
 			CompForm.dwStyle = CFS_POINT;
 			CompForm.ptCurrentPos.x = (long) point.x;
-			CompForm.ptCurrentPos.y = (long) point.y + GetCaret().GetCaretSize().cy - GetTextMetrics().GetHankakuHeight();
+			if (m_bImeNativeComposition) {// 矩形選択中の変換文字列は、キャレットの下に表示する。
+				CompForm.ptCurrentPos.y = point.y + GetTextMetrics().GetHankakuDy();
+			} else {
+				CompForm.ptCurrentPos.y = point.y + GetCaret().GetCaretSize().cy - GetTextMetrics().GetHankakuHeight();
+			}
 			::ImmSetCompositionWindow( hIMC, &CompForm );
 		}
 		::ImmReleaseContext( GetHwnd() , hIMC );
@@ -398,4 +452,740 @@ LRESULT CEditView::SetSelectionFromReonvert(const RECONVERTSTRING* pReconv)
 	m_nLastReconvLine  = -1;
 
 	return 1;
+}
+
+const CLayout* CEditView::SearchDisplayLine(CLayoutInt y) const
+{
+	const CLayoutMgr& original = m_pcEditDoc->m_cLayoutMgr;
+
+	if (!m_ime.displayValid || !m_imeLayout) {
+		return original.SearchLineByLayoutY(y);
+	}
+
+	const CLayoutInt first = m_ime.firstLayoutLine;
+	const CLayoutInt displayLines = m_imeLayout->GetLineCount();
+
+	// 未確定文字を含む行より前。
+	if (y < first) {
+		return original.SearchLineByLayoutY(y);
+	}
+
+	// 未確定文字を含む表示用レイアウト。
+	if (y < first + displayLines) {
+		return m_imeLayout->SearchLineByLayoutY(y - first);
+	}
+
+	// 後続行。折り返しで増減した表示行数を補正する。
+	return original.SearchLineByLayoutY(
+		y - displayLines + m_ime.originalLayoutLines
+	);
+}
+
+CLayoutInt CEditView::GetDisplayLineCount() const
+{
+	const CLayoutInt originalLines =
+		m_pcEditDoc->m_cLayoutMgr.GetLineCount();
+
+	if (!m_ime.displayValid || !m_imeLayout) {
+		return originalLines;
+	}
+
+	return CLayoutInt(std::clamp<std::int64_t>(static_cast<int>(originalLines)
+		- static_cast<std::int64_t>(static_cast<int>(m_ime.originalLayoutLines))
+		+ static_cast<int>(m_imeLayout->GetLineCount()), 0, INT_MAX));
+}
+
+CLayoutInt CEditView::DocumentToDisplayLayoutLine(CLayoutInt line) const
+{
+	if (!IsImeInlineDisplay() || !m_imeLayout || line < m_ime.firstLayoutLine) return line;
+	const auto first = static_cast<int>(m_ime.firstLayoutLine);
+	const auto original = static_cast<int>(m_ime.originalLayoutLines);
+	const auto display = static_cast<int>(m_imeLayout->GetLineCount());
+	const auto offset = static_cast<std::int64_t>(static_cast<int>(line)) - first;
+	const auto mapped = offset < original ? first + std::min<std::int64_t>(offset, std::max(0, display - 1))
+		: static_cast<std::int64_t>(static_cast<int>(line)) - original + display;
+	return CLayoutInt(std::clamp<std::int64_t>(mapped, 0, INT_MAX));
+}
+
+CLayoutInt CEditView::DisplayToDocumentLayoutLine(CLayoutInt line) const
+{
+	if (!IsImeInlineDisplay() || !m_imeLayout || line < m_ime.firstLayoutLine) return line;
+	const auto first = static_cast<int>(m_ime.firstLayoutLine);
+	const auto original = static_cast<int>(m_ime.originalLayoutLines);
+	const auto display = static_cast<int>(m_imeLayout->GetLineCount());
+	const auto offset = static_cast<std::int64_t>(static_cast<int>(line)) - first;
+	const auto mapped = offset < display ? first + std::min<std::int64_t>(offset, std::max(0, original - 1))
+		: static_cast<std::int64_t>(static_cast<int>(line)) - display + original;
+	return CLayoutInt(std::clamp<std::int64_t>(mapped, 0, INT_MAX));
+}
+
+void CEditView::RebuildImeDisplayLayout()
+{
+	RestoreNoteDocumentProjection();
+	m_ime.displayValid = false;
+
+	// レイアウトは行データを参照しているので、この順に破棄する。
+	m_imeLayout.reset();
+	m_imeLine.reset();
+
+	if (!m_ime.active || m_bImeNativeComposition || m_ime.text.empty()) {
+		return;
+	}
+
+	auto& original = m_pcEditDoc->m_cLayoutMgr;
+	auto& lines = m_pcEditDoc->m_cDocLineMgr;
+
+	const CDocLine* head = lines.GetLine(m_ime.begin.y);
+	const CDocLine* tail = lines.GetLine(m_ime.end.y);
+
+	std::wstring display;
+
+	// 挿入位置より前の本文。
+	const int headLength = head
+		? static_cast<int>(head->GetLengthWithoutEOL())
+		: 0;
+
+	const int beginX = static_cast<int>(m_ime.begin.x);
+	const int prefixLength = std::min(beginX, headLength);
+
+	if (head && prefixLength > 0) {
+		display.assign(head->GetPtr(), prefixLength);
+	}
+
+	// 行末より右のフリーカーソル位置に対応する空白。
+	if (beginX > headLength) {
+		display.append(beginX - headLength, L' ');
+	}
+
+	// 未確定文字を表示用文字列にだけ挿入する。
+	display += m_ime.text;
+
+	// 挿入位置、または選択終了位置より後の本文。
+	if (tail) {
+		const int endX = std::min(
+			static_cast<int>(m_ime.end.x),
+			static_cast<int>(tail->GetLengthWithoutEOL())
+		);
+
+		display.append(
+			tail->GetPtr() + endX,
+			static_cast<int>(tail->GetLengthWithEOL()) - endX
+		);
+	}
+
+	// 置換対象の最初の表示行を求める。
+	CLayoutPoint first;
+	original.LogicToLayout(
+		CLogicPoint(CLogicInt(0), m_ime.begin.y),
+		&first
+	);
+
+	m_ime.firstLayoutLine = first.y;
+
+	// 元の表示行を何行置き換えるか数える。
+	CLayoutInt after = first.y;
+
+	while (const CLayout* layout =
+		original.SearchLineByLayoutY(after)) {
+		if (layout->GetLogicLineNo() > m_ime.end.y) {
+			break;
+		}
+		after += CLayoutInt(1);
+	}
+
+	m_ime.originalLayoutLines = after - first.y;
+
+	const CLayout* firstOriginal =
+		original.SearchLineByLayoutY(first.y);
+
+	const EColorIndexType initialColor = firstOriginal
+		? firstOriginal->GetColorTypePrev()
+		: COLORIDX_DEFAULT;
+
+	const CLayoutColorInfo* initialColorInfo = firstOriginal
+		? firstOriginal->GetColorInfo()
+		: nullptr;
+
+	m_imeLine = std::make_unique<CDocLine>();
+
+	m_imeLine->SetDocLineString(
+		display.c_str(),
+		static_cast<int>(display.size()),
+		GetDllShareData().m_Common.m_sEdit.m_bEnableExtEol
+	);
+
+	m_imeLayout = std::make_unique<CLayoutMgr>();
+
+	m_imeLayout->BuildDisplayLine(
+		original,
+		m_imeLine.get(),
+		m_ime.begin.y,
+		initialColor,
+		initialColorInfo
+	);
+
+	m_ime.displayValid = true;
+	RefreshNoteImeProjection();
+}
+void CEditView::BeginImeComposition()
+{
+	RestoreNoteDocumentProjection();
+	m_imeLayout.reset();
+	m_imeLine.reset();
+	m_ime = SImeComposition{};
+
+	m_ime.active = true;
+
+	auto& layout = m_pcEditDoc->m_cLayoutMgr;
+
+	if (!m_bImeNativeComposition && GetSelectionInfo().IsTextSelected()) {
+		layout.LayoutToLogic(
+			GetSelectionInfo().m_sSelect.GetFrom(),
+			&m_ime.begin
+		);
+		layout.LayoutToLogic(
+			GetSelectionInfo().m_sSelect.GetTo(),
+			&m_ime.end
+		);
+	} else {
+		m_ime.begin = GetCaret().GetCaretLogicPos();
+		m_ime.end = m_ime.begin;
+	}
+
+	m_szComposition[0] = L'\0';
+}
+
+void CEditView::EndImeComposition()
+{
+	RestoreNoteDocumentProjection();
+	m_bImeNativeComposition = false;
+
+	m_ime.displayValid = false;
+	m_ime.active = false;
+
+	m_imeLayout.reset();
+	m_imeLine.reset();
+	m_ime = SImeComposition{};
+
+	m_szComposition[0] = L'\0';
+
+	// 状態解除後なので、通常の本文キャレットが基準になる。
+	EnsureDisplayCaretVisible();
+
+	Redraw();
+	GetCaret().ShowEditCaret();
+}
+
+void CEditView::CommitImeResultViaDefault(
+	HWND hwnd,
+	WPARAM wParam,
+	LPARAM resultFlags
+)
+{
+	std::wstring result;
+
+	{
+		// 呼び出し終了時に、以前のバッファ参照へ必ず戻す。
+		// ローカル変数へのポインタをメンバーに残さない。
+		struct SRestoreResultBuffer {
+			std::wstring*& slot;
+			std::wstring* previous;
+
+			~SRestoreResultBuffer()
+			{
+				slot = previous;
+			}
+		};
+
+		const SRestoreResultBuffer restore{
+			m_pImeResultBuffer,
+			m_pImeResultBuffer
+		};
+
+		m_pImeResultBuffer = &result;
+
+		// この呼び出し中に届くWM_IME_CHARでは、
+		// 本文を変更せずresultへ文字を追加する。
+		::DefWindowProc(
+			hwnd,
+			WM_IME_COMPOSITION,
+			wParam,
+			resultFlags
+		);
+	}
+
+	// ここでは収集状態を解除済み。
+	// 受信した確定文字列を1回だけ編集コマンドへ渡す。
+	if (!result.empty()) {
+		CommitImeResult(result);
+		RefreshImeDisplay();
+	}
+}
+
+void CEditView::CommitImeResult(const std::wstring& text)
+{
+	RestoreNoteDocumentProjection();
+	// 編集コマンドによる再描画では通常の本文を参照する。
+	m_ime.displayValid = false;
+	m_ime.active = false;
+	m_imeLayout.reset();
+	m_imeLine.reset();
+	m_szComposition[0] = L'\0';
+
+	if (!text.empty()) {
+		const BOOL oldHokan = m_bHokan;
+
+		if (m_bHideMouse && 0 <= m_nMousePause) {
+			m_nMousePause = -1;
+			::SetCursor(nullptr);
+		}
+
+		if (!IsInsMode()) {
+			for (wchar_t ch : text) {
+				GetCommander().HandleCommand(
+					F_IME_CHAR, true, ch, 0, 0, 0
+				);
+			}
+		} else if (
+			text.size() == 1 &&
+			GetCommander().GetAutoCloseBracket(text[0]) != L'\0'
+		) {
+			GetCommander().HandleCommand(
+				F_WCHAR, true, text[0], 0, 0, 0
+			);
+		} else {
+			GetCommander().HandleCommand(
+				F_INSTEXT_W,
+				true,
+				reinterpret_cast<LPARAM>(text.c_str()),
+				static_cast<LPARAM>(text.size()),
+				TRUE,
+				0
+			);
+		}
+
+		m_bHokan = oldHokan;
+		PostprocessCommand_hokan();
+	}
+
+	// 部分確定後の新しい挿入位置を保存する。
+	BeginImeComposition();
+}
+
+bool CEditView::OnImeComposition(LPARAM flags)
+{
+	const bool hasResult = (flags & GCS_RESULTSTR) != 0;
+	const bool hasComposition = (flags & GCS_COMPSTR) != 0;
+
+	std::vector<wchar_t> result;
+	std::vector<wchar_t> composition;
+	std::vector<BYTE> attributes;
+	std::vector<DWORD> clauses;
+
+	// 確定文字と未確定文字の取得成否を別々に管理する。
+	bool resultRead = !hasResult;
+	bool compositionRead = !hasComposition;
+	bool attributesRead = false;
+	bool clausesRead = false;
+	LONG cursor = -1;
+
+	HIMC context = ::ImmGetContext(GetHwnd());
+	if (!context) {
+		// 確定文字がある通知だけ、呼び出し側へ未処理を返す。
+		return !hasResult;
+	}
+
+	if (hasResult) {
+		resultRead = ReadImeData(
+			context, GCS_RESULTSTR, result
+		);
+	}
+
+	if (hasComposition) {
+		compositionRead = ReadImeData(
+			context, GCS_COMPSTR, composition
+		);
+	}
+
+	if (flags & GCS_COMPATTR) {
+		attributesRead = ReadImeData(
+			context, GCS_COMPATTR, attributes
+		);
+	}
+
+	if (flags & GCS_COMPCLAUSE) {
+		clausesRead = ReadImeData(
+			context, GCS_COMPCLAUSE, clauses
+		);
+	}
+
+	if (flags & GCS_CURSORPOS) {
+		cursor = ::ImmGetCompositionStringW(
+			context, GCS_CURSORPOS, nullptr, 0
+		);
+	}
+
+	::ImmReleaseContext(GetHwnd(), context);
+
+	if (!resultRead) {
+		// 確定文字の取得失敗。
+		// 状態や本文を変更せず、標準処理への引き継ぎを要求する。
+		return false;
+	}
+
+	if (!m_ime.active) {
+		BeginImeComposition();
+	}
+
+	if (hasResult) {
+		// 未確定文字の取得に失敗していても、
+		// 取得済みの確定文字はここで処理する。
+		CommitImeResult(
+			std::wstring(result.begin(), result.end())
+		);
+	}
+
+	if (compositionRead) {
+		// 結果文字列と未確定文字列は、同じ通知に含まれ得る。
+		if (hasComposition) {
+			m_ime.text.assign(
+				composition.begin(), composition.end()
+			);
+			m_ime.attributes.assign(
+				m_ime.text.size(), ATTR_INPUT
+			);
+			m_ime.clauses.clear();
+		}
+
+		if (attributesRead) {
+			m_ime.attributes = std::move(attributes);
+		}
+
+		if (clausesRead) {
+			m_ime.clauses = std::move(clauses);
+		}
+
+		if (cursor >= 0) {
+			m_ime.cursor = cursor;
+		}
+	}
+	// 新しい未確定文字列の取得に失敗した場合は、
+	// その文字列に対応する属性・文節・カーソルも適用しない。
+	// 確定済み部分の本文への挿入は取り消さない。
+
+	if (flags == 0) {
+		m_ime.text.clear();
+		m_ime.attributes.clear();
+		m_ime.clauses.clear();
+		m_ime.cursor = 0;
+	}
+
+	m_ime.cursor = std::clamp(
+		m_ime.cursor,
+		LONG(0),
+		static_cast<LONG>(m_ime.text.size())
+	);
+
+	// IMR_DOCUMENTFEED用バッファも更新する。
+	const size_t length = std::min(
+		m_ime.text.size(),
+		std::size(m_szComposition) - 1
+	);
+
+	std::copy_n(m_ime.text.data(), length, m_szComposition);
+	m_szComposition[length] = L'\0';
+
+	RefreshImeDisplay();
+	return true;
+}
+
+CLayoutPoint CEditView::GetDisplayCaretLayoutPos() const
+{
+	if (!m_ime.displayValid || !m_imeLayout) {
+		return GetCaret().GetCaretLayoutPos();
+	}
+
+	const CLogicInt target =
+		m_ime.begin.x + CLogicInt(m_ime.cursor);
+
+	const CLayout* line = m_imeLayout->GetTopLayout();
+	CLayoutInt y = m_ime.firstLayoutLine;
+
+	if (!line) {
+		return GetCaret().GetCaretLayoutPos();
+	}
+
+	while (line->GetNextLayout() &&
+		line->GetNextLayout()->GetLogicOffset() <= target) {
+		line = line->GetNextLayout();
+		y += CLayoutInt(1);
+	}
+
+	auto iterator = m_imeLayout->CreateCMemoryIterator(line);
+
+	while (!iterator.end() &&
+		line->GetLogicOffset() + iterator.getIndex() < target) {
+		iterator.scanNext();
+		iterator.addDelta();
+	}
+
+	return CLayoutPoint(iterator.getColumn(), y);
+}
+
+void CEditView::UpdateImeCandidatePosition()
+{
+	if (!m_ime.active || m_bImeNativeComposition) {
+		return;
+	}
+
+	HIMC context = ::ImmGetContext(GetHwnd());
+	if (!context) {
+		return;
+	}
+
+	const POINT point =
+		GetCaret().CalcCaretDrawPos(GetDisplayCaretLayoutPos());
+
+	CANDIDATEFORM form{};
+	form.dwIndex = 0;
+	form.dwStyle = CFS_EXCLUDE;
+	form.ptCurrentPos = point;
+	form.rcArea.left = point.x;
+	form.rcArea.top = point.y;
+	form.rcArea.right = point.x + 1;
+	form.rcArea.bottom =
+		point.y + GetTextMetrics().GetHankakuDy();
+
+	::ImmSetCandidateWindow(context, &form);
+	::ImmReleaseContext(GetHwnd(), context);
+}
+
+
+void CEditView::RefreshImeDisplay()
+{
+	if (!m_ime.active) {
+		return;
+	}
+
+	if (m_bImeNativeComposition) {
+		SetIMECompFormPos();
+		return;
+	}
+
+	RebuildImeDisplayLayout();
+	EnsureDisplayCaretVisible();
+
+	Redraw();
+	GetCaret().ShowEditCaret();
+	UpdateImeCandidatePosition();
+}
+
+bool CEditView::IsImeInlineDisplay() const
+{
+	return !m_bImeNativeComposition
+		&& m_ime.active
+		&& m_ime.displayValid;
+}
+
+void CEditView::InvalidateImeDisplayLayout()
+{
+	RestoreNoteDocumentProjection();
+	m_ime.displayValid = false;
+}
+
+bool CEditView::CompleteImeBeforeMouseAction()
+{
+	if (m_bImeCompleting) {
+		return false;
+	}
+
+	if (!m_ime.active) {
+		return true;
+	}
+
+	HIMC context = ::ImmGetContext(GetHwnd());
+	if (!context) {
+		return false;
+	}
+
+	m_bImeCompleting = true;
+
+	// この呼び出し中にWM_IME_COMPOSITIONなどが届き、
+	// 既存の確定処理が本文へ結果文字列を挿入する。
+	const BOOL notified = ::ImmNotifyIME(
+		context,
+		NI_COMPOSITIONSTR,
+		CPS_COMPLETE,
+		0
+	);
+
+	const LONG remaining = ::ImmGetCompositionStringW(
+		context,
+		GCS_COMPSTR,
+		nullptr,
+		0
+	);
+
+	::ImmReleaseContext(GetHwnd(), context);
+
+	m_bImeCompleting = false;
+
+	// 確定できなかった場合は、クリックによる移動を中止する。
+	// EndImeComposition()で未確定文字を強制破棄しない。
+	if (!notified || remaining != 0) {
+		return false;
+	}
+
+	return !m_ime.active || m_ime.text.empty();
+}
+
+bool CEditView::ShouldUseNativeIme() const
+{
+	return GetSelectionInfo().IsBoxSelecting() || !IsInsMode();
+}
+
+void CEditView::EnsureDisplayCaretVisible()
+{
+	// 表示行数・最大幅が減った場合のスクロール位置を補正する。
+	ScrollDisplayAtV(GetTextArea().GetDisplayTop());
+	ScrollAtH(GetTextArea().GetViewLeftCol());
+
+	const CLayoutPoint caret = GetDisplayCaretLayoutPos();
+	const auto caretRow = GetTextArea().GetNoteProjection().FromLayout(static_cast<int>(caret.y));
+	const auto relative = caretRow.value - GetTextArea().GetDisplayTop().value;
+
+	if (relative < 0) {
+		ScrollDisplayAtV(caretRow);
+	} else if (relative >= static_cast<int>(GetTextArea().m_nViewRowNum)) {
+		ScrollDisplayAtV(NoteView::DisplayRow(caretRow.value - static_cast<int>(GetTextArea().m_nViewRowNum) + 1));
+	}
+
+	if (caret.x < GetTextArea().GetViewLeftCol()) {
+		ScrollAtH(caret.x);
+	} else if (caret.x >= GetTextArea().GetRightCol()) {
+		ScrollAtH(
+			caret.x - GetTextArea().m_nViewColNum
+				+ GetTextMetrics().GetLayoutXDefault()
+		);
+	}
+
+	AdjustScrollBars();
+}
+
+void CEditView::SaveDisplayTopPosition(
+	CLogicPointEx* position
+) const
+{
+	*position = CLogicPointEx{};
+
+	const CLayoutInt top = GetTextArea().GetViewTopLine();
+	const CLayout* line = SearchDisplayLine(top);
+
+	if (!line) {
+		// EOF以下の余白も、先頭行へ戻さず保存する。
+		position->ext = CLayoutInt(-2);
+		position->x = CLogicInt(
+			static_cast<int>(top - GetDisplayLineCount())
+		);
+		return;
+	}
+
+	// 従来と同じく、上端行の中央付近の文字を目印にする。
+	position->x =
+		line->GetLogicOffset() + line->GetLengthWithoutEOL() / 2;
+	position->y = line->GetLogicLineNo();
+
+	if (IsImeInlineDisplay() &&
+		line->GetDocLineRef() == m_imeLine.get()) {
+		// xは本文ではなく、仮の文字列内のオフセット。
+		position->ext = CLayoutInt(-1);
+	}
+}
+
+CLayoutInt CEditView::RestoreDisplayTopPosition(
+	const CLogicPointEx& position
+)
+{
+	// 本文レイアウト・フォント更新後の設定で作り直す。
+	RebuildImeDisplayLayout();
+
+	if (position.ext == CLayoutInt(-2)) {
+		return GetDisplayLineCount()
+			+ CLayoutInt(static_cast<int>(position.x));
+	}
+
+	if (position.ext == CLayoutInt(-1) &&
+		IsImeInlineDisplay() &&
+		m_imeLayout &&
+		position.y == m_ime.begin.y) {
+		// 仮の文字列内の同じ文字が含まれる表示行を探す。
+		const CLayout* line = m_imeLayout->GetTopLayout();
+		CLayoutInt y = m_ime.firstLayoutLine;
+
+		if (line) {
+			while (line->GetNextLayout() &&
+				line->GetNextLayout()->GetLogicOffset()
+					<= position.x) {
+				line = line->GetNextLayout();
+				y += CLayoutInt(1);
+			}
+
+			return y;
+		}
+	}
+
+	CLogicPoint logical(position.x, position.y);
+
+	if (position.ext == CLayoutInt(-1)) {
+		// 保存後に変換が終了していた場合。
+		// 仮の文字列のオフセットを本文へ直接渡さない。
+		logical.x = CLogicInt(0);
+	}
+
+	CLayoutPoint original;
+	m_pcEditDoc->m_cLayoutMgr.LogicToLayout(logical, &original);
+
+	if (!IsImeInlineDisplay() || !m_imeLayout) {
+		return original.y;
+	}
+
+	const CLayoutInt first = m_ime.firstLayoutLine;
+	const CLayoutInt originalAfter =
+		first + m_ime.originalLayoutLines;
+
+	if (original.y >= originalAfter) {
+		// IME表示より後ろの本文行。
+		return original.y
+			- m_ime.originalLayoutLines
+			+ m_imeLayout->GetLineCount();
+	}
+
+	if (original.y >= first) {
+		return first;
+	}
+
+	return original.y;
+}
+
+void CEditView::RefreshImeDisplayAfterRelayout()
+{
+	if (!m_ime.active) {
+		return;
+	}
+
+	if (m_bImeNativeComposition) {
+		SetIMECompFormPos();
+		return;
+	}
+
+	RebuildImeDisplayLayout();
+
+	// 有効範囲から外れたスクロール位置だけを補正する。
+	ScrollDisplayAtV(GetTextArea().GetDisplayTop());
+	ScrollAtH(GetTextArea().GetViewLeftCol());
+	AdjustScrollBars();
+
+	Redraw();
+	GetCaret().ShowEditCaret();
+	UpdateImeCandidatePosition();
 }

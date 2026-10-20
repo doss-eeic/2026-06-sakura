@@ -54,6 +54,10 @@
 /* マウス左ボタン押下 */
 void CEditView::OnLBUTTONDOWN( WPARAM fwKeys, int _xPos , int _yPos )
 {
+	if (!CompleteImeBeforeMouseAction()) {
+		return;
+	}
+
 	CMyPoint ptMouse(_xPos,_yPos);
 	if (IsNoteBlockPoint(ptMouse)) {
 		GetEditWnd().SetActivePane(m_nMyIndex);
@@ -560,6 +564,12 @@ BOOL CEditView::CheckTripleClick( CMyPoint ptMouse )
 /* マウス右ボタン押下 */
 void CEditView::OnRBUTTONDOWN( WPARAM fwKeys, int xPos , int yPos )
 {
+	m_bImeRejectRightUp = !CompleteImeBeforeMouseAction();
+
+	if (m_bImeRejectRightUp) {
+		return;
+	}
+
 	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
 	if( m_nAutoScrollMode ){
 		AutoScrollExit();
@@ -589,6 +599,16 @@ void CEditView::OnRBUTTONDOWN( WPARAM fwKeys, int xPos , int yPos )
 /* マウス右ボタン開放 */
 void CEditView::OnRBUTTONUP( WPARAM fwKeys, int xPos , int yPos )
 {
+	if (m_bImeRejectRightUp) {
+		m_bImeRejectRightUp = false;
+		return;
+	}
+
+	// 押下から解放までの間に変換が始まった場合も確認する。
+	if (!CompleteImeBeforeMouseAction()) {
+		return;
+	}
+
 	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
 	if( GetSelectionInfo().IsMouseSelecting() ){	/* 範囲選択中 */
 		/* マウス左ボタン開放のメッセージ処理 */
@@ -625,6 +645,12 @@ void CEditView::OnRBUTTONUP( WPARAM fwKeys, int xPos , int yPos )
 */
 void CEditView::OnMBUTTONDOWN( [[maybe_unused]] WPARAM fwKeys, int xPos , int yPos )
 {
+	m_bImeRejectMiddleUp = !CompleteImeBeforeMouseAction();
+
+	if (m_bImeRejectMiddleUp) {
+		return;
+	}
+
 	int nIdx = getCtrlKeyState();
 	if( F_AUTOSCROLL == GetDllShareData().m_Common.m_sKeyBind.m_pKeyNameArr[MOUSEFUNCTION_CENTER].m_nFuncCodeArr[nIdx] ){
 		if( m_nAutoScrollMode ){
@@ -649,6 +675,15 @@ void CEditView::OnMBUTTONDOWN( [[maybe_unused]] WPARAM fwKeys, int xPos , int yP
 */
 void CEditView::OnMBUTTONUP( [[maybe_unused]] WPARAM fwKeys, [[maybe_unused]] int xPos , [[maybe_unused]] int yPos )
 {
+	if (m_bImeRejectMiddleUp) {
+		m_bImeRejectMiddleUp = false;
+		return;
+	}
+
+	if (!CompleteImeBeforeMouseAction()) {
+		return;
+	}
+
 	int		nIdx;
 	int		nFuncID;
 
@@ -1536,6 +1571,10 @@ static unsigned __stdcall ShellExecuteProc( LPVOID lpParameter )
 // 2007.01.18 kobake IsCurrentPositionURL仕様変更に伴い、処理の書き換え
 void CEditView::OnLBUTTONDBLCLK( WPARAM fwKeys, int _xPos , int _yPos )
 {
+	if (!CompleteImeBeforeMouseAction()) {
+		return;
+	}
+
 	if (IsNoteBlockPoint(POINT{_xPos, _yPos})) return;
 	CMyPoint ptMouse(_xPos,_yPos);
 
