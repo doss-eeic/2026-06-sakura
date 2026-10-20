@@ -401,6 +401,11 @@ LRESULT CEditView::DispatchEvent(
 //	int			nPosX;
 //	int			nPosY;
 
+	if (m_noteResize) {
+		if (uMsg == WM_KEYDOWN && wParam == VK_ESCAPE) { CancelNoteResize(); return 0; }
+		if (uMsg == WM_CAPTURECHANGED || uMsg == WM_KILLFOCUS || uMsg == WM_DESTROY ||
+			uMsg == WM_SIZE) CancelNoteResize();
+	}
 	switch (uMsg) {
 	case WM_MOUSELEAVE:
 	case WM_LBUTTONDOWN:
@@ -992,6 +997,7 @@ void CEditView::OnSize( int cx, int cy )
 	::MoveWindow( m_hwndSizeBoxPlaceholder, cx - nCxVScroll, cy - nCyHScroll, nCxHScroll, nCyVScroll, TRUE );
 	int nAreaWidthOld  = GetTextArea().GetAreaWidth();
 	int nAreaHeightOld = GetTextArea().GetAreaHeight();
+	if (HasNoteBlocks()) OnBeforeViewLayout();
 
 	// エリア情報更新
 	GetTextArea().TextArea_OnSize(
@@ -999,6 +1005,11 @@ void CEditView::OnSize( int cx, int cy )
 		nCxVScroll,
 		m_hwndHScrollBar?nCyHScroll:0
 	);
+	if (HasNoteBlocks()) {
+		RefitNoteImages();
+		RestoreNoteViewportAnchor({});
+		m_noteAnchor.valid = false;
+	}
 
 	/* 再描画用メモリＢＭＰ */
 	// From Here 2007.09.09 Moca 互換BMPによる画面バッファ

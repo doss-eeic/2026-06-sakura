@@ -13,8 +13,10 @@ struct Image {
 	UINT width;
 	UINT height;
 	std::vector<BYTE> pixels;
+	UINT sourceWidth = 0;
+	UINT sourceHeight = 0;
 };
 bool IsAllowedSize(UINT width, UINT height);
 // Caller initializes COM. Output is opaque BGRA, with transparency composited on white.
-std::optional<Image> Decode(const std::wstring& path, UINT maxWidth, UINT maxHeight);
+std::optional<Image> Decode(const std::wstring& path, UINT maxWidth, UINT maxHeight, bool allowUpscale = false);
 }

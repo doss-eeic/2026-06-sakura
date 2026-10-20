@@ -1234,6 +1234,10 @@ LRESULT CEditWnd::DispatchEvent(
 
 		// アクティブ化なら編集ウィンドウリストの先頭に移動する		// 2007.04.08 ryoji WM_SETFOCUS から移動
 		if( m_bIsActiveApp ){
+			for (const auto& path : m_noteImageCache.ChangedPaths()) {
+				m_noteImageCache.Invalidate(path);
+				for (int i = 0; i < GetAllViewCount(); ++i) GetView(i).RefreshNoteImage(path);
+			}
 			CAppNodeGroupHandle(0).AddEditWndList( GetHwnd() );	// リスト移動処理
 
 			// 2009.01.17 nasukoji	ホイールスクロール有無状態をクリア

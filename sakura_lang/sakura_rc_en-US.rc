@@ -2686,6 +2686,7 @@ END
 STRINGTABLE
 BEGIN
     F_INS_DATE              "Ins. Date"
+    F_CREATE_FREEBOARD      "Create freeboard..."
     F_INS_IMAGE_LINK        "Insert Image Link..."
     STR_IMAGE_LINK_FILTER   "Images (PNG/JPEG)"
     STR_IMAGE_LINK_ERROR    "Cannot insert the image link. Check that the path is a readable local PNG/JPEG and contains supported characters."

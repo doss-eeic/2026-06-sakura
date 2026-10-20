@@ -9,6 +9,17 @@
 
 namespace ImageLink {
 
+std::optional<int> ParseRowLimit(std::wstring_view value)
+{
+	if (value.empty() || value.size() > 2 || value.front() == L'0') return std::nullopt;
+	int rows = 0;
+	for (wchar_t c : value) {
+		if (c < L'0' || c > L'9') return std::nullopt;
+		rows = rows * 10 + c - L'0';
+	}
+	return rows >= 3 && rows <= 40 ? std::optional<int>(rows) : std::nullopt;
+}
+
 bool HasImageExtension(std::wstring_view path)
 {
 	const auto dot = path.find_last_of(L'.');
@@ -91,8 +102,29 @@ std::optional<Link> FindStandalone(std::wstring_view line)
 	const auto first = line.find_first_not_of(L" \t");
 	if (first == std::wstring_view::npos) return std::nullopt;
 	auto link = FindAt(line, first);
-	if (!link || link->begin != first || line.find_first_not_of(L" \t", link->end) != std::wstring_view::npos)
-		return std::nullopt;
+	if (!link || link->begin != first) return std::nullopt;
+	const auto tail = line.find_first_not_of(L" \t", link->end);
+	if (tail != std::wstring_view::npos) {
+		constexpr std::wstring_view prefix = L"<!-- sakura:rows";
+		if (line.substr(tail, prefix.size()) != prefix) return std::nullopt;
+		const auto end = line.find_last_not_of(L" \t");
+		const auto annotation = line.substr(tail, end - tail + 1);
+		// A malformed dedicated annotation is recoverable, but text or another comment after it is not.
+		const auto close = annotation.find(L"-->");
+		if ((close != std::wstring_view::npos && close + 3 != annotation.size()) ||
+			annotation.find(L"<!--", 4) != std::wstring_view::npos) return std::nullopt;
+		link->annotationBegin = tail;
+		link->rowsValid = false;
+		constexpr std::wstring_view start = L"<!-- sakura:rows=";
+		constexpr std::wstring_view suffix = L" -->";
+		if (annotation.starts_with(start) && annotation.ends_with(suffix)) {
+			const auto number = annotation.substr(start.size(), annotation.size() - start.size() - suffix.size());
+			if (const auto rows = ParseRowLimit(number)) {
+				link->maxRows = *rows;
+				link->rowsValid = true;
+			}
+		}
+	}
 	std::replace(link->path.begin(), link->path.end(), L'\\', L'/');
 	return link;
 }

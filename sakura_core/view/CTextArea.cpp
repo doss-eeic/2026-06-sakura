@@ -314,7 +314,7 @@ int CTextArea::LayoutToClientY(CLayoutInt line) const
 {
 	const auto relative = RelativeRow(line);
 	const auto height = m_pEditView->GetTextMetrics().GetHankakuDy();
-	if (relative < -NoteView::Projection::BlockRows - 1) return GetAreaTop() - static_cast<int>(NoteView::Projection::BlockRows + 1) * height;
+	if (relative < -NoteView::Projection::MaxRows - 1) return GetAreaTop() - static_cast<int>(NoteView::Projection::MaxRows + 1) * height;
 	if (relative > static_cast<Int>(m_nViewRowNum) + 1) return GetAreaBottom() + height;
 	return GetAreaTop() + static_cast<int>(relative) * height;
 }

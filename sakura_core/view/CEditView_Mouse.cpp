@@ -25,6 +25,7 @@
 #include <process.h> // _beginthreadex
 #include <limits.h>
 #include "CEditView.h"
+#include "view/NoteImageGeometry.h"
 #include "_main/CAppMode.h"
 #include "CEditApp.h"
 #include "agent/CGrepAgent.h" // use CEditApp.h
@@ -46,6 +47,7 @@
 #include "mem/CNativeA.h"
 #include "sakura_rc.h"
 #include "config/system_constants.h"
+#include <cmath>
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 //                      マウスイベント                         //
@@ -62,10 +64,13 @@ void CEditView::OnLBUTTONDOWN( WPARAM fwKeys, int _xPos , int _yPos )
 	if (IsNoteBlockPoint(ptMouse)) {
 		GetEditWnd().SetActivePane(m_nMyIndex);
 		::SetFocus(GetHwnd());
-		GetSelectionInfo().DisableSelectArea(true);
-		GetCaret().MoveCursor(NoteBlockTextPosition(ptMouse, false), true, 1000);
-		GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().x;
-		GetCaret().ShowEditCaret();
+		if (IsNoteResizeHandle(ptMouse)) {
+			const auto* block = GetTextArea().HitClientRow(ptMouse.y).block;
+			m_noteResize = NoteResize{block->logicalLine, block->path, block->rows, block->rows,
+				ptMouse.y, GetTextMetrics().GetHankakuDy(), block->sourceWidth, block->sourceHeight,
+				GetTextArea().GetAreaRight() - GetTextArea().GetAreaLeft(), m_noteGeneration};
+			::SetCapture(GetHwnd());
+		}
 		return;
 	}
 
@@ -609,7 +614,10 @@ void CEditView::OnRBUTTONUP( WPARAM fwKeys, int xPos , int yPos )
 		return;
 	}
 
-	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
+	if (IsNoteBlockPoint(POINT{xPos, yPos})) {
+		ShowNoteBlockMenu(POINT{xPos, yPos});
+		return;
+	}
 	if( GetSelectionInfo().IsMouseSelecting() ){	/* 範囲選択中 */
 		/* マウス左ボタン開放のメッセージ処理 */
 		OnLBUTTONUP( fwKeys, xPos, yPos );
@@ -958,6 +966,17 @@ void CEditView::OnMOUSEMOVE( [[maybe_unused]] WPARAM fwKeys, int xPos_, int yPos
 	::TrackMouseEvent(&tracking);
 	UpdateImagePreview(true);
 	CMyPoint ptMouse(xPos_, yPos_);
+	if (m_noteResize) {
+		const auto& resize = *m_noteResize;
+		const int delta = static_cast<int>(std::round(static_cast<double>(yPos_ - resize.startY) / resize.lineHeight));
+		m_noteResize->candidate = std::clamp(resize.startRows + delta, 3, 40);
+		const auto dpi = GetHwnd() ? ::GetDpiForWindow(GetHwnd()) : 96;
+		const auto maximum = NoteView::FitImage(resize.sourceWidth, resize.sourceHeight, resize.width,
+			resize.lineHeight, 40, dpi).rows;
+		m_noteResize->candidate = std::min(m_noteResize->candidate, maximum);
+		InvalidateRect(nullptr, FALSE);
+		return;
+	}
 	if (IsNoteBlockPoint(ptMouse) && !GetSelectionInfo().IsMouseSelecting()) {
 		::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
 		m_cTipWnd.Hide();
@@ -1532,6 +1551,20 @@ bool CEditView::IsSpecialScrollMode( int nSelect )
 /* マウス左ボタン開放のメッセージ処理 */
 void CEditView::OnLBUTTONUP( [[maybe_unused]] WPARAM fwKeys, [[maybe_unused]] int xPos, [[maybe_unused]] int yPos )
 {
+	if (m_noteResize) {
+		const auto state = *m_noteResize;
+		CancelNoteResize();
+		if (state.candidate != state.startRows && IsNoteView() && m_noteGeneration == state.generation &&
+			state.width == GetTextArea().GetAreaRight() - GetTextArea().GetAreaLeft()) {
+			const auto& blocks = GetTextArea().GetNoteProjection().Blocks();
+			const auto found = std::find_if(blocks.begin(), blocks.end(), [&](const auto& b) {
+				return b.logicalLine == state.line && b.path == state.path && b.sourceWidth == state.sourceWidth &&
+					b.sourceHeight == state.sourceHeight;
+			});
+			if (found != blocks.end()) ChangeNoteRows(state.line, state.path, state.candidate);
+		}
+		return;
+	}
 //	MYTRACE( L"OnLBUTTONUP()\n" );
 
 	/* 範囲選択終了 & マウスキャプチャおわり */
@@ -1575,7 +1608,11 @@ void CEditView::OnLBUTTONDBLCLK( WPARAM fwKeys, int _xPos , int _yPos )
 		return;
 	}
 
-	if (IsNoteBlockPoint(POINT{_xPos, _yPos})) return;
+	if (IsNoteBlockPoint(POINT{_xPos, _yPos})) {
+		const auto* block = GetTextArea().HitClientRow(_yPos).block;
+		if (block && !IsNoteResizeHandle(POINT{_xPos, _yPos})) OpenNoteBlockInPaint(block->path);
+		return;
+	}
 	CMyPoint ptMouse(_xPos,_yPos);
 
 	CLogicRange		cUrlRange;	// URL範囲

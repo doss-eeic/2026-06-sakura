@@ -221,9 +221,20 @@ public:
 	CLayoutInt ScrollDisplayByV(CLayoutInt rows);
 	void MoveNotePage(CLayoutInt rows, bool selecting, bool scrollPage);
 	void PollNoteImages();
+	void RefitNoteImages();
+	void PrepareNoteBlocks(std::vector<NoteView::Block>& blocks) const;
+	void RefreshNoteImage(const std::wstring& path);
+	void ShowNoteBlockMenu(POINT point);
+	void OpenNoteBlockInPaint(const std::wstring& path);
+	bool ChangeNoteRows(std::int64_t logicalLine, const std::wstring& path, int rows);
+	bool CanChangeNoteRows(std::int64_t logicalLine) const;
+	bool IsNoteResizeHandle(POINT point) const;
+	void CancelNoteResize();
 	void BeginNoteLoad();
 	void InvalidateNoteRequests();
 	std::wstring PrepareNoteInsertion(std::wstring text);
+	std::wstring PrepareStandaloneNoteInsertion(std::wstring text, bool& reuseEol);
+	bool InsertStandaloneNoteLink(const std::wstring& link);
 	static constexpr UINT_PTR IDT_IMAGE_PREVIEW = 0x494d47;
 	//ウィンドウ
 	void OnSize(int cx, int cy);							/* ウィンドウサイズの変更処理 */
@@ -827,6 +838,19 @@ public:
 	};
 	std::vector<NotePending> m_notePending;
 	std::uint64_t m_noteGeneration = 0;
+	struct NoteResize {
+		std::int64_t line;
+		std::wstring path;
+		int startRows;
+		int candidate;
+		int startY;
+		int lineHeight;
+		unsigned sourceWidth;
+		unsigned sourceHeight;
+		int width;
+		std::uint64_t generation;
+	};
+	std::optional<NoteResize> m_noteResize;
 	bool m_noteLoading = false;
 	std::optional<ImageLink::Link> m_imageHover;
 	CLogicInt m_imageHoverLine = CLogicInt(-1);

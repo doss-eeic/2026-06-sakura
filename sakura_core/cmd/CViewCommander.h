@@ -232,6 +232,7 @@ public:
 	/* 挿入系 */
 	void Command_INS_DATE( void );	//日付挿入
 	void Command_INS_IMAGE_LINK();
+	void Command_CREATE_FREEBOARD();
 	void Command_INS_TIME( void );	//時刻挿入
 	void Command_CtrlCode_Dialog(void);		/* コントロールコードの入力(ダイアログ) */	//@@@ 2002.06.02 MIK
 	void Command_INS_FILE_USED_RECENTLY( void );	//最近使ったファイル挿入
