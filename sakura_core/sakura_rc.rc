@@ -2457,6 +2457,9 @@ BEGIN
     F_MARKDOWN_IMAGE "Markdown画像"
     F_MARKDOWN_TABLE "Markdown表"
     F_MARKDOWN_HR "Markdown水平線"
+    F_MARKDOWN_ENTER "Markdown改行"
+    F_MARKDOWN_INDENT "Markdownインデント"
+    F_MARKDOWN_UNINDENT "Markdown逆インデント"
 END
 
 STRINGTABLE

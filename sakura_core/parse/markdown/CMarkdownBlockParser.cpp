@@ -51,6 +51,8 @@ size_t HeadingPrefixLength(std::wstring_view text)
 bool IsSetextUnderline(std::wstring_view text)
 {
 	if (text.empty() || (text.front() != L'=' && text.front() != L'-')) return false;
+	// 「- 」は本文のないリスト項目として扱う。
+	if (text.substr(0, 2) == L"- ") return false;
 	return IsBlank(text.substr(RunEnd(text, 0)));
 }
 
@@ -344,12 +346,14 @@ Markdown::LineContext CMarkdownBlockParser::ParseLine(
 			if (sameContainers && !newContainer && state.indentedCodeOpen) return finish(Markdown::LineKind::IndentedCode);
 			return finish(newItem ? Markdown::LineKind::ListItem : Markdown::LineKind::Blank);
 		}
-		const size_t indent = column > baseColumn ? column - baseColumn : 0;
+		// チェックボックスなど、既に消費した接頭辞の幅は本文の字下げに含めない。
+		const size_t indentBase = std::max(baseColumn, savedColumn);
+		const size_t indent = column - indentBase;
 		if (indent >= IndentedCodeColumns) {
 			offset = savedOffset;
 			column = savedColumn;
 			if (!paragraphOpen) {
-				consumeIndentTo(baseColumn + IndentedCodeColumns);
+				consumeIndentTo(indentBase + IndentedCodeColumns);
 				return finish(Markdown::LineKind::IndentedCode);
 			}
 			// 字下げだけでは、開いている段落をコードブロックに変えない。

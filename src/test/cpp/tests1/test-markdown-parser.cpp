@@ -225,6 +225,7 @@ TEST(MarkdownBlockParser, ContextTaskIncludesCheckboxInPrefix)
 {
 	Markdown::ParseState state;
 	const auto line = CMarkdownBlockParser::ParseLine(L"> - [x] 日本語", 0, 2, state);
+	EXPECT_EQ(Markdown::LineKind::ListItem, line.kind);
 	ASSERT_EQ(2u, line.containers.size());
 	EXPECT_EQ(Markdown::ContainerKind::Quote, line.containers[0].kind);
 	const auto& item = line.containers[1];
@@ -237,6 +238,23 @@ TEST(MarkdownBlockParser, ContextTaskIncludesCheckboxInPrefix)
 	ExpectRange(line.bodyRange, 0, 8, 11);
 	EXPECT_EQ(4u, item.contentColumn);
 	EXPECT_FALSE(line.bodyEmpty);
+}
+
+TEST(MarkdownBlockParser, ContextTaskBodyIndentExcludesCheckbox)
+{
+	for (size_t tabWidth : {2u, 4u}) {
+		Markdown::ParseState state;
+		const auto line = CMarkdownBlockParser::ParseLine(L"- [x]\ttext", 0, tabWidth, state);
+		EXPECT_EQ(Markdown::LineKind::ListItem, line.kind);
+		ExpectRange(line.bodyRange, 0, 6, 10);
+		EXPECT_TRUE(state.paragraphOpen);
+		const auto continued = CMarkdownBlockParser::ParseLine(L"  continued", 1, tabWidth, state);
+		EXPECT_EQ(Markdown::LineKind::Continuation, continued.kind);
+	}
+	Markdown::ParseState state;
+	const auto code = CMarkdownBlockParser::ParseLine(L"- [ ]     code", 0, 2, state);
+	EXPECT_EQ(Markdown::LineKind::IndentedCode, code.kind);
+	ExpectRange(code.bodyRange, 0, 10, 14);
 }
 
 TEST(MarkdownBlockParser, ContextTaskBoundaryAndEmptyItems)
@@ -492,6 +510,20 @@ TEST(MarkdownBlockParser, ContextSetextNeedsParagraphInSameContainers)
 	const auto outside = CMarkdownBlockParser::ParseLine(L"---", 1, 2, state);
 	EXPECT_EQ(Markdown::LineKind::ThematicBreak, outside.kind);
 	EXPECT_TRUE(outside.containers.empty());
+}
+
+TEST(MarkdownBlockParser, ContextEmptyBulletTakesPrecedenceOverSetext)
+{
+	Markdown::ParseState state;
+	CMarkdownBlockParser::ParseLine(L"3. parent", 0, 2, state);
+	const auto child = CMarkdownBlockParser::ParseLine(L"   - ", 1, 2, state);
+	EXPECT_EQ(Markdown::LineKind::ListItem, child.kind);
+	ASSERT_EQ(2u, child.containers.size());
+	ExpectRange(child.containers[1].prefixRange, 1, 3, 5);
+	EXPECT_TRUE(child.bodyEmpty);
+	state = {};
+	CMarkdownBlockParser::ParseLine(L"title", 0, 2, state);
+	EXPECT_EQ(Markdown::LineKind::Heading, CMarkdownBlockParser::ParseLine(L"-", 1, 2, state).kind);
 }
 
 TEST(MarkdownBlockParser, ContextIndentedCodeAndItsBlankLines)

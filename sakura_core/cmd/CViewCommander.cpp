@@ -207,6 +207,9 @@ BOOL CViewCommander::HandleCommand(
 
 	switch( nCommand ){
 	case F_WCHAR:	            Command_WCHAR( (wchar_t)lparam1 );break;
+	case F_MARKDOWN_ENTER:       Command_MARKDOWN_ENTER(); break;
+	case F_MARKDOWN_INDENT:      Command_MARKDOWN_INDENT(false); break;
+	case F_MARKDOWN_UNINDENT:    Command_MARKDOWN_INDENT(true); break;
 	case F_MARKDOWN_BOLD:
 	case F_MARKDOWN_ITALIC:
 	case F_MARKDOWN_STRIKE:
