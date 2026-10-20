@@ -11,6 +11,9 @@
 #include "func/CKeyBind.h"
 #include "env/CDataProfile.h"
 #include "env/CShareData_IO.h"
+#include "outline/CFuncInfo.h"
+#include "outline/CFuncInfoArr.h"
+#include "typeprop/CPropTypes.h"
 #include <limits>
 
 namespace {
@@ -203,6 +206,9 @@ protected:
 	{
 		User32::setInstance<MockUser32>();
 		CAppMode::getInstance()->SetViewMode(false);
+		auto& type = pcEditDoc->m_cDocType.GetDocumentAttributeWrite();
+		type.m_eSmartIndent = SMARTINDENT_MARKDOWN;
+		type.m_bInsSpace = false;
 		auto& view = pcEditWnd->GetActiveView();
 		view.GetSelectionInfo().SetBoxSelect(false);
 		Command(F_SELECTALL);
@@ -220,6 +226,7 @@ protected:
 		while (::PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {}
 	}
 	void Command(EFunctionCode code) { pcEditWnd->GetActiveView().GetCommander().HandleCommand(code, true, 0, 0, 0, 0); }
+	void Enter() { pcEditWnd->GetActiveView().GetCommander().HandleCommand(F_WCHAR, true, L'\r', 0, 0, 0); }
 	void Insert(std::wstring_view text)
 	{
 		pcEditWnd->GetActiveView().GetCommander().HandleCommand(F_INSTEXT_W, true, reinterpret_cast<LPARAM>(text.data()), text.size(), TRUE, 0);
@@ -253,7 +260,7 @@ TEST_F(MarkdownInputEditor, EnterSplitIsOneUndoAndRestoresCaretOnRedo)
 {
 	Insert(L"9. abcdef");
 	MoveTo({6, 0});
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"9. abc\r\n10. def", Text());
 	EXPECT_EQ(CLogicPoint(4, 1), pcEditWnd->GetActiveView().GetCaret().GetCaretLogicPos());
 	Command(F_UNDO);
@@ -267,13 +274,13 @@ TEST_F(MarkdownInputEditor, EnterSelectionAndEmptyExitAreAtomic)
 {
 	Insert(L"> - [x] body");
 	Select({12, 0}, {8, 0});
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"> ", Text());
 	Command(F_UNDO);
 	EXPECT_EQ(L"> - [x] body", Text());
 	Command(F_REDO);
 	EXPECT_EQ(L"> ", Text());
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"", Text());
 }
 
@@ -282,13 +289,13 @@ TEST_F(MarkdownInputEditor, IndentAndUnindentKeepCaretAndUseOneUndo)
 	const std::wstring original = L"- a\r\n- b\r\n  - child\r\n- c";
 	Insert(original);
 	MoveTo({3, 1});
-	Command(F_MARKDOWN_INDENT);
+	Command(F_INDENT_TAB);
 	EXPECT_EQ(L"- a\r\n  - b\r\n    - child\r\n- c", Text());
 	EXPECT_EQ(CLogicPoint(5, 1), pcEditWnd->GetActiveView().GetCaret().GetCaretLogicPos());
 	Command(F_UNDO);
 	EXPECT_EQ(original, Text());
 	Command(F_REDO);
-	Command(F_MARKDOWN_UNINDENT);
+	Command(F_UNINDENT_TAB);
 	EXPECT_EQ(original, Text());
 	EXPECT_EQ(CLogicPoint(3, 1), pcEditWnd->GetActiveView().GetCaret().GetCaretLogicPos());
 }
@@ -297,7 +304,7 @@ TEST_F(MarkdownInputEditor, ReverseSelectionExcludesNextLineAndSurvivesIndent)
 {
 	Insert(L"- a\r\n- b\r\n- c\r\n- d");
 	Select({0, 3}, {0, 1});
-	Command(F_MARKDOWN_INDENT);
+	Command(F_INDENT_TAB);
 	EXPECT_EQ(L"- a\r\n  - b\r\n  - c\r\n- d", Text());
 	auto& view = pcEditWnd->GetActiveView();
 	EXPECT_TRUE(view.GetSelectionInfo().IsTextSelected());
@@ -305,7 +312,7 @@ TEST_F(MarkdownInputEditor, ReverseSelectionExcludesNextLineAndSurvivesIndent)
 	CLogicRange selected;
 	pcEditDoc->m_cLayoutMgr.LayoutToLogic(view.GetSelectionInfo().m_sSelect, &selected);
 	EXPECT_EQ(CLogicPoint(0, 3), selected.GetTo());
-	Command(F_MARKDOWN_UNINDENT);
+	Command(F_UNINDENT_TAB);
 	EXPECT_EQ(L"- a\r\n- b\r\n- c\r\n- d", Text());
 }
 
@@ -314,7 +321,7 @@ TEST_F(MarkdownInputEditor, IndentPreservesMixedLineEndings)
 	const std::wstring original = L"- a\r\n- b\n  continuation\r- c";
 	Insert(original);
 	MoveTo({3, 1});
-	Command(F_MARKDOWN_INDENT);
+	Command(F_INDENT_TAB);
 	EXPECT_EQ(L"- a\r\n  - b\n    continuation\r- c", Text());
 	Command(F_UNDO);
 	EXPECT_EQ(original, Text());
@@ -326,7 +333,7 @@ TEST_F(MarkdownInputEditor, EnterOnWrappedRowSplitsLogicalItem)
 	pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(pcEditDoc->m_cLayoutMgr.GetTabSpaceKetas(), 0, 10);
 	Insert(L"- abcdefghijklmnopqrstuvwxyz");
 	MoveTo({18, 0});
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"- abcdefghijklmnop\r\n- qrstuvwxyz", Text());
 	EXPECT_EQ(CLogicPoint(2, 1), pcEditWnd->GetActiveView().GetCaret().GetCaretLogicPos());
 	Command(F_UNDO);
@@ -338,11 +345,11 @@ TEST_F(MarkdownInputEditor, EnterUsesLfAndHandlesVirtualEof)
 {
 	pcEditDoc->m_cDocEditor.SetNewLineCode(EEolType::line_feed);
 	Insert(L"- a");
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"- a\n- ", Text());
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"- a\n", Text());
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"- a\n\n", Text());
 }
 
@@ -354,9 +361,9 @@ TEST_F(MarkdownInputEditor, ReadOnlyAndNoParentLeaveTextUntouched)
 	Command(F_MARKDOWN_UNINDENT);
 	EXPECT_EQ(L"- a", Text());
 	CAppMode::getInstance()->SetViewMode(true);
-	Command(F_MARKDOWN_ENTER);
-	Command(F_MARKDOWN_INDENT);
-	Command(F_MARKDOWN_UNINDENT);
+	Enter();
+	Command(F_INDENT_TAB);
+	Command(F_UNINDENT_TAB);
 	EXPECT_EQ(L"- a", Text());
 }
 
@@ -364,7 +371,7 @@ TEST_F(MarkdownInputEditor, CodeEnterUsesOrdinaryNewline)
 {
 	Insert(L"```\r\n- code\r\n```");
 	MoveTo({6, 1});
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"```\r\n- code\r\n\r\n```", Text());
 	Command(F_UNDO);
 	EXPECT_EQ(L"```\r\n- code\r\n```", Text());
@@ -374,7 +381,7 @@ TEST_F(MarkdownInputEditor, SelectionAcrossItemsUsesOrdinaryNewline)
 {
 	Insert(L"- a\r\n- b");
 	Select({2, 0}, {3, 1});
-	Command(F_MARKDOWN_ENTER);
+	Enter();
 	EXPECT_EQ(L"- \r\n", Text());
 	Command(F_UNDO);
 	EXPECT_EQ(L"- a\r\n- b", Text());
@@ -387,7 +394,7 @@ TEST_F(MarkdownInputEditor, BoxIndentUsesExistingIndentCommand)
 	Select({0, 0}, {1, 1});
 	auto& view = pcEditWnd->GetActiveView();
 	view.GetSelectionInfo().SetBoxSelect(true);
-	Command(F_MARKDOWN_INDENT);
+	Command(F_INDENT_TAB);
 	const auto markdownResult = Text();
 	Command(F_UNDO);
 	EXPECT_EQ(original, Text());
@@ -395,6 +402,7 @@ TEST_F(MarkdownInputEditor, BoxIndentUsesExistingIndentCommand)
 	view.GetSelectionInfo().DisableSelectArea(false);
 	Select({0, 0}, {1, 1});
 	view.GetSelectionInfo().SetBoxSelect(true);
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eSmartIndent = SMARTINDENT_NONE;
 	Command(F_INDENT_TAB);
 	EXPECT_EQ(markdownResult, Text());
 }
@@ -404,20 +412,183 @@ TEST_F(MarkdownInputEditor, NewTypeDefaultsAllowCustomBindingsAndExplicitUnassig
 	auto type = std::make_unique<STypeConfig>();
 	CType_Markdown markdown;
 	markdown.InitTypeConfig(17, *type);
-	EXPECT_EQ(F_MARKDOWN_ENTER, type->m_typeKeyBindings[VK_RETURN].m_nFuncCodeArr[0]);
-	EXPECT_EQ(F_MARKDOWN_INDENT, type->m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[0]);
-	EXPECT_EQ(F_MARKDOWN_UNINDENT, type->m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[_SHIFT]);
+	EXPECT_EQ(SMARTINDENT_MARKDOWN, type->m_eSmartIndent);
+	EXPECT_EQ(OUTLINE_MARKDOWN, type->m_eDefaultOutline);
+	EXPECT_FALSE(type->m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
+	EXPECT_FALSE(type->m_typeKeyBindings[VK_TAB].m_bOverride[0]);
+	EXPECT_FALSE(type->m_typeKeyBindings[VK_TAB].m_bOverride[_SHIFT]);
 	KEYDATA common{};
 	common.m_nKeyCode = VK_TAB;
 	common.m_nFuncCodeArr[0] = F_INDENT_TAB;
 	auto& binding = type->m_typeKeyBindings[VK_TAB];
-	EXPECT_EQ(F_MARKDOWN_INDENT, CKeyBind::GetFuncCodeAt(common, 0, TRUE, &binding));
+	EXPECT_EQ(F_INDENT_TAB, CKeyBind::GetFuncCodeAt(common, 0, TRUE, &binding));
+	binding.m_bOverride[0] = true;
 	binding.m_nFuncCodeArr[0] = F_COPY;
 	EXPECT_EQ(F_COPY, CKeyBind::GetFuncCodeAt(common, 0, TRUE, &binding));
 	binding.m_nFuncCodeArr[0] = F_0;
 	EXPECT_EQ(F_0, CKeyBind::GetFuncCodeAt(common, 0, TRUE, &binding));
 	binding.m_bOverride[0] = false;
 	EXPECT_EQ(F_INDENT_TAB, CKeyBind::GetFuncCodeAt(common, 0, TRUE, &binding));
+	CType_Basis().InitTypeConfig(0, *type);
+	EXPECT_EQ(SMARTINDENT_NONE, type->m_eSmartIndent);
+	CType_Cpp().InitTypeConfig(1, *type);
+	EXPECT_EQ(SMARTINDENT_CPP, type->m_eSmartIndent);
+}
+
+TEST_F(MarkdownInputEditor, OrdinaryEnterUsesSettingInsteadOfNameOrExtension)
+{
+	auto& type = pcEditDoc->m_cDocType.GetDocumentAttributeWrite();
+	wcscpy(type.m_szTypeName, L"Markdown");
+	wcscpy(type.m_szTypeExts, L"md,markdown,mdown");
+	type.m_eSmartIndent = SMARTINDENT_NONE;
+	Insert(L"- a");
+	Enter();
+	EXPECT_EQ(L"- a\r\n", Text());
+	Command(F_UNDO);
+	wcscpy(type.m_szTypeName, L"Notes");
+	wcscpy(type.m_szTypeExts, L"txt");
+	type.m_eSmartIndent = SMARTINDENT_MARKDOWN;
+	Enter();
+	EXPECT_EQ(L"- a\r\n- ", Text());
+	Command(F_UNDO);
+	EXPECT_EQ(L"- a", Text());
+	Command(F_REDO);
+	EXPECT_EQ(L"- a\r\n- ", Text());
+}
+
+TEST_F(MarkdownInputEditor, OrdinaryTabCommandsUseSettingAndPreserveUndo)
+{
+	auto& type = pcEditDoc->m_cDocType.GetDocumentAttributeWrite();
+	const std::wstring original = L"- a\r\n- b";
+	Insert(original);
+	type.m_eSmartIndent = SMARTINDENT_NONE;
+	Select({0, 1}, {3, 1});
+	Command(F_INDENT_TAB);
+	// 通常のTAB入力は、1行内の選択範囲を置換する。
+	EXPECT_EQ(L"- a\r\n\t", Text());
+	Command(F_UNDO);
+	EXPECT_EQ(original, Text());
+	pcEditWnd->GetActiveView().GetSelectionInfo().DisableSelectArea(false);
+	MoveTo({3, 1});
+	type.m_eSmartIndent = SMARTINDENT_MARKDOWN;
+	Command(F_INDENT_TAB);
+	EXPECT_EQ(L"- a\r\n  - b", Text());
+	Command(F_UNINDENT_TAB);
+	EXPECT_EQ(original, Text());
+	Command(F_UNDO);
+	EXPECT_EQ(L"- a\r\n  - b", Text());
+	Command(F_REDO);
+	EXPECT_EQ(original, Text());
+}
+
+TEST_F(MarkdownInputEditor, LegacyCommandsAlsoRespectDisabledSetting)
+{
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eSmartIndent = SMARTINDENT_NONE;
+	Insert(L"- a\r\n- b");
+	Command(F_MARKDOWN_ENTER);
+	EXPECT_EQ(L"- a\r\n- b\r\n", Text());
+	Command(F_UNDO);
+	Select({0, 0}, {3, 1});
+	Command(F_MARKDOWN_INDENT);
+	EXPECT_EQ(L"\t- a\r\n\t- b", Text());
+	Command(F_MARKDOWN_UNINDENT);
+	EXPECT_EQ(L"- a\r\n- b", Text());
+}
+
+TEST_F(MarkdownInputEditor, LiteralNewlineInsertionDoesNotRunSmartIndent)
+{
+	Insert(L"- a");
+	pcEditWnd->GetActiveView().GetCommander().HandleCommand(F_CTRL_CODE, true, L'\r', 0, 0, 0);
+	EXPECT_EQ(L"- a\r", Text());
+}
+
+using MarkdownOutline = MarkdownInputEditor;
+
+TEST_F(MarkdownOutline, HeadingsBuildHierarchyAndSkipCodeBlocks)
+{
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eSmartIndent = SMARTINDENT_NONE;
+	Insert(L"# Root\r\n### Child ###\r\n## Sibling\r\n```\r\n# hidden\r\n```\r\n\r\n    # code\r\n# Next\r\n####### plain");
+	CFuncInfoArr result;
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&result);
+	ASSERT_EQ(4, result.GetNum());
+	const wchar_t* titles[] = {L"Root", L"Child", L"Sibling", L"Next"};
+	const int depths[] = {0, 1, 1, 0};
+	const int lines[] = {1, 2, 3, 9};
+	for (int i = 0; i < result.GetNum(); ++i) {
+		const auto* item = result.GetAt(i);
+		EXPECT_STREQ(titles[i], item->m_cmemFuncName.GetStringPtr());
+		EXPECT_EQ(depths[i], item->m_nDepth);
+		EXPECT_EQ(CLogicInt(lines[i]), item->m_nFuncLineCRLF);
+	}
+}
+
+TEST_F(MarkdownOutline, SetextUsesWholeParagraphAndJumpsToItsFirstLine)
+{
+	Insert(L"Top\r\nline\r\n===\r\n\r\n> Child\r\n> -----\r\n\r\n- body\r\n  - \r\n\r\n# Last");
+	CFuncInfoArr result;
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&result);
+	ASSERT_EQ(3, result.GetNum());
+	EXPECT_STREQ(L"Top line", result.GetAt(0)->m_cmemFuncName.GetStringPtr());
+	EXPECT_EQ(CLogicInt(1), result.GetAt(0)->m_nFuncLineCRLF);
+	EXPECT_STREQ(L"Child", result.GetAt(1)->m_cmemFuncName.GetStringPtr());
+	EXPECT_EQ(CLogicInt(5), result.GetAt(1)->m_nFuncLineCRLF);
+	EXPECT_EQ(CLogicInt(3), result.GetAt(1)->m_nFuncColCRLF);
+	EXPECT_EQ(1, result.GetAt(1)->m_nDepth);
+	EXPECT_STREQ(L"Last", result.GetAt(2)->m_cmemFuncName.GetStringPtr());
+}
+
+TEST_F(MarkdownOutline, ContainerHeadingsRespectTabWidthAndLayoutPositions)
+{
+	const auto width = pcEditDoc->m_cLayoutMgr.GetMaxLineKetas();
+	const auto tabWidth = pcEditDoc->m_cLayoutMgr.GetTabSpaceKetas();
+	pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(2, 0, 10);
+	Insert(L"# abcdefghijklmnopqrstuvwxyz\r\n> ## Quote\r\n- item\r\n\t### Nested\r\n\t```\r\n\t# hidden\r\n\t```");
+	CFuncInfoArr result;
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&result);
+	ASSERT_EQ(3, result.GetNum());
+	EXPECT_STREQ(L"Quote", result.GetAt(1)->m_cmemFuncName.GetStringPtr());
+	EXPECT_STREQ(L"Nested", result.GetAt(2)->m_cmemFuncName.GetStringPtr());
+	EXPECT_EQ(CLogicInt(4), result.GetAt(2)->m_nFuncLineCRLF);
+	EXPECT_EQ(CLogicInt(2), result.GetAt(2)->m_nFuncColCRLF);
+	CLayoutPoint target;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(1, 3), &target);
+	EXPECT_EQ(target.GetY2() + 1, result.GetAt(2)->m_nFuncLineLAYOUT);
+	EXPECT_EQ(target.GetX2() + 1, result.GetAt(2)->m_nFuncColLAYOUT);
+	pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(tabWidth, 0, width);
+}
+
+namespace {
+struct MarkdownScreenSettings : CPropTypesScreen {
+	using CPropTypesScreen::SetData;
+	using CPropTypesScreen::GetData;
+};
+}
+
+TEST_F(MarkdownOutline, SettingsPageOffersMarkdownAlongsideOtherLanguages)
+{
+	auto page = std::make_unique<MarkdownScreenSettings>();
+	auto type = std::make_unique<STypeConfig>();
+	CType_Markdown().InitTypeConfig(17, *type);
+	page->SetTypeData(*type);
+	page->CPropTypes_Screen();
+	const auto destroy = [](HWND window) { if (window) ::DestroyWindow(window); };
+	std::unique_ptr<std::remove_pointer_t<HWND>, decltype(destroy)> dialog(
+		::CreateDialogParamW(G_AppInstance(), MAKEINTRESOURCEW(IDD_PROP_SCREEN), ::GetDesktopWindow(),
+			[](HWND, UINT, WPARAM, LPARAM) -> INT_PTR { return FALSE; }, 0), destroy);
+	ASSERT_NE(nullptr, dialog.get());
+	page->SetData(dialog.get());
+	for (int control : {IDC_COMBO_OUTLINES, IDC_COMBO_SMARTINDENT}) {
+		const auto combo = ::GetDlgItem(dialog.get(), control);
+		const auto markdown = ::SendMessageW(combo, CB_FINDSTRINGEXACT, -1, reinterpret_cast<LPARAM>(L"Markdown"));
+		ASSERT_NE(CB_ERR, markdown);
+		EXPECT_EQ(markdown, ::SendMessageW(combo, CB_GETCURSEL, 0, 0));
+		::SendMessageW(combo, CB_SETCURSEL, 0, 0);
+	}
+	page->GetData(dialog.get());
+	page->GetTypeData(*type);
+	EXPECT_EQ(OUTLINE_C_CPP, type->m_eDefaultOutline);
+	EXPECT_EQ(SMARTINDENT_NONE, type->m_eSmartIndent);
+	page->DispatchEvent(dialog.get(), WM_DESTROY, 0, 0);
 }
 
 namespace {
@@ -426,7 +597,7 @@ struct MarkdownSettingsIO : CShareData_IO {
 };
 }
 
-class MarkdownInputMigration : public testing::Test, public env::ShareDataTestSuite {
+class MarkdownInputSettings : public testing::Test, public env::ShareDataTestSuite {
 protected:
 	CDataProfile profile;
 	void SetUp() override { SetUpShareData(); }
@@ -444,11 +615,6 @@ protected:
 		profile.SetWritingMode();
 		MarkdownSettingsIO::ShareData_IO_Types(profile);
 	}
-	void SaveAsOldSettings()
-	{
-		Save();
-		profile.SetProfileData(L"Other", L"MarkdownInputBindingsInitialized", L"0");
-	}
 	void Load()
 	{
 		profile.SetReadingMode();
@@ -456,7 +622,7 @@ protected:
 	}
 };
 
-TEST_F(MarkdownInputMigration, ExistingMarkdownNamesAndExtensionsReceiveInputBindings)
+TEST_F(MarkdownInputSettings, ExistingNamesAndExtensionsDoNotOverrideSavedModeOrKeys)
 {
 	Configure(1, L"mArKdOwN", L"custom");
 	Configure(2, L"Notes", L"md");
@@ -464,16 +630,15 @@ TEST_F(MarkdownInputMigration, ExistingMarkdownNamesAndExtensionsReceiveInputBin
 	Configure(4, L"Notes3", L"mdown");
 	Configure(5, L"Plain", L"txt");
 	Type(2).m_nTabSpace = 2;
-	SaveAsOldSettings();
+	Save();
+	profile.SetProfileData(L"Other", L"MarkdownInputBindingsInitialized", L"0");
 	Load();
 	for (int index = 1; index <= 4; ++index) {
 		const auto& keys = Type(index).m_typeKeyBindings;
-		EXPECT_TRUE(keys[VK_RETURN].m_bOverride[0]);
-		EXPECT_EQ(F_MARKDOWN_ENTER, keys[VK_RETURN].m_nFuncCodeArr[0]);
-		EXPECT_TRUE(keys[VK_TAB].m_bOverride[0]);
-		EXPECT_EQ(F_MARKDOWN_INDENT, keys[VK_TAB].m_nFuncCodeArr[0]);
-		EXPECT_TRUE(keys[VK_TAB].m_bOverride[_SHIFT]);
-		EXPECT_EQ(F_MARKDOWN_UNINDENT, keys[VK_TAB].m_nFuncCodeArr[_SHIFT]);
+		EXPECT_EQ(SMARTINDENT_NONE, Type(index).m_eSmartIndent);
+		EXPECT_FALSE(keys[VK_RETURN].m_bOverride[0]);
+		EXPECT_FALSE(keys[VK_TAB].m_bOverride[0]);
+		EXPECT_FALSE(keys[VK_TAB].m_bOverride[_SHIFT]);
 		EXPECT_FALSE(keys[VK_RETURN].m_bOverride[_CTRL]);
 	}
 	EXPECT_FALSE(Type(5).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
@@ -483,55 +648,75 @@ TEST_F(MarkdownInputMigration, ExistingMarkdownNamesAndExtensionsReceiveInputBin
 	EXPECT_EQ(2, Type(2).m_nTabSpace);
 }
 
-TEST_F(MarkdownInputMigration, ExistingTypeOverridesAndExplicitUnassignmentArePreserved)
+TEST_F(MarkdownInputSettings, ExistingTypeOverridesAndExplicitUnassignmentArePreserved)
 {
 	Configure(1, L"Markdown", L"md");
+	Type(1).m_eSmartIndent = SMARTINDENT_MARKDOWN;
 	auto& keys = Type(1).m_typeKeyBindings;
 	keys[VK_RETURN].m_bOverride[0] = true;
 	keys[VK_RETURN].m_nFuncCodeArr[0] = F_COPY;
 	keys[VK_TAB].m_bOverride[0] = true;
 	keys[VK_TAB].m_nFuncCodeArr[0] = F_0;
-	SaveAsOldSettings();
+	Save();
 	Load();
+	EXPECT_EQ(SMARTINDENT_MARKDOWN, Type(1).m_eSmartIndent);
 	EXPECT_TRUE(Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
 	EXPECT_EQ(F_COPY, Type(1).m_typeKeyBindings[VK_RETURN].m_nFuncCodeArr[0]);
 	EXPECT_TRUE(Type(1).m_typeKeyBindings[VK_TAB].m_bOverride[0]);
 	EXPECT_EQ(F_0, Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[0]);
-	EXPECT_EQ(F_MARKDOWN_UNINDENT, Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[_SHIFT]);
+	EXPECT_FALSE(Type(1).m_typeKeyBindings[VK_TAB].m_bOverride[_SHIFT]);
 }
 
-TEST_F(MarkdownInputMigration, CustomizedCommonKeysRemainInherited)
+TEST_F(MarkdownInputSettings, CustomizedCommonKeysRemainInherited)
 {
 	Configure(1, L"Notes", L"md");
+	Type(1).m_eSmartIndent = SMARTINDENT_MARKDOWN;
 	auto& common = GetDllShareData().m_Common.m_sKeyBind;
 	for (int i = 0; i < common.m_nKeyNameArrNum; ++i) {
 		auto& key = common.m_pKeyNameArr[i];
 		if (key.m_nKeyCode == VK_RETURN) key.m_nFuncCodeArr[0] = F_COPY;
 		if (key.m_nKeyCode == VK_TAB) key.m_nFuncCodeArr[0] = F_0;
 	}
-	SaveAsOldSettings();
+	Save();
 	Load();
 	EXPECT_FALSE(Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
 	EXPECT_FALSE(Type(1).m_typeKeyBindings[VK_TAB].m_bOverride[0]);
-	EXPECT_EQ(F_MARKDOWN_UNINDENT, Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[_SHIFT]);
+	EXPECT_FALSE(Type(1).m_typeKeyBindings[VK_TAB].m_bOverride[_SHIFT]);
 }
 
-TEST_F(MarkdownInputMigration, SavedMigrationDoesNotReapplyAfterReturningToCommonSettings)
+TEST_F(MarkdownInputSettings, SavedModeCanBeEnabledAndDisabledWithLegacyKeysPresent)
 {
-	Configure(1, L"Markdown", L"md");
-	SaveAsOldSettings();
+	Configure(1, L"Notes", L"txt");
+	Type(1).m_eSmartIndent = SMARTINDENT_MARKDOWN;
+	Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0] = true;
+	Type(1).m_typeKeyBindings[VK_RETURN].m_nFuncCodeArr[0] = F_MARKDOWN_ENTER;
+	Save();
+	Type(1).m_eSmartIndent = SMARTINDENT_NONE;
 	Load();
-	ASSERT_TRUE(Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
-	Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0] = false;
-	Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[0] = F_0;
-	Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[_SHIFT] = F_COPY;
+	EXPECT_EQ(SMARTINDENT_MARKDOWN, Type(1).m_eSmartIndent);
+	Type(1).m_eSmartIndent = SMARTINDENT_NONE;
+	Save();
+	Type(1).m_eSmartIndent = SMARTINDENT_MARKDOWN;
+	Load();
+	EXPECT_EQ(SMARTINDENT_NONE, Type(1).m_eSmartIndent);
+	EXPECT_TRUE(Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
+	EXPECT_EQ(F_MARKDOWN_ENTER, Type(1).m_typeKeyBindings[VK_RETURN].m_nFuncCodeArr[0]);
+}
+
+TEST_F(MarkdownInputSettings, OutlineSelectionRoundTripsIndependentlyOfInputAssistance)
+{
+	Configure(1, L"Notes", L"txt");
+	Type(1).m_eDefaultOutline = OUTLINE_MARKDOWN;
+	Type(1).m_eSmartIndent = SMARTINDENT_NONE;
+	Save();
+	Type(1).m_eDefaultOutline = OUTLINE_TEXT;
+	Load();
+	EXPECT_EQ(OUTLINE_MARKDOWN, Type(1).m_eDefaultOutline);
+	EXPECT_EQ(SMARTINDENT_NONE, Type(1).m_eSmartIndent);
+	Type(1).m_eDefaultOutline = OUTLINE_TEXT;
+	Type(1).m_eSmartIndent = SMARTINDENT_MARKDOWN;
 	Save();
 	Load();
-	bool initialized = false;
-	ASSERT_TRUE(profile.IOProfileData(L"Other", L"MarkdownInputBindingsInitialized", initialized));
-	EXPECT_TRUE(initialized);
-	EXPECT_FALSE(Type(1).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
-	EXPECT_TRUE(Type(1).m_typeKeyBindings[VK_TAB].m_bOverride[0]);
-	EXPECT_EQ(F_0, Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[0]);
-	EXPECT_EQ(F_COPY, Type(1).m_typeKeyBindings[VK_TAB].m_nFuncCodeArr[_SHIFT]);
+	EXPECT_EQ(OUTLINE_TEXT, Type(1).m_eDefaultOutline);
+	EXPECT_EQ(SMARTINDENT_MARKDOWN, Type(1).m_eSmartIndent);
 }

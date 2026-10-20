@@ -3945,6 +3945,8 @@ BEGIN
     STR_OUTLINE_TEXT        "纯文本"
     STR_SMART_INDENT_NONE   "无"
     STR_SMART_INDENT_C_CPP  "C/C++"
+    STR_SMART_INDENT_MARKDOWN "Markdown"
+    STR_OUTLINE_MARKDOWN    "Markdown"
     STR_IME_STATE_DEF       "默认"
     STR_IME_STATE_FULL      "全高模式"
     STR_IME_STATE_FULLHIRA  "全高平假名"

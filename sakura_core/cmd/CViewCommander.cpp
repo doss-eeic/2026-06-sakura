@@ -207,9 +207,10 @@ BOOL CViewCommander::HandleCommand(
 
 	switch( nCommand ){
 	case F_WCHAR:	            Command_WCHAR( (wchar_t)lparam1 );break;
-	case F_MARKDOWN_ENTER:       Command_MARKDOWN_ENTER(); break;
-	case F_MARKDOWN_INDENT:      Command_MARKDOWN_INDENT(false); break;
-	case F_MARKDOWN_UNINDENT:    Command_MARKDOWN_INDENT(true); break;
+	// 保存済みの専用コマンド割り当ても、通常入力と同じスマートインデント設定に従う。
+	case F_MARKDOWN_ENTER:       Command_WCHAR(L'\r'); break;
+	case F_MARKDOWN_INDENT:      Command_INDENT(WCODE::TAB, INDENT_TAB); break;
+	case F_MARKDOWN_UNINDENT:    Command_UNINDENT(WCODE::TAB); break;
 	case F_MARKDOWN_BOLD:
 	case F_MARKDOWN_ITALIC:
 	case F_MARKDOWN_STRIKE:
