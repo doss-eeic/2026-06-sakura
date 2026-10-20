@@ -949,6 +949,7 @@ void CEditView::OnMove( int x, int y, int nWidth, int nHeight )
 /* ウィンドウサイズの変更処理 */
 void CEditView::OnSize( int cx, int cy )
 {
+	InvalidateNoteRequests();
 	if( nullptr == GetHwnd()
 		|| ( cx == 0 && cy == 0 ) ){
 		// From Here 2007.09.09 Moca 互換BMPによる画面バッファ
@@ -1017,6 +1018,10 @@ void CEditView::OnSize( int cx, int cy )
 
 	if( !wrapChanged )	// 折り返し位置が変更されていない
 		AdjustScrollBars();				// スクロールバーの状態を更新する
+	if (HasNoteBlocks()) {
+		ScrollDisplayAtV(GetTextArea().GetDisplayTop());
+		InvalidateRect(nullptr, FALSE);
+	}
 
 	// キャレットの表示(右・下に隠れていた場合)
 	GetCaret().ShowEditCaret();
@@ -1343,6 +1348,7 @@ VOID CEditView::OnTimer(
 	)
 {
 	if (idEvent == IDT_IMAGE_PREVIEW) {
+		PollNoteImages();
 		if (m_imageHover) UpdateImagePreview(false);
 		return;
 	}
@@ -1803,6 +1809,10 @@ void CEditView::CopyViewStatus( CEditView* pView ) const
 
 	/* 画面情報 */
 	GetTextArea().CopyTextAreaStatus(&pView->GetTextArea());
+	if (pView->IsNoteView()) {
+		pView->RebuildNoteProjection();
+		pView->GetTextArea().SetDisplayTop(GetTextArea().GetDisplayTop());
+	}
 
 	/* 表示方法 */
 	GetTextMetrics().CopyTextMetricsStatus(&pView->GetTextMetrics());
@@ -2504,6 +2514,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 		{
 			CGraphics gr(hdc);
 			gr.SetPen( m_pTypeData->m_ColorInfoArr[COLORIDX_CURSORVLINE].m_sColorAttr.m_cTEXT );
+			if (HasNoteBlocks()) ExcludeNoteBlocks(hdc);
 			::MoveToEx( gr, m_nOldCursorLineX, GetTextArea().GetAreaTop(), nullptr );
 			::LineTo(   gr, m_nOldCursorLineX, GetTextArea().GetAreaBottom() );
 			int nBoldX = m_nOldCursorLineX - 1;
@@ -2522,8 +2533,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 
 	int nUnderLineY = -1;
 	if( bUnderLine ){
-		nUnderLineY = GetTextArea().GetAreaTop() + (Int)(GetDisplayCaretLayoutPos().GetY2() - GetTextArea().GetViewTopLine())
-			 * GetTextMetrics().GetHankakuDy() + GetTextMetrics().GetHankakuHeight();
+		nUnderLineY = GetTextArea().LayoutToClientY(GetDisplayCaretLayoutPos().GetY2()) + GetTextMetrics().GetHankakuHeight();
 	}
 	// To Here 2007.09.09 Moca
 
@@ -2547,6 +2557,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 		{
 			CGraphics gr(hdc);
 			gr.SetPen( m_pTypeData->m_ColorInfoArr[COLORIDX_UNDERLINE].m_sColorAttr.m_cTEXT );
+			if (HasNoteBlocks()) ExcludeNoteBlocks(hdc);
 			::MoveToEx(
 				gr,
 				GetTextArea().GetAreaLeft(),
@@ -2580,10 +2591,10 @@ void CEditView::CaretUnderLineOFF( bool bDraw, bool bDrawPaint, bool bResetFlag,
 		){
 			// -- -- カーソル行アンダーラインの消去（無理やり） -- -- //
 			int nUnderLineY; // client px
-			CLayoutYInt nY = m_nOldUnderLineY - GetTextArea().GetViewTopLine();
+			const auto nY = GetTextArea().RelativeRow(m_nOldUnderLineY);
 			if( nY < 0 ){
 				nUnderLineY = -1;
-			}else if( GetTextArea().m_nViewRowNum < nY ){
+			}else if( static_cast<int>(GetTextArea().m_nViewRowNum) < nY ){
 				nUnderLineY = GetTextArea().GetAreaBottom() + 1;
 			}else{
 				nUnderLineY = GetTextArea().GetAreaTop() + (Int)(nY) * GetTextMetrics().GetHankakuDy();
@@ -2701,6 +2712,9 @@ void CEditView::SetInsMode(bool mode)
 
 void CEditView::OnAfterLoad([[maybe_unused]] const SLoadInfo& sLoadInfo)
 {
+	RebuildNoteProjection();
+	InvalidateNoteRequests();
+	m_noteAnchor.valid = false;
 	if( nullptr == GetHwnd() ){
 		// MiniMap 非表示
 		return;

@@ -59,6 +59,15 @@ void CEditView::OnLBUTTONDOWN( WPARAM fwKeys, int _xPos , int _yPos )
 	}
 
 	CMyPoint ptMouse(_xPos,_yPos);
+	if (IsNoteBlockPoint(ptMouse)) {
+		GetEditWnd().SetActivePane(m_nMyIndex);
+		::SetFocus(GetHwnd());
+		GetSelectionInfo().DisableSelectArea(true);
+		GetCaret().MoveCursor(NoteBlockTextPosition(ptMouse, false), true, 1000);
+		GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().x;
+		GetCaret().ShowEditCaret();
+		return;
+	}
 
 	if( m_bHokan ){
 		GetEditWnd().m_cHokanMgr.Hide();
@@ -561,6 +570,7 @@ void CEditView::OnRBUTTONDOWN( WPARAM fwKeys, int xPos , int yPos )
 		return;
 	}
 
+	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
 	if( m_nAutoScrollMode ){
 		AutoScrollExit();
 	}
@@ -599,6 +609,7 @@ void CEditView::OnRBUTTONUP( WPARAM fwKeys, int xPos , int yPos )
 		return;
 	}
 
+	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
 	if( GetSelectionInfo().IsMouseSelecting() ){	/* 範囲選択中 */
 		/* マウス左ボタン開放のメッセージ処理 */
 		OnLBUTTONUP( fwKeys, xPos, yPos );
@@ -813,7 +824,7 @@ void CEditView::AutoScrollOnTimer()
 		}else if( scrollPos.y > 0 ){
 			scrollPos.y -= 1;
 		}
-		SyncScrollV( ScrollAtV( GetTextArea().GetViewTopLine() + scrollPos.y ) );
+		SyncScrollV( ScrollDisplayByV(CLayoutInt(scrollPos.y)) );
 	}
 }
 
@@ -947,6 +958,12 @@ void CEditView::OnMOUSEMOVE( [[maybe_unused]] WPARAM fwKeys, int xPos_, int yPos
 	::TrackMouseEvent(&tracking);
 	UpdateImagePreview(true);
 	CMyPoint ptMouse(xPos_, yPos_);
+	if (IsNoteBlockPoint(ptMouse) && !GetSelectionInfo().IsMouseSelecting()) {
+		::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+		m_cTipWnd.Hide();
+		m_dwTipTimer = ::GetTickCount();
+		return;
+	}
 
 	if( m_cMousePausePos != ptMouse ){
 		m_cMousePausePos = ptMouse;
@@ -1149,7 +1166,7 @@ void CEditView::OnMOUSEMOVE( [[maybe_unused]] WPARAM fwKeys, int xPos_, int yPos
 			int nLineHeight = GetTextMetrics().GetHankakuDy();
 
 			// 選択開始行以下へのドラッグ時は1行下にカーソルを移動する
-			if( GetTextArea().GetViewTopLine() + (ptMouse.y - GetTextArea().GetAreaTop()) / nLineHeight >= GetSelectionInfo().m_sSelectBgn.GetTo().y)
+			if( GetTextArea().HitClientRow(ptMouse.y).layoutLine >= static_cast<int>(GetSelectionInfo().m_sSelectBgn.GetTo().y))
 				nNewPos.y += nLineHeight;
 
 			// カーソルを移動
@@ -1435,7 +1452,7 @@ LRESULT CEditView::OnMOUSEWHEEL2( WPARAM wParam, [[maybe_unused]] LPARAM lParam,
 				const CLayoutXInt layoutCount = nCount * GetTextMetrics().GetLayoutXDefault();
 				SyncScrollH( ScrollAtH( GetTextArea().GetViewLeftCol() + layoutCount ) );
 			}else{
-				SyncScrollV( ScrollAtV( GetTextArea().GetViewTopLine() + CLayoutInt(nCount) ) );
+				SyncScrollV( ScrollDisplayByV(CLayoutInt(nCount)) );
 			}
 		}
 	}
@@ -1558,6 +1575,7 @@ void CEditView::OnLBUTTONDBLCLK( WPARAM fwKeys, int _xPos , int _yPos )
 		return;
 	}
 
+	if (IsNoteBlockPoint(POINT{_xPos, _yPos})) return;
 	CMyPoint ptMouse(_xPos,_yPos);
 
 	CLogicRange		cUrlRange;	// URL範囲
@@ -1744,6 +1762,11 @@ STDMETHODIMP CEditView::DragOver( DWORD dwKeyState, POINTL pt, LPDWORD pdwEffect
 
 	/* マウス移動のメッセージ処理 */
 	::ScreenToClient( GetHwnd(), (LPPOINT)&pt );
+	if (!pdwEffect) return E_INVALIDARG;
+	if (IsNoteBlockPoint(POINT{pt.x, pt.y})) {
+		*pdwEffect = DROPEFFECT_NONE;
+		return S_OK;
+	}
 	OnMOUSEMOVE( dwKeyState, pt.x , pt.y );
 
 	if ( pdwEffect == nullptr )
@@ -1807,6 +1830,12 @@ STDMETHODIMP CEditView::Drop( LPDATAOBJECT pDataObject, DWORD dwKeyState, POINTL
 		return E_INVALIDARG;
 
 	CLIPFORMAT cf;
+	POINT notePoint{pt.x, pt.y};
+	::ScreenToClient(GetHwnd(), &notePoint);
+	if (IsNoteBlockPoint(notePoint)) {
+		*pdwEffect = DROPEFFECT_NONE;
+		return DragLeave();
+	}
 	cf = GetAvailableClipFormat( pDataObject );
 	if( cf == 0 )
 		return E_INVALIDARG;

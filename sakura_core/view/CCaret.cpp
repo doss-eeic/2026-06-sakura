@@ -134,6 +134,7 @@ CLayoutInt CCaret::MoveCursor(
 	CTextArea& area = m_pEditView->GetTextArea();
 	// スクロール処理
 	CLayoutInt	nScrollRowNum = CLayoutInt(0);
+	CLayoutInt noteScrollRowNum = CLayoutInt(0);
 	CLayoutInt	nScrollColNum = CLayoutInt(0);
 	int		nCaretMarginY;
 	CLayoutInt		nScrollMarginRight;
@@ -211,7 +212,17 @@ CLayoutInt CCaret::MoveCursor(
 	//	From Here 2007.07.28 じゅうじ : 表示行数が3行以下の場合の動作改善
 	/* 垂直スクロール量（行数）の算出 */
 										// 画面が３行以下
-	if( m_pEditView->GetTextArea().m_nViewRowNum <= 3 ){
+	if (m_pEditView->HasNoteBlocks()) {
+		const auto relative = area.RelativeRow(ptWk_CaretPos.y);
+		const auto rows = static_cast<Int>(area.m_nViewRowNum);
+		const auto margin = std::min<std::int64_t>(nCaretMarginY, std::max<Int>(0, (rows - 1) / 2));
+		if (bScroll && (relative < margin || relative >= rows - margin)) {
+			nScrollRowNum = -m_pEditView->ScrollDisplayAtV(NoteView::DisplayRow(
+				area.GetNoteProjection().FromLayout(static_cast<Int>(ptWk_CaretPos.y)).value -
+				(relative < margin ? margin : rows - margin - 1)));
+		}
+	}
+	else if( m_pEditView->GetTextArea().m_nViewRowNum <= 3 ){
 							// 移動先は、画面のスクロールラインより上か？（up キー）
 		if( ptWk_CaretPos.y - m_pEditView->GetTextArea().GetViewTopLine() < nCaretMarginY ){
 			if( ptWk_CaretPos.y < nCaretMarginY ){	//１行目に移動
@@ -295,6 +306,11 @@ CLayoutInt CCaret::MoveCursor(
 			if( s_recordPos >=  s_records.size() ){
 				s_recordPos = 0;
 			}
+		}
+		// Note scrolling has already been performed in display-row coordinates.
+		if (m_pEditView->HasNoteBlocks()) {
+			noteScrollRowNum = nScrollRowNum;
+			nScrollRowNum = 0;
 		}
 		/* スクロール */
 		if( t_abs( nScrollColNum ) >= m_pEditView->GetTextArea().m_nViewColNum ||
@@ -387,7 +403,7 @@ CLayoutInt CCaret::MoveCursor(
 	CLayoutPoint poCaret = GetCaretLayoutPos();
 	GetEditWnd().m_cDlgFuncList.NotifyCaretMovement( poCaret.GetY2() + 1, poCaret.GetX2() + 1 );
 
-	return nScrollRowNum;
+	return nScrollRowNum + noteScrollRowNum;
 }
 
 CLayoutInt CCaret::MoveCursorFastMode(
@@ -409,6 +425,12 @@ CLayoutInt CCaret::MoveCursorToClientPoint( const POINT& ptClientPos, bool test,
 	CLayoutInt		nScrollRowNum;
 	CLayoutPoint	ptLayoutPos;
 	m_pEditView->GetTextArea().ClientToLayout(ptClientPos, &ptLayoutPos);
+	if (m_pEditView->IsNoteBlockPoint(ptClientPos)) {
+		ptLayoutPos = m_pEditView->NoteBlockTextPosition(ptClientPos, m_pEditView->GetSelectionInfo().IsMouseSelecting());
+		if (pCaretPosNew) *pCaretPosNew = ptLayoutPos;
+		if (test) return CLayoutInt(0);
+		return MoveCursor(ptLayoutPos, true, 1000);
+	}
 
 	int dx = 0; // ←これでいいらしい
 
@@ -1074,11 +1096,11 @@ POINT CCaret::CalcCaretDrawPos(const CLayoutPoint& ptCaretPos) const
 	int nPosX = m_pEditView->GetTextArea().GetAreaLeft()
 		+ m_pEditView->GetTextMetrics().GetCharPxWidth(ptCaretPos.x - m_pEditView->GetTextArea().GetViewLeftCol());
 
-	CLayoutYInt nY = ptCaretPos.y - m_pEditView->GetTextArea().GetViewTopLine();
+	const auto nY = m_pEditView->GetTextArea().RelativeRow(ptCaretPos.y);
 	int nPosY;
 	if( nY < 0 ){
 		nPosY = -1;
-	}else if( m_pEditView->GetTextArea().m_nViewRowNum < nY ){
+	}else if( static_cast<int>(m_pEditView->GetTextArea().m_nViewRowNum) < nY ){
 		nPosY = m_pEditView->GetTextArea().GetAreaBottom() + 1;
 	}else{
 		nPosY = m_pEditView->GetTextArea().GetAreaTop()

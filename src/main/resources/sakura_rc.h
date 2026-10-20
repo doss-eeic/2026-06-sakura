@@ -1873,6 +1873,8 @@
 #define STR_FONT_SIZE_INVALID          35061
 #define STR_IMAGE_LINK_FILTER          35065
 #define STR_IMAGE_LINK_ERROR           35066
+#define STR_NOTE_LOADING               35070
+#define STR_NOTE_ERROR                 35071
 #define STR_BRACKET_INVALID_CHAR       35062
 #define STR_BRACKET_DUPLICATE          35063
 #define STR_BRACKET_SAME_CHAR          35064
@@ -1885,7 +1887,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35070
+#define _APS_NEXT_RESOURCE_VALUE        35072
 #define _APS_NEXT_COMMAND_VALUE         101
 #define _APS_NEXT_CONTROL_VALUE         1760
 #define _APS_NEXT_SYMED_VALUE           10000

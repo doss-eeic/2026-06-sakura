@@ -2770,6 +2770,9 @@ END
 STRINGTABLE
 BEGIN
     F_SHOWMINIMAP           "显示/隐藏缩略图"
+    F_NOTE_VIEW             "笔记视图"
+    STR_NOTE_LOADING        "正在加载"
+    STR_NOTE_ERROR          "无法显示图像"
     F_TYPE_LIST             "文件类型列表"
     F_OPTION_TYPE           "文件类型设置"
     F_OPTION                "通用设置"

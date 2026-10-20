@@ -49,7 +49,8 @@ void CViewCommander::Command_INS_IMAGE_LINK()
 		InfoMessage(m_pCommanderView->GetHwnd(), LS(STR_IMAGE_LINK_ERROR));
 		return;
 	}
-	Command_INSTEXT(true, link->c_str(), link->size(), true);
+	const auto text = m_pCommanderView->PrepareNoteInsertion(*link);
+	Command_INSTEXT(true, text.c_str(), text.size(), true);
 }
 
 //日付挿入

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "DispPos.h"
+#include "NoteProjection.h"
 
 class CViewFont;
 class CEditView;
@@ -29,12 +30,22 @@ public:
 	//!表示される最初の行
 	CLayoutInt GetViewTopLine() const
 	{
-		return m_nViewTopLine;
+		return CLayoutInt(std::clamp<std::int64_t>(m_noteProjection.ToLayout(m_displayTop).layoutLine, INT_MIN, INT_MAX));
 	}
 	void SetViewTopLine(CLayoutInt nLine)
 	{
-		m_nViewTopLine=nLine;
+		m_displayTop = m_noteProjection.FromLayout(static_cast<Int>(nLine));
 	}
+	NoteView::DisplayRow GetDisplayTop() const { return m_displayTop; }
+	void SetDisplayTop(NoteView::DisplayRow row) { m_displayTop = row; }
+	NoteView::Projection& GetNoteProjection() { return m_noteProjection; }
+	const NoteView::Projection& GetNoteProjection() const { return m_noteProjection; }
+	std::int64_t RelativeRow(CLayoutInt line) const
+	{
+		return NoteView::Projection::Add(m_noteProjection.FromLayout(static_cast<Int>(line)).value, -m_displayTop.value);
+	}
+	NoteView::Projection::Hit HitClientRow(int y) const;
+	int LayoutToClientY(CLayoutInt line) const;
 
 	//!表示域の一番左の桁
 	CLayoutInt GetViewLeftCol() const
@@ -55,7 +66,8 @@ public:
 	//!下にはみ出した最初の行を返す
 	CLayoutInt GetBottomLine() const
 	{
-		return m_nViewTopLine + m_nViewRowNum;
+		return CLayoutInt(std::clamp<std::int64_t>(m_noteProjection.ToLayout(NoteView::DisplayRow(
+			NoteView::Projection::Add(m_displayTop.value, static_cast<Int>(m_nViewRowNum)))).layoutLine, INT_MIN, INT_MAX));
 	}
 
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
@@ -171,7 +183,7 @@ public:
 	}
 	void OffsetViewTopLine(CLayoutInt nOff)
 	{
-		m_nViewTopLine += nOff;
+		SetViewTopLine(GetViewTopLine() + nOff);
 	}
 protected:
 	void UpdateViewColRowNums();
@@ -219,7 +231,8 @@ private:
 
 	//テキスト
 private:
-	CLayoutInt	m_nViewTopLine;			/* 表示域の一番上の行(0開始) */
+	NoteView::DisplayRow m_displayTop;
+	NoteView::Projection m_noteProjection;
 public:
 	CLayoutInt	m_nViewRowNum;			/* 表示域の行数 */
 

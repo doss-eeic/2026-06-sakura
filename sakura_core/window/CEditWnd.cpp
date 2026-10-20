@@ -4605,6 +4605,7 @@ CLogicPointEx* CEditWnd::SavePhysPosOfAllView()
 	CLogicPointEx* pptPosArray = new CLogicPointEx[NUM_OF_VIEW * NUM_OF_POS];
 
 	for( int i = 0; i < NUM_OF_VIEW; ++i ){
+		GetView(i).SaveNoteReflowAnchor();
 		GetView(i).SaveDisplayTopPosition(
 			&pptPosArray[i * NUM_OF_POS + 0]
 		);
@@ -4657,8 +4658,8 @@ void CEditWnd::RestorePhysPosOfAllView( CLogicPointEx* pptPosArray )
 		const CLayoutInt top = GetView(i).RestoreDisplayTopPosition(
 			pptPosArray[i * NUM_OF_POS + 0]
 		);
-
-		GetView(i).m_pcTextArea->SetViewTopLine(top);
+		// Restore the note anchor after the IME display layout has been rebuilt.
+		if (!GetView(i).RestoreNoteReflowAnchor()) GetView(i).m_pcTextArea->SetViewTopLine(top);
 
 		if( GetView(i).GetSelectionInfo().m_sSelectBgn.GetFrom().y >= 0 ){
 			GetDocument()->m_cLayoutMgr.LogicToLayoutEx(

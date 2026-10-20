@@ -535,6 +535,15 @@
     <ClInclude Include="..\sakura_core\util\ImageLink.h">
       <Filter>Cpp Source Files\util</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\util\ImageDecoder.h">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\view\NoteProjection.h">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\view\NoteImageCache.h">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\util\string_ex2.h">
       <Filter>Cpp Source Files\util</Filter>
     </ClInclude>
@@ -1751,6 +1760,15 @@
       <Filter>Cpp Source Files\window</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\util\ImageLink.cpp">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\CEditView_Note.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\NoteImageCache.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\util\ImageDecoder.cpp">
       <Filter>Cpp Source Files\util</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CEditView_ImageLink.cpp">

@@ -86,6 +86,17 @@ std::optional<Link> FindAt(std::wstring_view line, size_t position)
 	return std::nullopt;
 }
 
+std::optional<Link> FindStandalone(std::wstring_view line)
+{
+	const auto first = line.find_first_not_of(L" \t");
+	if (first == std::wstring_view::npos) return std::nullopt;
+	auto link = FindAt(line, first);
+	if (!link || link->begin != first || line.find_first_not_of(L" \t", link->end) != std::wstring_view::npos)
+		return std::nullopt;
+	std::replace(link->path.begin(), link->path.end(), L'\\', L'/');
+	return link;
+}
+
 bool IsReadableFile(const std::wstring& path)
 {
 	if (!IsSupportedPath(path)) return false;
