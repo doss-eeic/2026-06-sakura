@@ -8,6 +8,8 @@
 */
 
 #include "StdAfx.h"
+#include "env/CDocTypeManager.h"
+#include <algorithm>
 #include "env/CShareData_IO.h"
 
 #include "basis/primitive.h"
@@ -1324,6 +1326,21 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 	SetValueLimit( pShare->m_nTypesCount, 1, MAX_TYPES );
 	// 注：コントロールプロセス専用
 	std::vector<STypeConfig*>& types = CShareData::getInstance()->GetTypeSettings();
+	const auto isMarkdown = [](const STypeConfig* type) {
+		return _wcsicmp(type->m_szTypeName, L"Markdown") == 0
+			|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.md")
+			|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.markdown")
+			|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.mdown");
+	};
+	if (cProfile.IsReadingMode()) {
+		// A saved custom type may occupy the newly added default Markdown slot.
+		// Clear that seed before reading it, so its overrides cannot leak into user types.
+		for (int index = 0; index < nCountOld; ++index) {
+			if (wcscmp(types[index]->m_szTypeName, L"Markdown") == 0) {
+				CType_Basis().InitTypeConfig(index, *types[index]);
+			}
+		}
+	}
 	for( i = GetDllShareData().m_nTypesCount; i < nCountOld; i++ ){
 		delete types[i];
 		types[i] = nullptr;
@@ -1349,6 +1366,21 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 			wcscpy(pShare->m_TypeMini[i].m_szTypeName, type.m_szTypeName);
 			pShare->m_TypeMini[i].m_id = type.m_id;
 			pShare->m_TypeMini[i].m_encoding = type.m_encoding;
+		}
+	}
+	bool markdownTypeInitialized = cProfile.IsWritingMode();
+	cProfile.IOProfileData(L"Other", L"MarkdownTypeInitialized", markdownTypeInitialized);
+	if (cProfile.IsReadingMode() && !markdownTypeInitialized && pShare->m_nTypesCount < MAX_TYPES) {
+		const bool exists = std::any_of(types.begin(), types.end(), isMarkdown);
+		if (!exists) {
+			const int index = pShare->m_nTypesCount++;
+			auto* type = new STypeConfig;
+			CType_Markdown().InitTypeConfig(index, *type);
+			types.push_back(type);
+			wcscpy(pShare->m_TypeMini[index].m_szTypeExts, type->m_szTypeExts);
+			wcscpy(pShare->m_TypeMini[index].m_szTypeName, type->m_szTypeName);
+			pShare->m_TypeMini[index].m_encoding = type->m_encoding;
+			pShare->m_TypeMini[index].m_id = type->m_id;
 		}
 	}
 	if( cProfile.IsReadingMode() ){
@@ -1889,6 +1921,67 @@ void ShareData_IO_TypeConfig(
 		cProfile.IOProfileData(pszSecName, key + L"Closing", closing);
 		rule.opening = opening[0];
 		rule.closing = closing[0];
+	}
+
+	// タイプ別キー割り当て
+	if (cProfile.IsReadingMode()) {
+		int count = 0;
+		const int maxCount =
+			static_cast<int>(types.m_typeKeyBindings.size()) * 8;
+
+		if (cProfile.IOProfileData(pszSecName, L"TypeKeyBindCount", count)
+			&& 0 <= count && count <= maxCount) {
+			types.m_typeKeyBindings = {};
+
+			for (int i = 0; i < count; ++i) {
+				const auto key = L"TypeKeyBind" + std::to_wstring(i);
+				int keyCode = -1;
+				int state = -1;
+				EFunctionCode function = F_DEFAULT;
+
+				if (!cProfile.IOProfileData(pszSecName, key + L"Key", keyCode)
+					|| !cProfile.IOProfileData(pszSecName, key + L"State", state)
+					|| !cProfile.IOProfileData(pszSecName, key + L"Function", function)) {
+					continue;
+				}
+
+				if (keyCode < 0
+					|| keyCode >= static_cast<int>(types.m_typeKeyBindings.size())
+					|| state < 0 || state >= 8) {
+					continue;
+				}
+
+				auto& binding = types.m_typeKeyBindings[keyCode];
+				binding.m_bOverride[state] = true;
+				binding.m_nFuncCodeArr[state] = function;
+			}
+		}
+	}
+	else {
+		int count = 0;
+
+		for (int keyCode = 0;
+			keyCode < static_cast<int>(types.m_typeKeyBindings.size());
+			++keyCode) {
+			auto& binding = types.m_typeKeyBindings[keyCode];
+
+			for (int state = 0; state < 8; ++state) {
+				if (!binding.m_bOverride[state]) {
+					continue;
+				}
+
+				const auto key = L"TypeKeyBind" + std::to_wstring(count);
+				cProfile.IOProfileData(pszSecName, key + L"Key", keyCode);
+				cProfile.IOProfileData(pszSecName, key + L"State", state);
+				cProfile.IOProfileData(
+					pszSecName, key + L"Function",
+					binding.m_nFuncCodeArr[state]
+				);
+				++count;
+			}
+		}
+
+		cProfile.IOProfileData(pszSecName, L"TypeKeyBindCount", count);
 	}
 
 	//@@@ 2002.2.4 YAZAKI

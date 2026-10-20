@@ -19,6 +19,7 @@
 #include "doc/logic/CDocLineMgr.h" // 2002/2/10 aroka
 #include "charset/charcode.h"
 #include "agent/CSearchAgent.h"
+#include "doc/CEditDoc.h"
 
 /* 文字列置換 */
 void CLayoutMgr::ReplaceData_CLayoutMgr(
@@ -55,6 +56,8 @@ void CLayoutMgr::ReplaceData_CLayoutMgr(
 	CLogicPoint ptTo;
 	LayoutToLogic( pArg->sDelRange.GetFrom(), &ptFrom );
 	LayoutToLogic( pArg->sDelRange.GetTo(), &ptTo );
+	const auto oldLogicalCount = m_pcDocLineMgr->GetLineCount();
+	if (m_pcEditDoc && this == &m_pcEditDoc->m_cLayoutMgr) m_pcEditDoc->NotifyBeforeViewLayout();
 
 	/* 指定範囲のデータを置換(削除 & データを挿入)
 	  Fromを含む位置からToの直前を含むデータを削除する
@@ -151,4 +154,8 @@ void CLayoutMgr::ReplaceData_CLayoutMgr(
 
 	//2007.10.18 kobake LayoutReplaceArg::ptLayoutNewはここで算出するのが正しい
 	LogicToLayout(DLRArg.ptNewPos, &pArg->ptLayoutNew); // 挿入された部分の次の位置
+	if (m_pcEditDoc && this == &m_pcEditDoc->m_cLayoutMgr) {
+		m_pcEditDoc->NotifyAfterViewLayout({ptFrom.y, ptTo.y, DLRArg.ptNewPos.y,
+			m_pcDocLineMgr->GetLineCount() - oldLogicalCount, m_nLines - nWork_nLines});
+	}
 }

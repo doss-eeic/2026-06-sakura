@@ -47,10 +47,10 @@
 		+----------+---------------------------+---------------------------+
 */
 int WINAPI wWinMain(
-	HINSTANCE	hInstance,		//!< handle to current instance
-	[[maybe_unused]] HINSTANCE	hPrevInstance,	//!< handle to previous instance
-	LPWSTR		lpCmdLine,		//!< pointer to command line
-	[[maybe_unused]] int			nCmdShow		//!< show state of window
+	HINSTANCE hInstance,					  //!< handle to current instance
+	[[maybe_unused]] HINSTANCE hPrevInstance, //!< handle to previous instance
+	LPWSTR lpCmdLine,						  //!< pointer to command line
+	[[maybe_unused]] int nCmdShow			  //!< show state of window
 )
 {
 #ifdef USE_LEAK_CHECK_WITH_CRTDBG
@@ -58,41 +58,44 @@ int WINAPI wWinMain(
 	::_CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF | _CRTDBG_ALLOC_MEM_DF);
 #endif
 
-	MY_RUNNINGTIMER(cRunningTimer, L"WinMain" );
+	MY_RUNNINGTIMER(cRunningTimer, L"WinMain");
 	{
 		// 2014.04.24 DLLの検索パスからカレントディレクトリを削除する
-		::SetDllDirectory( L"" );
-		::SetSearchPathMode( BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT );
+		::SetDllDirectory(L"");
+		::SetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
-		setlocale( LC_ALL, "Japanese" ); //2007.08.16 kobake 追加
-		::OleInitialize( nullptr );	// 2009.01.07 ryoji 追加
+		setlocale(LC_ALL, "Japanese"); // 2007.08.16 kobake 追加
+		::OleInitialize(nullptr);	   // 2009.01.07 ryoji 追加
 	}
-	
-	//開発情報
+
+	// 開発情報
 	DEBUG_TRACE(L"-- -- WinMain -- --\n");
-	DEBUG_TRACE(L"sizeof(DLLSHAREDATA) = %d\n",sizeof(DLLSHAREDATA));
+	DEBUG_TRACE(L"sizeof(DLLSHAREDATA) = %d\n", sizeof(DLLSHAREDATA));
 
 	DarkMode::initDarkMode();
 	DarkMode::setDarkModeConfig();
 	DarkMode::setDefaultColors(true);
 
-	//コマンドラインクラスのインスタンスを確保する
+	// コマンドラインクラスのインスタンスを確保する
 	CCommandLine cCommandLine;
 
-	//プロセスの生成とメッセージループ
+	// プロセスの生成とメッセージループ
 	CProcessFactory aFactory;
 	CProcess *process = nullptr;
-	try{
-		process = aFactory.Create( hInstance, lpCmdLine );
-		MY_TRACETIME( cRunningTimer, L"ProcessObject Created" );
+	try
+	{
+		process = aFactory.Create(hInstance, lpCmdLine);
+		MY_TRACETIME(cRunningTimer, L"ProcessObject Created");
 	}
-	catch(...){
+	catch (...)
+	{
 	}
-	if( nullptr != process ){
+	if (nullptr != process)
+	{
 		process->Run();
 		delete process;
 	}
 
-	::OleUninitialize();	// 2009.01.07 ryoji 追加
+	::OleUninitialize(); // 2009.01.07 ryoji 追加
 	return 0;
 }

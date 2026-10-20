@@ -713,6 +713,7 @@ void CViewCommander::Command_HalfPageUp( bool bSelect, CLayoutYInt nScrollNum )
 	if( nScrollNum <= 0 ){
 		nScrollNum = m_pCommanderView->GetTextArea().m_nViewRowNum / 2;
 	}
+	if (m_pCommanderView->HasNoteBlocks()) { m_pCommanderView->MoveNotePage(-nScrollNum, bSelect, false); return; }
 	GetCaret().Cursor_UPDOWN( - (nScrollNum), bSelect );
 	return;
 }
@@ -723,6 +724,7 @@ void CViewCommander::Command_HalfPageDown( bool bSelect, CLayoutYInt nScrollNum 
 	if( nScrollNum <= 0 ){
 		nScrollNum = m_pCommanderView->GetTextArea().m_nViewRowNum / 2;
 	}
+	if (m_pCommanderView->HasNoteBlocks()) { m_pCommanderView->MoveNotePage(nScrollNum, bSelect, false); return; }
 	GetCaret().Cursor_UPDOWN( nScrollNum, bSelect );
 	return;
 }
@@ -736,6 +738,11 @@ void CViewCommander::Command_HalfPageDown( bool bSelect, CLayoutYInt nScrollNum 
 */	//Oct. 10, 2000 JEPRO added
 void CViewCommander::Command_1PageUp( bool bSelect, CLayoutYInt nScrollNum )
 {
+	if (m_pCommanderView->HasNoteBlocks()) {
+		if (nScrollNum <= 0) nScrollNum = t_max(CLayoutInt(1), m_pCommanderView->GetTextArea().m_nViewRowNum - 1);
+		m_pCommanderView->MoveNotePage(-nScrollNum, bSelect, true);
+		return;
+	}
 //	GetCaret().Cursor_UPDOWN( - m_pCommanderView->GetTextArea().m_nViewRowNum, bSelect );
 
 // 2001.12.03 hor
@@ -772,6 +779,11 @@ void CViewCommander::Command_1PageUp( bool bSelect, CLayoutYInt nScrollNum )
 */
 void CViewCommander::Command_1PageDown( bool bSelect, CLayoutYInt nScrollNum )
 {
+	if (m_pCommanderView->HasNoteBlocks()) {
+		if (nScrollNum <= 0) nScrollNum = t_max(CLayoutInt(1), m_pCommanderView->GetTextArea().m_nViewRowNum - 1);
+		m_pCommanderView->MoveNotePage(nScrollNum, bSelect, true);
+		return;
+	}
 //	GetCaret().Cursor_UPDOWN( m_pCommanderView->GetTextArea().m_nViewRowNum, bSelect );
 
 // 2001.12.03 hor
@@ -865,6 +877,12 @@ void CViewCommander::MoveViewTopLine(CLayoutInt nViewTopLine)
 /* カーソル行をウィンドウ中央へ */
 void CViewCommander::Command_CURLINECENTER( void )
 {
+	if (m_pCommanderView->HasNoteBlocks()) {
+		const auto& area = m_pCommanderView->GetTextArea();
+		m_pCommanderView->ScrollDisplayAtV(NoteView::DisplayRow(area.GetNoteProjection().FromLayout(
+			static_cast<int>(GetCaret().GetCaretLayoutPos().y)).value - static_cast<int>(area.m_nViewRowNum) / 2));
+		return;
+	}
 	CLayoutInt		nViewTopLine;
 	nViewTopLine = GetCaret().GetCaretLayoutPos().GetY2() - ( m_pCommanderView->GetTextArea().m_nViewRowNum / 2 );
 
@@ -883,6 +901,12 @@ void CViewCommander::Command_CURLINETOP(void)
 /* カーソル行をウィンドウ下部へ */
 void CViewCommander::Command_CURLINEBOTTOM(void)
 {
+	if (m_pCommanderView->HasNoteBlocks()) {
+		const auto& area = m_pCommanderView->GetTextArea();
+		m_pCommanderView->ScrollDisplayAtV(NoteView::DisplayRow(area.GetNoteProjection().FromLayout(
+			static_cast<int>(GetCaret().GetCaretLayoutPos().y)).value - static_cast<int>(area.m_nViewRowNum) + 1));
+		return;
+	}
 	CLayoutInt		nViewTopLine;
 	nViewTopLine = GetCaret().GetCaretLayoutPos().GetY2() - (m_pCommanderView->GetTextArea().m_nViewRowNum);
 
@@ -944,6 +968,7 @@ void CViewCommander::Command_JUMPHIST_SET( void )
 // テキストを１行下へスクロール
 void CViewCommander::Command_WndScrollDown( void )
 {
+	if (m_pCommanderView->HasNoteBlocks()) { m_pCommanderView->ScrollDisplayByV(CLayoutInt(-1)); return; }
 	CLayoutInt	nCaretMarginY;
 
 	nCaretMarginY = m_pCommanderView->GetTextArea().m_nViewRowNum / _CARETMARGINRATE;
@@ -983,6 +1008,7 @@ void CViewCommander::Command_WndScrollDown( void )
 // テキストを１行上へスクロール
 void CViewCommander::Command_WndScrollUp(void)
 {
+	if (m_pCommanderView->HasNoteBlocks()) { m_pCommanderView->ScrollDisplayByV(CLayoutInt(1)); return; }
 	CLayoutInt	nCaretMarginY;
 
 	nCaretMarginY = m_pCommanderView->GetTextArea().m_nViewRowNum / _CARETMARGINRATE;

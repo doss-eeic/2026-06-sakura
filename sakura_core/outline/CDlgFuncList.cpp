@@ -455,6 +455,11 @@ void CDlgFuncList::SetData()
 		SetTree(hInsertAfter);
 		::SetWindowText( GetHwnd(), L"TeX" );
 	}
+	else if( OUTLINE_MARKDOWN == m_nListType ){
+		m_nViewType = VIEWTYPE_TREE;
+		SetTree(hInsertAfter);
+		::SetWindowText( GetHwnd(), LS(STR_OUTLINE_MARKDOWN) );
+	}
 	else if( OUTLINE_TEXT == m_nListType ){ /* テキスト・トピックリスト */
 		m_nViewType = VIEWTYPE_TREE;
 		SetTree(hInsertAfter);	//@@@ 2002.04.01 YAZAKI テキストトピックツリーも、汎用SetTreeを呼ぶように変更。
@@ -2559,7 +2564,8 @@ void CDlgFuncList::Key2Command(WORD KeyCode)
 	EFunctionCode nFuncCode=CKeyBind::GetFuncCode(
 			((WORD)(((BYTE)(KeyCode)) | ((WORD)((BYTE)(nIdx))) << 8)),
 			m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
-			m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr
+			m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
+			TRUE, &reinterpret_cast<CEditView*>(m_lParam)->GetDocument()->m_cDocType.GetDocumentAttribute().m_typeKeyBindings[LOBYTE(KeyCode)]
 	);
 	switch( nFuncCode ){
 	case F_REDRAW:

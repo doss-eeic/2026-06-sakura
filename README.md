@@ -27,6 +27,7 @@ A free text editor for Windows.
 - [Sakura Editor](#sakura-editor)
   - [脆弱性の報告方法](#脆弱性の報告方法)
   - [ダウンロード](#ダウンロード)
+  - [Markdown編集・タイプ別ショートカット](#markdown編集タイプ別ショートカット)
   - [開発情報](#開発情報)
     - [How to build](#how-to-build)
     - [Static code analysis](#static-code-analysis)
@@ -45,6 +46,10 @@ https://github.com/sakura-editor/sakura/security/advisories
 リリース版は [Sakura Editor Portal](https://sakura-editor.github.io/) に置いてあります。
 
 GitHubで公開しているので [GitHub Actionsのビルドページ](https://github.com/sakura-editor/sakura/actions/workflows/build-sakura.yml?query=branch%3Amaster) より開発中の最新版をダウンロードすることもできます。
+
+## Markdown編集・タイプ別ショートカット
+
+[設定方法、初期キー割り当て、編集動作](./help/markdown-editing.md)を参照してください。
 
 ## 開発情報
 

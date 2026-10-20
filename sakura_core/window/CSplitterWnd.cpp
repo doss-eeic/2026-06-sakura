@@ -406,7 +406,8 @@ void CSplitterWnd::DoSplit( int nHorizontal, int nVertical )
 				pcViewArr[0]->CopyViewStatus( pcViewArr[2] );
 			}
 			// YAZAKI
-			pcViewArr[2]->GetTextArea().SetViewTopLine( pcViewArr[0]->GetTextArea().GetViewTopLine() + pcViewArr[0]->GetTextArea().m_nViewRowNum );
+			pcViewArr[2]->GetTextArea().SetDisplayTop(NoteView::DisplayRow(NoteView::Projection::Add(
+				pcViewArr[0]->GetTextArea().GetDisplayTop().value, static_cast<int>(pcViewArr[0]->GetTextArea().m_nViewRowNum))));
 		}
 		else if( nAllSplitRowsOld > 1 && nAllSplitColsOld == 1 ){
 		}

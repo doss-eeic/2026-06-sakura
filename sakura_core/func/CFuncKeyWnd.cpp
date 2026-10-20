@@ -246,6 +246,12 @@ LRESULT CFuncKeyWnd::OnCommand( HWND hwnd, [[maybe_unused]] UINT msg, [[maybe_un
 }
 
 // WM_TIMERタイマーの処理
+void CFuncKeyWnd::RefreshBindings()
+{
+	m_nCurrentKeyState = -1;
+	OnTimer(GetHwnd(), WM_TIMER, 0, 0);
+}
+
 LRESULT CFuncKeyWnd::OnTimer( [[maybe_unused]] HWND hwnd, [[maybe_unused]] UINT uMsg, [[maybe_unused]] WPARAM wParam, [[maybe_unused]] LPARAM lParam )
 {
 // 	HWND hwnd,	// handle of window for timer messages
@@ -279,7 +285,8 @@ LRESULT CFuncKeyWnd::OnTimer( [[maybe_unused]] HWND hwnd, [[maybe_unused]] UINT 
 			EFunctionCode	nFuncCode = CKeyBind::GetFuncCode(
 					(WORD)(((VK_F1 + i) | ((WORD)((BYTE)(nIdx))) << 8)),
 					m_pShareData->m_Common.m_sKeyBind.m_nKeyNameArrNum,
-					m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr
+					m_pShareData->m_Common.m_sKeyBind.m_pKeyNameArr,
+					TRUE, &m_pcEditDoc->m_cDocType.GetDocumentAttribute().m_typeKeyBindings[VK_F1 + i]
 			);
 			if( nFuncCode != m_nFuncCodeArr[i] ){
 				m_nFuncCodeArr[i] = nFuncCode;

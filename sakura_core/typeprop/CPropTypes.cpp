@@ -24,6 +24,7 @@
 
 #include "StdAfx.h"
 #include "CPropTypes.h"
+#include "dlg/CDlgTypeKeyBind.h"
 #include "CEditApp.h"
 #include "view/colors/EColorIndexType.h"
 #include "util/shell.h"
@@ -137,7 +138,8 @@ INT_PTR CPropTypes::DoPropertySheet( int nPageNum )
 		{ STR_PROPTYPE_WINDOW,			IDD_PROP_WINDOW,	PropTypesWindow },
 		{ STR_PROPTYPE_SUPPORT,			IDD_PROP_SUPPORT,	PropTypesSupport },
 		{ STR_PROPTYPE_REGEX_KEYWORD,	IDD_PROP_REGEX,		PropTypesRegex },
-		{ STR_PROPTYPE_KEYWORD_HELP,	IDD_PROP_KEYHELP,	PropTypesKeyHelp }
+		{ STR_PROPTYPE_KEYWORD_HELP,	IDD_PROP_KEYHELP,	PropTypesKeyHelp },
+		{ STR_PROPTYPE_KEYBIND,		IDD_TYPEKEYBIND,		CDlgTypeKeyBind::PageProc }
 	};
 
 	// カスタム色を共有メモリから取得
@@ -156,6 +158,7 @@ INT_PTR CPropTypes::DoPropertySheet( int nPageNum )
 		memset_raw( p, 0, sizeof_raw( *p ) );
 		p->dwSize      = sizeof_raw( *p );
 		p->dwFlags     = PSP_USETITLE | PSP_HASHELP;
+		if (TypePropSheetInfoList[nIdx].resId == IDD_TYPEKEYBIND) p->dwFlags = PSP_USETITLE;
 		p->hInstance   = CSelectLang::getLangRsrcInstance();
 		p->pszTemplate = MAKEINTRESOURCE( TypePropSheetInfoList[nIdx].resId );
 		p->pszIcon     = nullptr;

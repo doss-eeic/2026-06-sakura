@@ -28,6 +28,15 @@
 
 class CDocListener;
 
+// Text layout changes, separate from file I/O. Negative firstLine means a full reflow.
+struct SViewLayoutChange {
+	CLogicInt firstLine{-1};
+	CLogicInt oldLastLine{0};
+	CLogicInt newLastLine{0};
+	CLogicInt logicalDelta{0};
+	CLayoutInt layoutDelta{0};
+};
+
 //###
 enum ESaveResult{
 	SAVED_OK,
@@ -149,6 +158,8 @@ public:
 	void NotifyLoading				(int nPer);
 	void NotifyAfterLoad			(const SLoadInfo& sLoadInfo);
 	void NotifyFinalLoad			(ELoadResult eLoadResult);
+	void NotifyBeforeViewLayout();
+	void NotifyAfterViewLayout(const SViewLayoutChange& change);
 
 	//セーブ前後
 	ECallbackResult NotifyCheckSave	(SSaveInfo* pSaveInfo);
@@ -180,6 +191,8 @@ public:
 	virtual void			OnLoading	([[maybe_unused]] int nPer)					 { return ; }							//!< ロード処理の経過情報を受信
 	virtual void			OnAfterLoad	([[maybe_unused]] const SLoadInfo& sLoadInfo) { return ; }					//!< ロード事後処理
 	virtual void			OnFinalLoad	([[maybe_unused]] ELoadResult eLoadResult)	 { return ; }					//!< ロードフローの最後に必ず呼ばれる
+	virtual void OnBeforeViewLayout() {}
+	virtual void OnAfterViewLayout([[maybe_unused]] const SViewLayoutChange& change) {}
 
 	//セーブ前後
 	virtual ECallbackResult OnCheckSave	([[maybe_unused]] SSaveInfo* pSaveInfo)		 { return CALLBACK_CONTINUE; }	//!< 本当にセーブを行うかの判定を行う

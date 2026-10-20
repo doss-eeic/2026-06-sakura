@@ -17,6 +17,7 @@
 #include "charset/charset.h"  // ECodeType
 #include "env/CRegexKeyword.h"	// RegexKeywordInfo
 #include "charset/charcode.h"
+#include "func/CKeyBind.h"
 #include <array>
 
 //! タブ表示方法
@@ -45,9 +46,10 @@ enum EOutlineType{
 	OUTLINE_ERLANG,		//	2009.08.10 genta Erlangアウトライン解析
 	OUTLINE_XML,		//  2014.12.25 Moca
 	OUTLINE_CPP,		//  2015.11.13 Moca
+	OUTLINE_MARKDOWN = 21, // 既存のBOOKMARK/PLUGIN/FILETREEの保存値を維持する
 	//	新しいアウトライン解析は必ずこの直前へ挿入
 	OUTLINE_CODEMAX,
-	OUTLINE_BOOKMARK,	//	2001.12.03 hor
+	OUTLINE_BOOKMARK = 18,	//	2001.12.03 hor
 	OUTLINE_PLUGIN,		//	2009.10.29 syat プラグインによるアウトライン解析
 	OUTLINE_FILETREE,	//	2012.06.20 Moca ファイルツリー
 	OUTLINE_DEFAULT =-1,//	2001.12.03 hor
@@ -61,7 +63,8 @@ enum EOutlineType{
 //! スマートインデント種別
 enum ESmartIndentType {
 	SMARTINDENT_NONE,		//!< なし
-	SMARTINDENT_CPP			//!< C/C++
+	SMARTINDENT_CPP,			//!< C/C++
+	SMARTINDENT_MARKDOWN		//!< Markdown
 };
 
 //! ヒアドキュメント種別
@@ -210,6 +213,8 @@ struct STypeConfig{
 	// 2026/10/13 閉じ括弧
 	bool                m_bAutoCloseBrackets = false;   //!< 閉じ括弧を自動補完
 	std::array<SAutoCloseBracket, 16> m_autoCloseBracketRules{};
+	// キーゴードごとの上書き設定
+	std::array<STypeKeyBind, VKEX_WHEEL_RIGHT + 1> m_typeKeyBindings{};
 	//	2001/06/19 asa-o
 	bool				m_bHokanLoHiCase;				//!< 入力補完機能：英大文字小文字を同一視する
 
@@ -330,6 +335,7 @@ GEN_CTYPE(CType_Cpp)
 GEN_CTYPE(CType_Dos)
 GEN_CTYPE(CType_Html)
 GEN_CTYPE(CType_Ini)
+GEN_CTYPE(CType_Markdown)
 GEN_CTYPE(CType_Java)
 GEN_CTYPE(CType_Pascal)
 GEN_CTYPE(CType_Perl)

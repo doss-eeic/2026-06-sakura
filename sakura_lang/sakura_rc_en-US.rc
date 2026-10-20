@@ -885,6 +885,38 @@ BEGIN
     PUSHBUTTON      "Bracket rules (&R)...",IDC_BUTTON_AUTOCLOSEBRACKETS,180,218,114,14
 END
 
+IDD_TYPEKEYBIND DIALOGEX 0, 0, 302, 244
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 9, "Tahoma", 0, 0, 0x1
+BEGIN
+    LTEXT           "Select a key and a function to assign. * marks an override for the selected modifiers.",IDC_STATIC,8,8,286,20
+    CONTROL         "&Shift",IDC_CHECK_SHIFT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,32,42,10
+    CONTROL         "&Ctrl",IDC_CHECK_CTRL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,54,32,42,10
+    CONTROL         "A&lt",IDC_CHECK_ALT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,100,32,42,10
+    LTEXT           "&Key",IDC_STATIC,8,50,138,10
+    LISTBOX         IDC_LIST_KEY,8,62,138,104,LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Cate&gory",IDC_STATIC,154,32,140,10
+    COMBOBOX        IDC_COMBO_FUNCKIND,154,44,140,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "&Function",IDC_STATIC,154,62,140,10
+    LISTBOX         IDC_LIST_FUNC,154,74,140,126,LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Common binding",IDC_STATIC,8,172,138,10
+    EDITTEXT        IDC_EDIT_TYPEKEYBIND_COMMON,8,184,138,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Effective binding for this type",IDC_STATIC,8,204,138,10
+    EDITTEXT        IDC_EDIT_KEYSFUNC,8,216,138,14,ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON      "&Assign",IDC_BUTTON_ASSIGN,154,205,66,14
+    PUSHBUTTON      "Unassign (&R)",IDC_BUTTON_RELEASE,224,205,70,14
+    PUSHBUTTON      "Use common binding (&U)",IDC_BUTTON_KEYBIND_INHERIT,154,223,140,14
+    LTEXT           "",IDC_STATIC_TYPEKEYBIND_SOURCE,8,233,138,9
+END
+
+STRINGTABLE
+BEGIN
+    STR_PROPTYPE_KEYBIND "Shortcuts"
+    STR_TYPEKEYBIND_INHERIT "Using common binding"
+    STR_TYPEKEYBIND_OVERRIDE "Overridden for this type"
+END
+
 IDD_AUTOCLOSEBRACKETS DIALOGEX 0, 0, 290, 216
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Bracket completion"
@@ -2462,6 +2494,29 @@ BEGIN
     F_SORT_DESC             "Descending sort selected lines"
     F_MERGE                 "Merge selected lines, Unique only"
     F_RECONVERT             "Reconvert"
+    F_MARKDOWN_BOLD         "Markdown bold"
+    F_MARKDOWN_ITALIC       "Markdown italic"
+    F_MARKDOWN_STRIKE "Markdown strikethrough"
+    F_MARKDOWN_H1 "Markdown heading 1"
+    F_MARKDOWN_H2 "Markdown heading 2"
+    F_MARKDOWN_H3 "Markdown heading 3"
+    F_MARKDOWN_H4 "Markdown heading 4"
+    F_MARKDOWN_H5 "Markdown heading 5"
+    F_MARKDOWN_H6 "Markdown heading 6"
+    F_MARKDOWN_QUOTE "Markdown blockquote"
+    F_MARKDOWN_BULLET "Markdown bullet list"
+    F_MARKDOWN_ORDERED "Markdown numbered list"
+    F_MARKDOWN_TASK "Markdown task list"
+    F_MARKDOWN_TASKCHECK "Markdown toggle task completion"
+    F_MARKDOWN_CODE "Markdown inline code"
+    F_MARKDOWN_FENCE "Markdown fenced code block"
+    F_MARKDOWN_LINK "Markdown link"
+    F_MARKDOWN_IMAGE "Markdown image"
+    F_MARKDOWN_TABLE "Markdown table"
+    F_MARKDOWN_HR "Markdown horizontal rule"
+    F_MARKDOWN_ENTER "Markdown new line"
+    F_MARKDOWN_INDENT "Markdown indent"
+    F_MARKDOWN_UNINDENT "Markdown unindent"
 END
 
 STRINGTABLE
@@ -2635,6 +2690,9 @@ END
 STRINGTABLE
 BEGIN
     F_INS_DATE              "Ins. Date"
+    F_INS_IMAGE_LINK        "Insert Image Link..."
+    STR_IMAGE_LINK_FILTER   "Images (PNG/JPEG)"
+    STR_IMAGE_LINK_ERROR    "Cannot insert the image link. Check that the path is a readable local PNG/JPEG and contains supported characters."
     F_INS_TIME              "Ins. Time"
     F_CTRL_CODE_DIALOG      "Control Code Input"
     F_INS_FILE_USED_RECENTLY "Ins. Recently Used File"
@@ -2798,6 +2856,9 @@ END
 STRINGTABLE
 BEGIN
     F_SHOWMINIMAP           "Hide/Show Mini Map"
+    F_NOTE_VIEW             "Note View"
+    STR_NOTE_LOADING        "Loading"
+    STR_NOTE_ERROR          "Cannot display image"
     F_TYPE_LIST             "File type list"
     F_OPTION_TYPE           "File type settings"
     F_OPTION                "Common Settings"
@@ -3984,6 +4045,8 @@ BEGIN
     STR_OUTLINE_TEXT        "Text"
     STR_SMART_INDENT_NONE   "None"
     STR_SMART_INDENT_C_CPP  "C/C++"
+    STR_SMART_INDENT_MARKDOWN "Markdown"
+    STR_OUTLINE_MARKDOWN    "Markdown"
     STR_IME_STATE_DEF       "Default"
     STR_IME_STATE_FULL      "Full Height"
     STR_IME_STATE_FULLHIRA  "Full Height Hiragana"

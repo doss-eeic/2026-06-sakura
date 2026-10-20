@@ -150,9 +150,13 @@
     <ClCompile Include="..\src\test\cpp\tests1\test-cgrepenumkeys.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-clayoutint.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-cimagelistmgr.cpp" />
+    <ClCompile Include="..\src\test\cpp\tests1\test-image-link.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-cmemory.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-cmenudrawer.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-cnative.cpp" />
+    <ClCompile Include="..\src\test\cpp\tests1\test-markdown-emphasis.cpp" />
+    <ClCompile Include="..\src\test\cpp\tests1\test-markdown-parser.cpp" />
+    <ClCompile Include="..\src\test\cpp\tests1\test-markdown-input.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-cprofile.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-csakuraenvironment.cpp" />
     <ClCompile Include="..\src\test\cpp\tests1\test-ctextmetrics.cpp" />

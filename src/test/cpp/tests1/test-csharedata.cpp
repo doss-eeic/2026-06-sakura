@@ -14,6 +14,7 @@
 #include "uiparts/CMenuDrawer.h"
 #include "util/window.h"
 #include "util/file.h"
+#include "util/os.h"
 #include "version.h"
 #include "sakura_rc.h"
 
@@ -873,7 +874,8 @@ MATCHER(IsInitializedCommonSettingToolBar, "Checks if CommonSetting_ToolBar is p
 		EXPECT_THAT(sToolBar.m_nToolBarButtonIdxArr[i], Eq(defaultTools[i]));
 	}
 
-	EXPECT_THAT(sToolBar.m_bToolBarIsFlat, IsFalse());
+	// Classic/noninteractive desktops use the flat toolbar; visual styles use normal.
+	EXPECT_THAT(sToolBar.m_bToolBarIsFlat != FALSE, Eq(IsVisualStyle() == FALSE));
 
 	return true;
 }
@@ -1168,6 +1170,7 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 		SMenuItem{ 2, 30792, 'C' },
 		SMenuItem{ 2, 30794, 'F' },
 		SMenuItem{ 2, 30795, 'O' },
+		SMenuItem{ 2, 30796, 'I' },
 		SMenuItem{ 1, 34012, 'V' },
 		SMenuItem{ 2, 30230, 'L' },
 		SMenuItem{ 2, 30231, 'R' },
@@ -1369,6 +1372,7 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 		SMenuItem{ 1, 31103, 'M' },
 		SMenuItem{ 1, 31102, 'S' },
 		SMenuItem{ 1, 31104, 'N' },
+		SMenuItem{ 1, 31105 },
 		SMenuItem{ 1, 1 },
 		SMenuItem{ 1, 31110, 'L' },
 		SMenuItem{ 1, 31111, 'Y' },
@@ -1463,12 +1467,12 @@ MATCHER(IsInitializedCommonSettingMainMenu, "Checks if CommonSetting_MainMenu is
 	constexpr std::array mainMenuTopIdxs = {
 		0,
 		40,
-		168,
-		199,
-		239,
-		258,
-		286,
-		326,
+		169,
+		200,
+		240,
+		259,
+		288,
+		328,
 	};
 
 	for (size_t i = 0; i < std::size(mainMenuTopIdxs); ++i) {
@@ -1601,7 +1605,7 @@ MATCHER_P4(IsInitializedShareData, pszProfileName, isMultiUserSettings, userRoot
 	EXPECT_THAT(shareData.m_maxTBNum, 0);
 
 	//InitTypeConfigs
-	const std::array<std::unique_ptr<CType>, 17> table = {{
+	const std::array<std::unique_ptr<CType>, 18> table = {{
 		std::make_unique<CType_Basis>(),
 		std::make_unique<CType_Text>(),
 		std::make_unique<CType_Cpp>(),
@@ -1618,7 +1622,8 @@ MATCHER_P4(IsInitializedShareData, pszProfileName, isMultiUserSettings, userRoot
 		std::make_unique<CType_Python>(),
 		std::make_unique<CType_Vb>(),
 		std::make_unique<CType_Rich>(),
-		std::make_unique<CType_Ini>()
+		std::make_unique<CType_Ini>(),
+		std::make_unique<CType_Markdown>()
 	}};
 
 	EXPECT_THAT(shareData.m_nTypesCount, std::size(table));

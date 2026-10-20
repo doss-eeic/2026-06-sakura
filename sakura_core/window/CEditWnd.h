@@ -25,6 +25,7 @@
 #ifndef SAKURA_CEDITWND_6C771A35_3CC8_4932_BF15_823C40487A9F_H_
 #define SAKURA_CEDITWND_6C771A35_3CC8_4932_BF15_823C40487A9F_H_
 #pragma once
+#include "view/NoteImageCache.h"
 
 #include <shellapi.h>// HDROP
 #include "_main/global.h"
@@ -149,7 +150,7 @@ public:
 	LRESULT OnHScroll(WPARAM wParam, LPARAM lParam);
 	LRESULT OnVScroll(WPARAM wParam, LPARAM lParam);
 	int	OnClose(HWND hWndActive, bool bGrepNoConfirm);	/* 終了時の処理 */
-	void OnDropFiles(HDROP hDrop);	/* ファイルがドロップされた */
+	void OnDropFiles(HDROP hDrop, bool allowImageLinks = true);	/* ファイルがドロップされた */
 	BOOL OnPrintPageSetting( void );/* 印刷ページ設定 */
 	LRESULT OnTimer(WPARAM wParam, LPARAM lParam);	// WM_TIMER 処理	// 2007.04.03 ryoji
 	void OnEditTimer( void );	/* タイマーの処理 */
@@ -276,6 +277,9 @@ public:
 	CMiniMapView&       GetMiniMap( void ) { return m_cMiniMapView; }
 	bool                IsEnablePane(int n) const { return 0 <= n && n < m_nEditViewCount; }
 	int                 GetAllViewCount() const { return m_nEditViewCount; }
+	bool IsNoteView() const { return m_noteView; }
+	void SetNoteView(bool enabled);
+	NoteView::ImageCache& GetNoteImageCache() { return m_noteImageCache; }
 
 	CEditView*			GetDragSourceView() const					{ return m_pcDragSourceView; }
 	void				SetDragSourceView( CEditView* pcDragSourceView )	{ m_pcDragSourceView = pcDragSourceView; }
@@ -323,6 +327,7 @@ protected:
 	void DeleteAccelTbl( void ); // ウィンドウ毎のアクセラレータテーブル破棄(Wine用)
 
 public:
+	void RefreshAccelTbl();
 	//D&Dフラグ管理
 	void SetDragPosOrg(CMyPoint ptDragPosOrg){ m_ptDragPosOrg=ptDragPosOrg; }
 	void SetDragMode(bool bDragMode){ m_bDragMode = bDragMode; }
@@ -395,6 +400,8 @@ private:
 	CMenuDrawer		m_cMenuDrawer;
 
 	//状態
+	bool m_noteView = false; // Per-window, deliberately not serialized.
+	NoteView::ImageCache m_noteImageCache;
 	bool			m_bIsActiveApp = false;		//!< 自アプリがアクティブかどうか	// 2007.03.08 ryoji
 	LPWSTR			m_pszLastCaption = nullptr;
 	SMenubarMessage m_pszMenubarMessage;		//!< メニューバー右端に表示するメッセージ

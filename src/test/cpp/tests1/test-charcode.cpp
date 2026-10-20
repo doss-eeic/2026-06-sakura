@@ -143,7 +143,8 @@ TEST_F(FontFallback, StylesAndBaselines)
 		LOGFONT lf{};
 		ASSERT_NE(0, ::GetObjectW(fonts.GetFont(index, true, true), sizeof(lf), &lf));
 		EXPECT_EQ(primary.lfHeight, lf.lfHeight);
-		EXPECT_EQ(primary.lfWeight + 300, lf.lfWeight);
+		// Default-weight fonts must resolve to actual bold, including fallback faces.
+		EXPECT_EQ(FW_BOLD, lf.lfWeight);
 		EXPECT_TRUE(lf.lfUnderline);
 		TEXTMETRIC metrics{};
 		ASSERT_TRUE(::GetTextMetricsW(fonts.GetDC(index), &metrics));

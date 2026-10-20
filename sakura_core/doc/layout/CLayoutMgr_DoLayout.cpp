@@ -330,6 +330,8 @@ void CLayoutMgr::_OnLine1(SLayoutWork* pWork)
 void CLayoutMgr::_DoLayout(bool bBlockingHook)
 {
 	MY_RUNNINGTIMER( cRunningTimer, L"CLayoutMgr::_DoLayout" );
+	const bool notifyView = m_pcEditDoc && this == &m_pcEditDoc->m_cLayoutMgr;
+	if (notifyView) m_pcEditDoc->NotifyBeforeViewLayout();
 
 	_Empty();
 	Init();
@@ -398,6 +400,7 @@ void CLayoutMgr::_DoLayout(bool bBlockingHook)
 		vecWorkerThreads[i].join();
 		_AppendAsMove(vecWorkerLayoutMgrs[i]);
 	}
+	if (notifyView) m_pcEditDoc->NotifyAfterViewLayout({});
 }
 
 /*!

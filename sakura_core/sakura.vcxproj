@@ -262,6 +262,7 @@
     <ClInclude Include="..\sakura_core\dlg\CDlgGrepReplace.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgInput1.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgAutoCloseBrackets.h" />
+    <ClInclude Include="..\sakura_core\dlg\CDlgTypeKeyBind.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgJump.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgOpenFile.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgPluginOption.h" />
@@ -354,6 +355,11 @@
     <ClInclude Include="..\sakura_core\outline\CFuncInfoArr.h" />
     <ClInclude Include="..\sakura_core\parse\CWordParse.h" />
     <ClInclude Include="..\sakura_core\parse\DetectIndentationStyle.h" />
+    <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.h" />
+    <ClInclude Include="..\sakura_core\cmd\markdown\MarkdownInput.h" />
+    <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.h" />
+    <ClInclude Include="..\sakura_core\parse\markdown\MarkdownParseUtil.h" />
+    <ClInclude Include="..\sakura_core\parse\markdown\MarkdownTypes.h" />
     <ClInclude Include="..\sakura_core\plugin\CComplementIfObj.h" />
     <ClInclude Include="..\sakura_core\plugin\CDllPlugin.h" />
     <ClInclude Include="..\sakura_core\plugin\CJackManager.h" />
@@ -427,6 +433,11 @@
     <ClInclude Include="..\sakura_core\util\StaticType.h" />
     <ClInclude Include="..\sakura_core\util\std_macro.h" />
     <ClInclude Include="..\sakura_core\util\string_ex.h" />
+    <ClInclude Include="..\sakura_core\util\ImageLink.h" />
+    <ClInclude Include="..\sakura_core\util\ImageDecoder.h" />
+    <ClInclude Include="..\sakura_core\view\NoteProjection.h" />
+    <ClInclude Include="..\sakura_core\view\NoteImageCache.h" />
+    <ClInclude Include="..\sakura_core\window\CImagePreviewWnd.h" />
     <ClInclude Include="..\sakura_core\util\string_ex2.h" />
     <ClInclude Include="..\sakura_core\util\tchar_convert.h" />
     <ClInclude Include="..\sakura_core\util\tchar_template.h" />
@@ -453,6 +464,7 @@
     <ClInclude Include="..\sakura_core\view\CViewCalc.h" />
     <ClInclude Include="..\sakura_core\view\CViewFont.h" />
     <ClInclude Include="..\sakura_core\view\CFontFallback.h" />
+    <ClInclude Include="..\sakura_core\view\CMarkdownEmphasis.h" />
     <ClInclude Include="..\sakura_core\env\SFontFallbacks.h" />
     <ClInclude Include="..\sakura_core\dlg\CDlgFontFallback.h" />
     <ClInclude Include="..\sakura_core\view\CViewParser.h" />
@@ -569,6 +581,8 @@
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_CustMenu.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Diff.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit.cpp" />
+    <ClCompile Include="..\sakura_core\cmd\CViewCommander_Markdown.cpp" />
+    <ClCompile Include="..\sakura_core\cmd\markdown\MarkdownInput.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_advanced.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_word_line.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_File.cpp" />
@@ -634,6 +648,7 @@
     <ClCompile Include="..\sakura_core\dlg\CDlgGrepReplace.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgInput1.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgAutoCloseBrackets.cpp" />
+    <ClCompile Include="..\sakura_core\dlg\CDlgTypeKeyBind.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgJump.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgOpenFile.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgOpenFile_CommonFileDialog.cpp" />
@@ -728,6 +743,8 @@
     <ClCompile Include="..\sakura_core\outline\CFuncInfoArr.cpp" />
     <ClCompile Include="..\sakura_core\parse\CWordParse.cpp" />
     <ClCompile Include="..\sakura_core\parse\DetectIndentationStyle.cpp" />
+    <ClCompile Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.cpp" />
+    <ClCompile Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.cpp" />
     <ClCompile Include="..\sakura_core\plugin\CDllPlugin.cpp" />
     <ClCompile Include="..\sakura_core\plugin\CJackManager.cpp" />
     <ClCompile Include="..\sakura_core\plugin\CPlugin.cpp" />
@@ -799,6 +816,7 @@
     <ClCompile Include="..\sakura_core\types\CType_Erlang.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Html.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Ini.cpp" />
+    <ClCompile Include="..\sakura_core\types\CType_Markdown.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Java.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Others.cpp" />
     <ClCompile Include="..\sakura_core\types\CType_Pascal.cpp" />
@@ -841,6 +859,12 @@
     <ClCompile Include="..\sakura_core\view\CEditView_ExecCmd.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Ime.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Mouse.cpp" />
+    <ClCompile Include="..\sakura_core\view\CEditView_ImageLink.cpp" />
+    <ClCompile Include="..\sakura_core\view\CEditView_Note.cpp" />
+    <ClCompile Include="..\sakura_core\view\NoteImageCache.cpp" />
+    <ClCompile Include="..\sakura_core\util\ImageDecoder.cpp" />
+    <ClCompile Include="..\sakura_core\util\ImageLink.cpp" />
+    <ClCompile Include="..\sakura_core\window\CImagePreviewWnd.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Paint.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Paint_Bracket.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Scroll.cpp" />
@@ -862,6 +886,7 @@
     <ClCompile Include="..\sakura_core\view\CViewCalc.cpp" />
     <ClCompile Include="..\sakura_core\view\CViewFont.cpp" />
     <ClCompile Include="..\sakura_core\view\CFontFallback.cpp" />
+    <ClCompile Include="..\sakura_core\view\CMarkdownEmphasis.cpp" />
     <ClCompile Include="..\sakura_core\dlg\CDlgFontFallback.cpp" />
     <ClCompile Include="..\sakura_core\view\CViewParser.cpp" />
     <ClCompile Include="..\sakura_core\view\CViewSelect.cpp" />

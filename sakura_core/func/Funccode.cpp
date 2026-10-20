@@ -139,7 +139,30 @@ const EFunctionCode pnFuncList_Edit[] = {	//Oct. 16, 2000 JEPRO 変数名変更(
 	F_SORT_ASC			,	//選択行の昇順ソート	2001.12.06 hor
 	F_SORT_DESC			,	//選択行の降順ソート	2001.12.06 hor
 	F_MERGE				,	//選択行のマージ		2001.12.06 hor
-	F_RECONVERT				//再変換 				2002.04.09 minfu
+	F_RECONVERT			,	//再変換 				2002.04.09 minfu
+	F_MARKDOWN_BOLD     ,
+	F_MARKDOWN_ITALIC,
+	F_MARKDOWN_STRIKE,
+	F_MARKDOWN_H1,
+	F_MARKDOWN_H2,
+	F_MARKDOWN_H3,
+	F_MARKDOWN_H4,
+	F_MARKDOWN_H5,
+	F_MARKDOWN_H6,
+	F_MARKDOWN_QUOTE,
+	F_MARKDOWN_BULLET,
+	F_MARKDOWN_ORDERED,
+	F_MARKDOWN_TASK,
+	F_MARKDOWN_TASKCHECK,
+	F_MARKDOWN_CODE,
+	F_MARKDOWN_FENCE,
+	F_MARKDOWN_LINK,
+	F_MARKDOWN_IMAGE,
+	F_MARKDOWN_TABLE,
+	F_MARKDOWN_HR,
+	F_MARKDOWN_ENTER,
+	F_MARKDOWN_INDENT,
+	F_MARKDOWN_UNINDENT
 //		F_WORDSREFERENCE		//単語リファレンス
 };
 constexpr auto nFincList_Edit_Num = int(std::size(pnFuncList_Edit));	//Oct. 16, 2000 JEPRO 変数名変更(List3→List_Edit)
@@ -271,6 +294,7 @@ constexpr auto nFincList_Clip_Num = int(std::size(pnFuncList_Clip));	//Oct. 16, 
 /* 挿入系 */
 const EFunctionCode pnFuncList_Insert[] = {
 	F_INS_DATE				,	// 日付挿入
+	F_INS_IMAGE_LINK,
 	F_INS_TIME				,	// 時刻挿入
 	F_CTRL_CODE_DIALOG		,	// コントロールコードの入力
 	F_INS_FILE_USED_RECENTLY,	// 最近使ったファイル挿入
@@ -373,6 +397,7 @@ const EFunctionCode pnFuncList_Set[] = {	//Oct. 16, 2000 JEPRO 変数名変更(L
 	F_SHOWTAB			,	/* タブの表示 */	//@@@ 2003.06.10 MIK
 	F_SHOWSTATUSBAR		,	/* ステータスバーの表示 */
 	F_SHOWMINIMAP		,	// ミニマップの表示
+	F_NOTE_VIEW			,	// ノート表示
 	F_TYPE_LIST			,	/* タイプ別設定一覧 */			//Sept. 17, 2000 JEPRO 設定系に入ってなかったので追加
 	F_OPTION_TYPE		,	/* タイプ別設定 */
 	F_OPTION			,	/* 共通設定 */
@@ -1289,6 +1314,7 @@ bool IsFuncChecked( const CEditDoc* pcEditDoc, const DLLSHAREDATA* pShareData, E
 	case F_SHOWTAB:				return pCEditWnd->m_cTabWnd.GetHwnd() != nullptr;	//@@@ 2003.06.10 MIK
 	case F_SHOWSTATUSBAR:		return pCEditWnd->m_cStatusBar.GetStatusHwnd() != nullptr;
 	case F_SHOWMINIMAP:			return pCEditWnd->GetMiniMap().GetHwnd() != nullptr;
+	case F_NOTE_VIEW:			return pCEditWnd->IsNoteView();
 	// 2008.05.30 nasukoji	テキストの折り返し方法
 	case F_TMPWRAPNOWRAP:		return ( pcEditDoc->m_nTextWrapMethodCur == WRAP_NO_TEXT_WRAP );		// 折り返さない
 	case F_TMPWRAPSETTING:		return ( pcEditDoc->m_nTextWrapMethodCur == WRAP_SETTING_WIDTH );		// 指定桁で折り返す

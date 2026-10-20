@@ -82,6 +82,7 @@ BOOL CViewCommander::HandleCommand(
 	//	下位16ビットのみを取り出す
 	//	Jul.  7, 2007 genta 定数と比較するためにシフトしないで使う
 	int nCommandFrom = nCommand & ~0xffff;
+	m_pCommanderView->CancelImagePreview();
 	nCommand = (EFunctionCode)LOWORD( nCommand );
 
 	if( m_pCommanderView->m_nAutoScrollMode && F_AUTOSCROLL != nCommand ){
@@ -205,11 +206,32 @@ BOOL CViewCommander::HandleCommand(
 	// -------------------------------------
 
 	switch( nCommand ){
-	case F_WCHAR:	/* 文字入力 */
-		{
-			Command_WCHAR( (wchar_t)lparam1 );
-		}
-		break;
+	case F_WCHAR:	            Command_WCHAR( (wchar_t)lparam1 );break;
+	// 保存済みの専用コマンド割り当ても、通常入力と同じスマートインデント設定に従う。
+	case F_MARKDOWN_ENTER:       Command_WCHAR(L'\r'); break;
+	case F_MARKDOWN_INDENT:      Command_INDENT(WCODE::TAB, INDENT_TAB); break;
+	case F_MARKDOWN_UNINDENT:    Command_UNINDENT(WCODE::TAB); break;
+	case F_MARKDOWN_BOLD:
+	case F_MARKDOWN_ITALIC:
+	case F_MARKDOWN_STRIKE:
+	case F_MARKDOWN_H1:
+	case F_MARKDOWN_H2:
+	case F_MARKDOWN_H3:
+	case F_MARKDOWN_H4:
+	case F_MARKDOWN_H5:
+	case F_MARKDOWN_H6:
+	case F_MARKDOWN_QUOTE:
+	case F_MARKDOWN_BULLET:
+	case F_MARKDOWN_ORDERED:
+	case F_MARKDOWN_TASK:
+	case F_MARKDOWN_TASKCHECK:
+	case F_MARKDOWN_CODE:
+	case F_MARKDOWN_FENCE:
+	case F_MARKDOWN_LINK:
+	case F_MARKDOWN_IMAGE:
+	case F_MARKDOWN_TABLE:
+	case F_MARKDOWN_HR:
+		Command_MARKDOWN(nCommand); break;
 
 	/* ファイル操作系 */
 	case F_FILENEW:				Command_FILENEW();break;			/* 新規作成 */
@@ -423,6 +445,7 @@ BOOL CViewCommander::HandleCommand(
 
 	/* 挿入系 */
 	case F_INS_DATE:				Command_INS_DATE();break;	//日付挿入
+	case F_INS_IMAGE_LINK:		Command_INS_IMAGE_LINK();break;
 	case F_INS_TIME:				Command_INS_TIME();break;	//時刻挿入
     case F_CTRL_CODE_DIALOG:		Command_CtrlCode_Dialog();break;	/* コントロールコードの入力(ダイアログ) */	//@@@ 2002.06.02 MIK
     case F_CTRL_CODE:				Command_WCHAR( (wchar_t)lparam1, false );break;
@@ -528,6 +551,7 @@ BOOL CViewCommander::HandleCommand(
 	case F_SHOWTAB:			Command_SHOWTAB();break;		/* タブの表示/非表示 */	//@@@ 2003.06.10 MIK
 	case F_SHOWSTATUSBAR:	Command_SHOWSTATUSBAR();break;	/* ステータスバーの表示/非表示 */
 	case F_SHOWMINIMAP:		Command_SHOWMINIMAP();break;	// ミニマップの表示/非表示
+	case F_NOTE_VIEW:		GetEditWindow()->SetNoteView(!GetEditWindow()->IsNoteView()); break;
 	case F_TYPE_LIST:		Command_TYPE_LIST();break;		/* タイプ別設定一覧 */
 	case F_CHANGETYPE:		Command_CHANGETYPE((int)lparam1);break;		// タイプ別設定一時適用
 	case F_OPTION_TYPE:		Command_OPTION_TYPE();break;	/* タイプ別設定 */

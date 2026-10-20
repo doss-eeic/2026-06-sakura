@@ -20,6 +20,38 @@
 #include "env/CFormatManager.h"
 #include "recent/CMRUFile.h"
 #include "recent/CMRUFolder.h"
+#include "util/ImageLink.h"
+#include "util/window.h"
+#include "util/os.h"
+#include "sakura_rc.h"
+#include "CSelectLang.h"
+#include <commdlg.h>
+
+void CViewCommander::Command_INS_IMAGE_LINK()
+{
+	if (!GetDocument()->IsEditable() || m_pCommanderView->GetSelectionInfo().IsBoxSelecting()) return;
+	wchar_t path[32768]{};
+	// OPENFILENAME uses a double-NUL-terminated filter list.
+	std::wstring filter = LS(STR_IMAGE_LINK_FILTER);
+	filter.push_back(L'\0');
+	filter += L"*.png;*.jpg;*.jpeg";
+	filter.append(2, L'\0');
+	OPENFILENAMEW dialog{sizeof(dialog)};
+	dialog.hwndOwner = m_pCommanderView->GetHwnd();
+	dialog.lpstrTitle = LS(F_INS_IMAGE_LINK);
+	dialog.lpstrFilter = filter.c_str();
+	dialog.lpstrFile = path;
+	dialog.nMaxFile = static_cast<DWORD>(std::size(path));
+	dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_EXPLORER;
+	if (!Comdlg32::getInstance()->GetOpenFileNameW(&dialog)) return;
+	const auto link = ImageLink::MakeLink(path);
+	if (!link || !ImageLink::IsReadableFile(path)) {
+		InfoMessage(m_pCommanderView->GetHwnd(), LS(STR_IMAGE_LINK_ERROR));
+		return;
+	}
+	const auto text = m_pCommanderView->PrepareNoteInsertion(*link);
+	Command_INSTEXT(true, text.c_str(), text.size(), true);
+}
 
 //日付挿入
 void CViewCommander::Command_INS_DATE( void )

@@ -26,7 +26,7 @@ void CDocVisitor::SetAllEol(CEol cEol)
 	}
 
 	//カーソル位置記憶
-	CLayoutInt		nViewTopLine = pcView->GetTextArea().GetViewTopLine();
+	const auto displayTop = pcView->GetTextArea().GetDisplayTop();
 	CLayoutInt		nViewLeftCol = pcView->GetTextArea().GetViewLeftCol();
 	CLayoutPoint	ptCaretPosXY = pcView->GetCaret().GetCaretLayoutPos();
 	CLayoutInt		nCaretPosX_Prev = pcView->GetCaret().m_nCaretPosX_Prev;
@@ -75,7 +75,7 @@ void CDocVisitor::SetAllEol(CEol cEol)
 	if(pcView->m_cCommander.GetOpeBlk()){
 		if(pcView->m_cCommander.GetOpeBlk()->GetNum()>0){
 			// カーソル位置復元
-			pcView->GetTextArea().SetViewTopLine(nViewTopLine);
+			pcView->GetTextArea().SetDisplayTop(displayTop);
 			pcView->GetTextArea().SetViewLeftCol(nViewLeftCol);
 			pcView->GetCaret().MoveCursor( ptCaretPosXY, true );
 			pcView->GetCaret().m_nCaretPosX_Prev = nCaretPosX_Prev;

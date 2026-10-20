@@ -490,13 +490,38 @@ CLayoutInt CEditView::GetDisplayLineCount() const
 		return originalLines;
 	}
 
-	return originalLines
-		- m_ime.originalLayoutLines
-		+ m_imeLayout->GetLineCount();
+	return CLayoutInt(std::clamp<std::int64_t>(static_cast<int>(originalLines)
+		- static_cast<std::int64_t>(static_cast<int>(m_ime.originalLayoutLines))
+		+ static_cast<int>(m_imeLayout->GetLineCount()), 0, INT_MAX));
+}
+
+CLayoutInt CEditView::DocumentToDisplayLayoutLine(CLayoutInt line) const
+{
+	if (!IsImeInlineDisplay() || !m_imeLayout || line < m_ime.firstLayoutLine) return line;
+	const auto first = static_cast<int>(m_ime.firstLayoutLine);
+	const auto original = static_cast<int>(m_ime.originalLayoutLines);
+	const auto display = static_cast<int>(m_imeLayout->GetLineCount());
+	const auto offset = static_cast<std::int64_t>(static_cast<int>(line)) - first;
+	const auto mapped = offset < original ? first + std::min<std::int64_t>(offset, std::max(0, display - 1))
+		: static_cast<std::int64_t>(static_cast<int>(line)) - original + display;
+	return CLayoutInt(std::clamp<std::int64_t>(mapped, 0, INT_MAX));
+}
+
+CLayoutInt CEditView::DisplayToDocumentLayoutLine(CLayoutInt line) const
+{
+	if (!IsImeInlineDisplay() || !m_imeLayout || line < m_ime.firstLayoutLine) return line;
+	const auto first = static_cast<int>(m_ime.firstLayoutLine);
+	const auto original = static_cast<int>(m_ime.originalLayoutLines);
+	const auto display = static_cast<int>(m_imeLayout->GetLineCount());
+	const auto offset = static_cast<std::int64_t>(static_cast<int>(line)) - first;
+	const auto mapped = offset < display ? first + std::min<std::int64_t>(offset, std::max(0, original - 1))
+		: static_cast<std::int64_t>(static_cast<int>(line)) - display + original;
+	return CLayoutInt(std::clamp<std::int64_t>(mapped, 0, INT_MAX));
 }
 
 void CEditView::RebuildImeDisplayLayout()
 {
+	RestoreNoteDocumentProjection();
 	m_ime.displayValid = false;
 
 	// レイアウトは行データを参照しているので、この順に破棄する。
@@ -600,9 +625,11 @@ void CEditView::RebuildImeDisplayLayout()
 	);
 
 	m_ime.displayValid = true;
+	RefreshNoteImeProjection();
 }
 void CEditView::BeginImeComposition()
 {
+	RestoreNoteDocumentProjection();
 	m_imeLayout.reset();
 	m_imeLine.reset();
 	m_ime = SImeComposition{};
@@ -630,6 +657,7 @@ void CEditView::BeginImeComposition()
 
 void CEditView::EndImeComposition()
 {
+	RestoreNoteDocumentProjection();
 	m_bImeNativeComposition = false;
 
 	m_ime.displayValid = false;
@@ -696,6 +724,7 @@ void CEditView::CommitImeResultViaDefault(
 
 void CEditView::CommitImeResult(const std::wstring& text)
 {
+	RestoreNoteDocumentProjection();
 	// 編集コマンドによる再描画では通常の本文を参照する。
 	m_ime.displayValid = false;
 	m_ime.active = false;
@@ -960,6 +989,7 @@ bool CEditView::IsImeInlineDisplay() const
 
 void CEditView::InvalidateImeDisplayLayout()
 {
+	RestoreNoteDocumentProjection();
 	m_ime.displayValid = false;
 }
 
@@ -1017,17 +1047,17 @@ bool CEditView::ShouldUseNativeIme() const
 void CEditView::EnsureDisplayCaretVisible()
 {
 	// 表示行数・最大幅が減った場合のスクロール位置を補正する。
-	ScrollAtV(GetTextArea().GetViewTopLine());
+	ScrollDisplayAtV(GetTextArea().GetDisplayTop());
 	ScrollAtH(GetTextArea().GetViewLeftCol());
 
 	const CLayoutPoint caret = GetDisplayCaretLayoutPos();
+	const auto caretRow = GetTextArea().GetNoteProjection().FromLayout(static_cast<int>(caret.y));
+	const auto relative = caretRow.value - GetTextArea().GetDisplayTop().value;
 
-	if (caret.y < GetTextArea().GetViewTopLine()) {
-		ScrollAtV(caret.y);
-	} else if (caret.y >= GetTextArea().GetBottomLine()) {
-		ScrollAtV(
-			caret.y - GetTextArea().m_nViewRowNum + CLayoutInt(1)
-		);
+	if (relative < 0) {
+		ScrollDisplayAtV(caretRow);
+	} else if (relative >= static_cast<int>(GetTextArea().m_nViewRowNum)) {
+		ScrollDisplayAtV(NoteView::DisplayRow(caretRow.value - static_cast<int>(GetTextArea().m_nViewRowNum) + 1));
 	}
 
 	if (caret.x < GetTextArea().GetViewLeftCol()) {
@@ -1151,7 +1181,7 @@ void CEditView::RefreshImeDisplayAfterRelayout()
 	RebuildImeDisplayLayout();
 
 	// 有効範囲から外れたスクロール位置だけを補正する。
-	ScrollAtV(GetTextArea().GetViewTopLine());
+	ScrollDisplayAtV(GetTextArea().GetDisplayTop());
 	ScrollAtH(GetTextArea().GetViewLeftCol());
 	AdjustScrollBars();
 

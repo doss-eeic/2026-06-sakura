@@ -349,6 +349,7 @@ BOOL CEditView::Create(
 	}
 
 	m_bHideMouse = false;
+	::SetTimer(GetHwnd(), IDT_IMAGE_PREVIEW, 50, EditViewTimerProc);
 	CRegKey reg;
 	BYTE bUserPref[8] = {0};
 	reg.Open(HKEY_CURRENT_USER, L"Control Panel\\Desktop" );
@@ -370,6 +371,7 @@ CEditView::~CEditView()
 
 void CEditView::Close()
 {
+	CancelImagePreview();
 	if( GetHwnd() != nullptr ){
 		::DestroyWindow( GetHwnd() );
 	}
@@ -404,6 +406,23 @@ LRESULT CEditView::DispatchEvent(
 //	int			nPosX;
 //	int			nPosY;
 
+	switch (uMsg) {
+	case WM_MOUSELEAVE:
+	case WM_LBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+	case WM_MBUTTONDOWN:
+	case WM_XBUTTONDOWN:
+	case WM_KEYDOWN:
+	case WM_SYSKEYDOWN:
+	case WM_IME_STARTCOMPOSITION:
+	case WM_MOUSEWHEEL:
+	case WM_MOUSEHWHEEL:
+	case WM_SIZE:
+	case WM_SHOWWINDOW:
+	case WM_DESTROY:
+		CancelImagePreview();
+		break;
+	}
 	switch ( uMsg ){
 	case WM_MOUSEWHEEL:
 		if( GetEditWnd().DoMouseWheel( wParam, lParam ) ){
@@ -935,6 +954,7 @@ void CEditView::OnMove( int x, int y, int nWidth, int nHeight )
 /* ウィンドウサイズの変更処理 */
 void CEditView::OnSize( int cx, int cy )
 {
+	InvalidateNoteRequests();
 	if( nullptr == GetHwnd()
 		|| ( cx == 0 && cy == 0 ) ){
 		// From Here 2007.09.09 Moca 互換BMPによる画面バッファ
@@ -1003,6 +1023,10 @@ void CEditView::OnSize( int cx, int cy )
 
 	if( !wrapChanged )	// 折り返し位置が変更されていない
 		AdjustScrollBars();				// スクロールバーの状態を更新する
+	if (HasNoteBlocks()) {
+		ScrollDisplayAtV(GetTextArea().GetDisplayTop());
+		InvalidateRect(nullptr, FALSE);
+	}
 
 	// キャレットの表示(右・下に隠れていた場合)
 	GetCaret().ShowEditCaret();
@@ -1098,6 +1122,7 @@ void CEditView::OnSetFocus( void )
 /* 入力フォーカスを失ったときの処理 */
 void CEditView::OnKillFocus( void )
 {
+	CancelImagePreview();
 	if( m_bMiniMap ){
 		return;
 	}
@@ -1327,6 +1352,11 @@ VOID CEditView::OnTimer(
 	[[maybe_unused]] DWORD dwTime 	// current system time
 	)
 {
+	if (idEvent == IDT_IMAGE_PREVIEW) {
+		PollNoteImages();
+		if (m_imageHover) UpdateImagePreview(false);
+		return;
+	}
 	POINT		po;
 	RECT		rc;
 
@@ -1348,7 +1378,7 @@ VOID CEditView::OnTimer(
 				}
 			}
 		}else{
-			if( FALSE != KeyWordHelpSearchDict( LID_SKH_ONTIMER, &po, &rc ) ){	// 2006.04.10 fon
+			if( !m_imageHover && FALSE != KeyWordHelpSearchDict( LID_SKH_ONTIMER, &po, &rc ) ){	// 2006.04.10 fon
 				/* 辞書Tipを表示 */
 				m_cTipWnd.Show( po.x, po.y + GetTextMetrics().GetHankakuHeight() );
 			}
@@ -1819,6 +1849,7 @@ void CEditView::UpdateDisplayColors()
 /* 設定変更を反映させる */
 void CEditView::OnChangeSetting()
 {
+	CancelImagePreview();
 	if( nullptr == GetHwnd() ){
 		return;
 	}
@@ -1883,6 +1914,10 @@ void CEditView::CopyViewStatus( CEditView* pView ) const
 
 	/* 画面情報 */
 	GetTextArea().CopyTextAreaStatus(&pView->GetTextArea());
+	if (pView->IsNoteView()) {
+		pView->RebuildNoteProjection();
+		pView->GetTextArea().SetDisplayTop(GetTextArea().GetDisplayTop());
+	}
 
 	/* 表示方法 */
 	GetTextMetrics().CopyTextMetricsStatus(&pView->GetTextMetrics());
@@ -2584,6 +2619,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 		{
 			CGraphics gr(hdc);
 			gr.SetPen( GetDisplayColorInfo(COLORIDX_CURSORVLINE).m_sColorAttr.m_cTEXT );
+			if (HasNoteBlocks()) ExcludeNoteBlocks(hdc);
 			::MoveToEx( gr, m_nOldCursorLineX, GetTextArea().GetAreaTop(), nullptr );
 			::LineTo(   gr, m_nOldCursorLineX, GetTextArea().GetAreaBottom() );
 			int nBoldX = m_nOldCursorLineX - 1;
@@ -2602,8 +2638,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 
 	int nUnderLineY = -1;
 	if( bUnderLine ){
-		nUnderLineY = GetTextArea().GetAreaTop() + (Int)(GetDisplayCaretLayoutPos().GetY2() - GetTextArea().GetViewTopLine())
-			 * GetTextMetrics().GetHankakuDy() + GetTextMetrics().GetHankakuHeight();
+		nUnderLineY = GetTextArea().LayoutToClientY(GetDisplayCaretLayoutPos().GetY2()) + GetTextMetrics().GetHankakuHeight();
 	}
 	// To Here 2007.09.09 Moca
 
@@ -2627,6 +2662,7 @@ void CEditView::CaretUnderLineON( bool bDraw, bool bDrawPaint, bool DisalbeUnder
 		{
 			CGraphics gr(hdc);
 			gr.SetPen( GetDisplayColorInfo(COLORIDX_UNDERLINE).m_sColorAttr.m_cTEXT );
+			if (HasNoteBlocks()) ExcludeNoteBlocks(hdc);
 			::MoveToEx(
 				gr,
 				GetTextArea().GetAreaLeft(),
@@ -2660,10 +2696,10 @@ void CEditView::CaretUnderLineOFF( bool bDraw, bool bDrawPaint, bool bResetFlag,
 		){
 			// -- -- カーソル行アンダーラインの消去（無理やり） -- -- //
 			int nUnderLineY; // client px
-			CLayoutYInt nY = m_nOldUnderLineY - GetTextArea().GetViewTopLine();
+			const auto nY = GetTextArea().RelativeRow(m_nOldUnderLineY);
 			if( nY < 0 ){
 				nUnderLineY = -1;
-			}else if( GetTextArea().m_nViewRowNum < nY ){
+			}else if( static_cast<int>(GetTextArea().m_nViewRowNum) < nY ){
 				nUnderLineY = GetTextArea().GetAreaBottom() + 1;
 			}else{
 				nUnderLineY = GetTextArea().GetAreaTop() + (Int)(nY) * GetTextMetrics().GetHankakuDy();
@@ -2781,6 +2817,9 @@ void CEditView::SetInsMode(bool mode)
 
 void CEditView::OnAfterLoad([[maybe_unused]] const SLoadInfo& sLoadInfo)
 {
+	RebuildNoteProjection();
+	InvalidateNoteRequests();
+	m_noteAnchor.valid = false;
 	if( nullptr == GetHwnd() ){
 		// MiniMap 非表示
 		return;

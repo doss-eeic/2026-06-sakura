@@ -13,6 +13,8 @@
 #include "types/CType.h"
 #include "util/MessageBoxF.h"
 
+#include <string>
+
 class CEditView;
 enum EFunctionCode;
 class CEditDoc;
@@ -115,6 +117,12 @@ public:
 
 	/* 編集系 */
 	void Command_WCHAR(wchar_t wcChar, bool bConvertEOL = true );			/* 文字入力 */ //2007.09.02 kobake Command_CHAR(char)→Command_WCHAR(wchar_t)に変更
+	void Command_ENCLOSE(const std::wstring& opening, const std::wstring& closing);
+	void Command_MARKDOWN(EFunctionCode command);
+	bool TryMarkdownEnter();
+	bool TryMarkdownIndent(bool unindent);
+	void ApplyMarkdownInput(const CLogicRange& range, const std::wstring& text,
+		const CLogicPoint& caret, const CLogicRange* selected = nullptr);
 	wchar_t GetAutoCloseBracket(wchar_t opening);	/* 現在の入力条件で補完する閉じ文字を取得 */
 	void Command_IME_CHAR(WORD wChar);			/* 全角文字入力 */
 	void Command_UNDO( void );				/* 元に戻す(Undo) */
@@ -227,6 +235,7 @@ public:
 
 	/* 挿入系 */
 	void Command_INS_DATE( void );	//日付挿入
+	void Command_INS_IMAGE_LINK();
 	void Command_INS_TIME( void );	//時刻挿入
 	void Command_CtrlCode_Dialog(void);		/* コントロールコードの入力(ダイアログ) */	//@@@ 2002.06.02 MIK
 	void Command_INS_FILE_USED_RECENTLY( void );	//最近使ったファイル挿入
@@ -394,8 +403,9 @@ public:
 
 private:
 	void MoveViewTopLine(CLayoutInt nViewTopLine);
-	bool HandleBracketWrapping(wchar_t opening, wchar_t closing);
-	void WrapBoxSelectionWithBrackets(wchar_t opening, wchar_t closing);
+	bool HandleBracketWrapping(const std::wstring& opening, const std::wstring& closing);
+	void WrapBoxSelectionWithBrackets(const std::wstring& opening, const std::wstring& closing);
+	void InsertBracketPair(const std::wstring& opening, const std::wstring& closing);
 	bool HandleBracketPairDeletion(bool backspace);
 	/*!
 	 * @brief 検索で見つからないときの警告（メッセージボックス／サウンド）

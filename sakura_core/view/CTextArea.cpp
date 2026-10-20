@@ -44,7 +44,7 @@ CTextArea::CTextArea(CEditView* pEditView)
 	m_nViewCy = 0;				/* 表示域の高さ */
 	m_nViewColNum = CLayoutInt(0);			/* 表示域の桁数 */
 	m_nViewRowNum = CLayoutInt(0);			/* 表示域の行数 */
-	m_nViewTopLine = CLayoutInt(0);			/* 表示域の一番上の行 */
+	m_displayTop = NoteView::DisplayRow(0);
 	m_nViewLeftCol = CLayoutInt(0);			/* 表示域の一番左の桁 */
 	SetTopYohaku(DpiScaleY(pShareData->m_Common.m_sWindow.m_nRulerBottomSpace)); 	/* ルーラーとテキストの隙間 */
 	SetLeftYohaku(DpiScaleX(pShareData->m_Common.m_sWindow.m_nLineNumRightSpace));
@@ -295,8 +295,28 @@ void CTextArea::ClientToLayout(CMyPoint ptClient, CLayoutPoint* pptLayout) const
 	const CEditView* pView=m_pEditView;
 	pptLayout->Set(
 		GetViewLeftCol() + CLayoutInt( (ptClient.x - GetAreaLeft()) / pView->GetTextMetrics().GetCharPxWidth() ),
-		GetViewTopLine() + CLayoutInt( (ptClient.y - GetAreaTop()) / pView->GetTextMetrics().GetHankakuDy() )
+		CLayoutInt(HitClientRow(ptClient.y).layoutLine)
 	);
+}
+
+NoteView::Projection::Hit CTextArea::HitClientRow(int y) const
+{
+	const auto height = m_pEditView->GetTextMetrics().GetHankakuDy();
+	const auto relative = static_cast<std::int64_t>(y) - GetAreaTop();
+	// Preserve the legacy truncation outside note mode.
+	const auto row = relative / height;
+	auto hit = m_noteProjection.ToLayout(NoteView::DisplayRow(NoteView::Projection::Add(m_displayTop.value, row)));
+	hit.layoutLine = std::clamp<std::int64_t>(hit.layoutLine, INT_MIN, INT_MAX);
+	return hit;
+}
+
+int CTextArea::LayoutToClientY(CLayoutInt line) const
+{
+	const auto relative = RelativeRow(line);
+	const auto height = m_pEditView->GetTextMetrics().GetHankakuDy();
+	if (relative < -NoteView::Projection::BlockRows - 1) return GetAreaTop() - static_cast<int>(NoteView::Projection::BlockRows + 1) * height;
+	if (relative > static_cast<Int>(m_nViewRowNum) + 1) return GetAreaBottom() + height;
+	return GetAreaTop() + static_cast<int>(relative) * height;
 }
 
 //! 行番号エリアも含む範囲
@@ -351,11 +371,11 @@ void CTextArea::GenerateTextAreaRect(RECT* rc) const
 
 int CTextArea::GenerateYPx(CLayoutYInt nLineNum) const
 {
-	CLayoutYInt nY = nLineNum - GetViewTopLine();
+	const auto nY = RelativeRow(nLineNum);
 	int ret;
 	if( nY < 0 ){
 		ret = GetAreaTop();
-	}else if( m_nViewRowNum < nY ){
+	}else if( static_cast<int>(m_nViewRowNum) < nY ){
 		ret = GetAreaBottom();
 	}else{
 		ret = GetAreaTop() + m_pEditView->GetTextMetrics().GetHankakuDy() * (Int)(nY);

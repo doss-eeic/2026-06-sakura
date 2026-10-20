@@ -436,6 +436,21 @@
     <ClInclude Include="..\sakura_core\parse\CWordParse.h">
       <Filter>Cpp Source Files\parse</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\cmd\markdown\MarkdownInput.h">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\MarkdownParseUtil.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\parse\markdown\MarkdownTypes.h">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\env\CAppNodeManager.h">
       <Filter>Cpp Source Files\env</Filter>
     </ClInclude>
@@ -516,6 +531,21 @@
     </ClInclude>
     <ClInclude Include="..\sakura_core\util\string_ex.h">
       <Filter>Cpp Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\window\CImagePreviewWnd.h">
+      <Filter>Cpp Source Files\window</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\util\ImageLink.h">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\util\ImageDecoder.h">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\view\NoteProjection.h">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\view\NoteImageCache.h">
+      <Filter>Cpp Source Files\view</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\util\string_ex2.h">
       <Filter>Cpp Source Files\util</Filter>
@@ -614,6 +644,9 @@
       <Filter>Cpp Source Files\view</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\view\CFontFallback.h">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\view\CMarkdownEmphasis.h">
       <Filter>Cpp Source Files\view</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\env\SFontFallbacks.h">
@@ -872,6 +905,9 @@
       <Filter>Cpp Source Files\dlg</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\dlg\CDlgAutoCloseBrackets.h">
+      <Filter>Cpp Source Files\dlg</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\dlg\CDlgTypeKeyBind.h">
       <Filter>Cpp Source Files\dlg</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\dlg\CDlgJump.h">
@@ -1471,6 +1507,12 @@
     <ClCompile Include="..\sakura_core\parse\CWordParse.cpp">
       <Filter>Cpp Source Files\parse</Filter>
     </ClCompile>
+    <ClCompile Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.cpp">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.cpp">
+      <Filter>Cpp Source Files\parse</Filter>
+    </ClCompile>
     <ClCompile Include="..\sakura_core\env\CAppNodeManager.cpp">
       <Filter>Cpp Source Files\env</Filter>
     </ClCompile>
@@ -1648,6 +1690,9 @@
     <ClCompile Include="..\sakura_core\types\CType_Ini.cpp">
       <Filter>Cpp Source Files\types</Filter>
     </ClCompile>
+    <ClCompile Include="..\sakura_core\types\CType_Markdown.cpp">
+      <Filter>Cpp Source Files\types</Filter>
+    </ClCompile>
     <ClCompile Include="..\sakura_core\types\CType_Java.cpp">
       <Filter>Cpp Source Files\types</Filter>
     </ClCompile>
@@ -1714,6 +1759,24 @@
     <ClCompile Include="..\sakura_core\view\CEditView_Mouse.cpp">
       <Filter>Cpp Source Files\view</Filter>
     </ClCompile>
+    <ClCompile Include="..\sakura_core\window\CImagePreviewWnd.cpp">
+      <Filter>Cpp Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\util\ImageLink.cpp">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\CEditView_Note.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\NoteImageCache.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\util\ImageDecoder.cpp">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\CEditView_ImageLink.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
     <ClCompile Include="..\sakura_core\view\CEditView_Paint.cpp">
       <Filter>Cpp Source Files\view</Filter>
     </ClCompile>
@@ -1745,6 +1808,9 @@
       <Filter>Cpp Source Files\view</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CFontFallback.cpp">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\view\CMarkdownEmphasis.cpp">
       <Filter>Cpp Source Files\view</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\dlg\CDlgFontFallback.cpp">
@@ -2059,6 +2125,9 @@
     <ClCompile Include="..\sakura_core\dlg\CDlgAutoCloseBrackets.cpp">
       <Filter>Cpp Source Files\dlg</Filter>
     </ClCompile>
+    <ClCompile Include="..\sakura_core\dlg\CDlgTypeKeyBind.cpp">
+      <Filter>Cpp Source Files\dlg</Filter>
+    </ClCompile>
     <ClCompile Include="..\sakura_core\dlg\CDlgJump.cpp">
       <Filter>Cpp Source Files\dlg</Filter>
     </ClCompile>
@@ -2237,6 +2306,12 @@
       <Filter>Cpp Source Files\cmd</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit.cpp">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\cmd\CViewCommander_Markdown.cpp">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\cmd\markdown\MarkdownInput.cpp">
       <Filter>Cpp Source Files\cmd</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_advanced.cpp">

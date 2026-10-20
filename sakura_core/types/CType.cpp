@@ -68,6 +68,7 @@ void CShareData::InitTypeConfigs(DLLSHAREDATA* pShareData, std::vector<STypeConf
 		new CType_Vb(),		//Visual Basic
 		new CType_Rich(),	//リッチテキスト
 		new CType_Ini(),	//設定ファイル
+		new CType_Markdown(), //Markdown
 	};
 	types.clear();
 	static_assert( int(std::size(table)) <= MAX_TYPES );
@@ -184,6 +185,7 @@ void _DefaultConfig(STypeConfig* pType)
 	pType->m_autoCloseBracketRules[0] = {true, L'(', L')'};
 	pType->m_autoCloseBracketRules[1] = {true, L'[', L']'};
 	pType->m_autoCloseBracketRules[2] = {true, L'{', L'}'};
+	pType->m_typeKeyBindings = {};
 
 	// 文字コード設定
 	pType->m_encoding.m_bPriorCesu8 = false;

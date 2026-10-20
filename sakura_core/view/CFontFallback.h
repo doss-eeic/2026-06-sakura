@@ -20,11 +20,12 @@ public:
 	CFontFallback& operator=(const CFontFallback&) = delete;
 
 	int Resolve(char32_t codePoint) const;
-	HFONT GetFont(int index, bool bold = false, bool underline = false) const;
+	HFONT GetFont(int index, bool bold = false, bool underline = false, bool italic = false, bool strike = false) const;
 	HDC GetDC(int index) const;
 	int GetTopOffset(int index) const;
 	int GetHeight() const { return m_ascent + m_descent; }
 	static bool IsAvailable(const wchar_t* faceName);
+	static LOGFONT ResolveBaseFont(const LOGFONT& source);
 	static char32_t DecodePair(wchar_t high, wchar_t low);
 
 private:

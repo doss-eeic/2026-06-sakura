@@ -64,8 +64,8 @@
 
 #define IDT_ROLLMOUSE	1
 
-//! 編集禁止コマンド
-static const EFunctionCode EIsModificationForbidden[] = {
+//! 編集禁止コマンド（二分探索するため、機能番号の昇順・重複なしで保持する）
+static constexpr EFunctionCode EIsModificationForbidden[] = {
 	F_WCHAR,
 	F_IME_CHAR,
 	F_UNDO,		// 2007.10.12 genta
@@ -92,6 +92,8 @@ static const EFunctionCode EIsModificationForbidden[] = {
 	F_SORT_ASC,	// 2001.12.11 hor
 	F_SORT_DESC,	// 2001.12.11 hor
 	F_MERGE,		// 2001.12.11 hor
+	F_MARKDOWN_BOLD,
+	F_MARKDOWN_ITALIC,
 	F_CUT,
 	F_PASTE,
 	F_PASTEBOX,
@@ -102,6 +104,7 @@ static const EFunctionCode EIsModificationForbidden[] = {
 	F_CTRL_CODE_DIALOG,	//@@@ 2002.06.02 MIK
 	F_INS_FILE_USED_RECENTLY,
 	F_INS_FOLDER_USED_RECENTLY,
+	F_INS_IMAGE_LINK,
 	F_TOLOWER,
 	F_TOUPPER,
 	F_TOHANKAKU,
@@ -130,7 +133,35 @@ static const EFunctionCode EIsModificationForbidden[] = {
 	F_REPLACE_ALL,
 	F_CHGMOD_INS,
 	F_HOKAN,
+	F_MARKDOWN_STRIKE,
+	F_MARKDOWN_H1,
+	F_MARKDOWN_H2,
+	F_MARKDOWN_H3,
+	F_MARKDOWN_H4,
+	F_MARKDOWN_H5,
+	F_MARKDOWN_H6,
+	F_MARKDOWN_QUOTE,
+	F_MARKDOWN_BULLET,
+	F_MARKDOWN_ORDERED,
+	F_MARKDOWN_TASK,
+	F_MARKDOWN_CODE,
+	F_MARKDOWN_FENCE,
+	F_MARKDOWN_LINK,
+	F_MARKDOWN_IMAGE,
+	F_MARKDOWN_TABLE,
+	F_MARKDOWN_HR,
+	F_MARKDOWN_TASKCHECK,
+	F_MARKDOWN_ENTER,
+	F_MARKDOWN_INDENT,
+	F_MARKDOWN_UNINDENT,
 };
+
+static_assert([] {
+	for (size_t i = 1; i < std::size(EIsModificationForbidden); ++i) {
+		if (EIsModificationForbidden[i - 1] >= EIsModificationForbidden[i]) return false;
+	}
+	return true;
+}(), "EIsModificationForbidden must be strictly sorted by function code");
 
 /*!
  * ドキュメントのアドレスを取得する
@@ -208,14 +239,6 @@ CEditDoc::CEditDoc([[maybe_unused]] CEditApp* pcApp)
 	// 排他制御オプションを初期化
 	m_cDocFile.SetShareMode( GetDllShareData().m_Common.m_sFile.m_nFileShareMode );
 
-#ifdef _DEBUG
-	{
-		// 編集禁止コマンドの並びをチェック
-		for (auto i = 0; i < int(std::size(EIsModificationForbidden)) - 1; i++){
-			assert( EIsModificationForbidden[i] <  EIsModificationForbidden[i+1] );
-		}
-	}
-#endif
 }
 
 CEditDoc::~CEditDoc()

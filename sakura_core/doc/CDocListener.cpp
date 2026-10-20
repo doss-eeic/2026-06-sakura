@@ -93,6 +93,8 @@ CORE_NOTIFY2(Load,const SLoadInfo&)
 VOID_NOTIFY2(Loading,int)
 VOID_NOTIFY2(AfterLoad,const SLoadInfo&)
 VOID_NOTIFY2(FinalLoad,ELoadResult)
+VOID_NOTIFY(BeforeViewLayout)
+VOID_NOTIFY2(AfterViewLayout,const SViewLayoutChange&)
 
 DEF_NOTIFY2(CheckSave,SSaveInfo*)
 DEF_NOTIFY2(PreBeforeSave,SSaveInfo*)

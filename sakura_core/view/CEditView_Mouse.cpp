@@ -59,6 +59,15 @@ void CEditView::OnLBUTTONDOWN( WPARAM fwKeys, int _xPos , int _yPos )
 	}
 
 	CMyPoint ptMouse(_xPos,_yPos);
+	if (IsNoteBlockPoint(ptMouse)) {
+		GetEditWnd().SetActivePane(m_nMyIndex);
+		::SetFocus(GetHwnd());
+		GetSelectionInfo().DisableSelectArea(true);
+		GetCaret().MoveCursor(NoteBlockTextPosition(ptMouse, false), true, 1000);
+		GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().x;
+		GetCaret().ShowEditCaret();
+		return;
+	}
 
 	if( m_bHokan ){
 		GetEditWnd().m_cHokanMgr.Hide();
@@ -561,6 +570,7 @@ void CEditView::OnRBUTTONDOWN( WPARAM fwKeys, int xPos , int yPos )
 		return;
 	}
 
+	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
 	if( m_nAutoScrollMode ){
 		AutoScrollExit();
 	}
@@ -599,6 +609,7 @@ void CEditView::OnRBUTTONUP( WPARAM fwKeys, int xPos , int yPos )
 		return;
 	}
 
+	if (IsNoteBlockPoint(POINT{xPos, yPos})) return;
 	if( GetSelectionInfo().IsMouseSelecting() ){	/* 範囲選択中 */
 		/* マウス左ボタン開放のメッセージ処理 */
 		OnLBUTTONUP( fwKeys, xPos, yPos );
@@ -813,7 +824,7 @@ void CEditView::AutoScrollOnTimer()
 		}else if( scrollPos.y > 0 ){
 			scrollPos.y -= 1;
 		}
-		SyncScrollV( ScrollAtV( GetTextArea().GetViewTopLine() + scrollPos.y ) );
+		SyncScrollV( ScrollDisplayByV(CLayoutInt(scrollPos.y)) );
 	}
 }
 
@@ -943,7 +954,16 @@ void CEditView::OnXRBUTTONUP( [[maybe_unused]] WPARAM fwKeys, [[maybe_unused]] i
 /* マウス移動のメッセージ処理 */
 void CEditView::OnMOUSEMOVE( [[maybe_unused]] WPARAM fwKeys, int xPos_, int yPos_ )
 {
+	TRACKMOUSEEVENT tracking{sizeof(tracking), TME_LEAVE, GetHwnd(), 0};
+	::TrackMouseEvent(&tracking);
+	UpdateImagePreview(true);
 	CMyPoint ptMouse(xPos_, yPos_);
+	if (IsNoteBlockPoint(ptMouse) && !GetSelectionInfo().IsMouseSelecting()) {
+		::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+		m_cTipWnd.Hide();
+		m_dwTipTimer = ::GetTickCount();
+		return;
+	}
 
 	if( m_cMousePausePos != ptMouse ){
 		m_cMousePausePos = ptMouse;
@@ -1146,7 +1166,7 @@ void CEditView::OnMOUSEMOVE( [[maybe_unused]] WPARAM fwKeys, int xPos_, int yPos
 			int nLineHeight = GetTextMetrics().GetHankakuDy();
 
 			// 選択開始行以下へのドラッグ時は1行下にカーソルを移動する
-			if( GetTextArea().GetViewTopLine() + (ptMouse.y - GetTextArea().GetAreaTop()) / nLineHeight >= GetSelectionInfo().m_sSelectBgn.GetTo().y)
+			if( GetTextArea().HitClientRow(ptMouse.y).layoutLine >= static_cast<int>(GetSelectionInfo().m_sSelectBgn.GetTo().y))
 				nNewPos.y += nLineHeight;
 
 			// カーソルを移動
@@ -1432,7 +1452,7 @@ LRESULT CEditView::OnMOUSEWHEEL2( WPARAM wParam, [[maybe_unused]] LPARAM lParam,
 				const CLayoutXInt layoutCount = nCount * GetTextMetrics().GetLayoutXDefault();
 				SyncScrollH( ScrollAtH( GetTextArea().GetViewLeftCol() + layoutCount ) );
 			}else{
-				SyncScrollV( ScrollAtV( GetTextArea().GetViewTopLine() + CLayoutInt(nCount) ) );
+				SyncScrollV( ScrollDisplayByV(CLayoutInt(nCount)) );
 			}
 		}
 	}
@@ -1555,6 +1575,7 @@ void CEditView::OnLBUTTONDBLCLK( WPARAM fwKeys, int _xPos , int _yPos )
 		return;
 	}
 
+	if (IsNoteBlockPoint(POINT{_xPos, _yPos})) return;
 	CMyPoint ptMouse(_xPos,_yPos);
 
 	CLogicRange		cUrlRange;	// URL範囲
@@ -1703,12 +1724,10 @@ void CEditView::OnLBUTTONDBLCLK( WPARAM fwKeys, int _xPos , int _yPos )
 
 STDMETHODIMP CEditView::DragEnter( LPDATAOBJECT pDataObject, DWORD dwKeyState, POINTL pt, LPDWORD pdwEffect )
 {
+	CancelImagePreview();
 	DEBUG_TRACE( L"CEditView::DragEnter()\n" );
 	//「OLEによるドラッグ & ドロップを使う」オプションが無効の場合にはドロップを受け付けない
 	if(!GetDllShareData().m_Common.m_sEdit.m_bUseOLE_DragDrop)return E_UNEXPECTED;
-
-	//編集禁止の場合はドロップを受け付けない
-	if(!m_pcEditDoc->IsEditable())return E_UNEXPECTED;
 
 	if( pDataObject == nullptr || pdwEffect == nullptr )
 		return E_INVALIDARG;
@@ -1716,11 +1735,9 @@ STDMETHODIMP CEditView::DragEnter( LPDATAOBJECT pDataObject, DWORD dwKeyState, P
 	m_cfDragData = GetAvailableClipFormat( pDataObject );
 	if( m_cfDragData == 0 )
 		return E_INVALIDARG;
-	else if( m_cfDragData == CF_HDROP ){
-		// 右ボタンで入ってきたときだけファイルをビューで取り扱う
-		if( !(MK_RBUTTON & dwKeyState) )
-			return E_INVALIDARG;
-	}
+	// File drops must also be consumed in view/read-only mode, without opening images.
+	if (m_cfDragData != CF_HDROP && !m_pcEditDoc->IsEditable()) return E_UNEXPECTED;
+	m_bFileDragRight = (dwKeyState & MK_RBUTTON) != 0;
 
 	/* 自分をアクティブペインにする */
 	GetEditWnd().SetActivePane( m_nMyIndex );
@@ -1745,6 +1762,11 @@ STDMETHODIMP CEditView::DragOver( DWORD dwKeyState, POINTL pt, LPDWORD pdwEffect
 
 	/* マウス移動のメッセージ処理 */
 	::ScreenToClient( GetHwnd(), (LPPOINT)&pt );
+	if (!pdwEffect) return E_INVALIDARG;
+	if (IsNoteBlockPoint(POINT{pt.x, pt.y})) {
+		*pdwEffect = DROPEFFECT_NONE;
+		return S_OK;
+	}
 	OnMOUSEMOVE( dwKeyState, pt.x , pt.y );
 
 	if ( pdwEffect == nullptr )
@@ -1808,6 +1830,12 @@ STDMETHODIMP CEditView::Drop( LPDATAOBJECT pDataObject, DWORD dwKeyState, POINTL
 		return E_INVALIDARG;
 
 	CLIPFORMAT cf;
+	POINT notePoint{pt.x, pt.y};
+	::ScreenToClient(GetHwnd(), &notePoint);
+	if (IsNoteBlockPoint(notePoint)) {
+		*pdwEffect = DROPEFFECT_NONE;
+		return DragLeave();
+	}
 	cf = GetAvailableClipFormat( pDataObject );
 	if( cf == 0 )
 		return E_INVALIDARG;
@@ -1817,8 +1845,19 @@ STDMETHODIMP CEditView::Drop( LPDATAOBJECT pDataObject, DWORD dwKeyState, POINTL
 		return E_INVALIDARG;
 
 	// ファイルドロップは PostMyDropFiles() で処理する
-	if( cf == CF_HDROP )
-		return PostMyDropFiles( pDataObject );
+	if (cf == CF_HDROP) {
+		if (m_bFileDragRight) return PostMyDropFiles(pDataObject);
+		HGLOBAL data = GetGlobalData(pDataObject, CF_HDROP);
+		if (!data) return E_INVALIDARG;
+		POINT clientPoint{pt.x, pt.y};
+		::ScreenToClient(GetHwnd(), &clientPoint);
+		if (TryInsertImageFiles(static_cast<HDROP>(data), clientPoint)) {
+			::DragFinish(static_cast<HDROP>(data));
+		} else {
+			GetEditWnd().OnDropFiles(static_cast<HDROP>(data), false);
+		}
+		return S_OK;
+	}
 
 	// 外部からのドロップは以後の処理ではコピーと同様に扱う
 	CEditView* pcDragSourceView = GetEditWnd().GetDragSourceView();
@@ -2137,8 +2176,8 @@ void CEditView::OnMyDropFiles( HDROP hDrop )
 	switch( nId ){
 	case 110:	// ファイルを開く
 		// 通常のドロップファイル処理を行う
-		::SendMessageAny( GetEditWnd().GetHwnd(), WM_DROPFILES, (WPARAM)hDrop, 0 );
-		break;
+		GetEditWnd().OnDropFiles(hDrop, false);
+		return; // OnDropFiles owns and releases hDrop.
 
 	case 100:	// パス名を貼り付ける
 	case 101:	// ファイル名を貼り付ける
@@ -2165,8 +2204,6 @@ void CEditView::OnMyDropFiles( HDROP hDrop )
 				cmemBuf.AppendString( m_pcEditDoc->m_cDocEditor.GetNewLineCode().GetValue2() );
 			}
 		}
-		::DragFinish( hDrop );
-
 		// 選択範囲の選択解除
 		if( GetSelectionInfo().IsTextSelected() ){
 			GetSelectionInfo().DisableSelectArea( true );
@@ -2207,7 +2244,7 @@ void CEditView::OnMyDropFiles( HDROP hDrop )
 	}
 
 	// メモリ解放
-	::GlobalFree( hDrop );
+	::DragFinish( hDrop );
 }
 
 CLIPFORMAT CEditView::GetAvailableClipFormat( LPDATAOBJECT pDataObject )
@@ -2230,7 +2267,7 @@ CLIPFORMAT CEditView::GetAvailableClipFormat( LPDATAOBJECT pDataObject )
 DWORD CEditView::TranslateDropEffect( CLIPFORMAT cf, DWORD dwKeyState, [[maybe_unused]] POINTL pt, DWORD dwEffect )
 {
 	if( cf == CF_HDROP )	// 2008.06.20 ryoji
-		return DROPEFFECT_LINK;
+		return (dwEffect & DROPEFFECT_LINK) ? DROPEFFECT_LINK : (dwEffect & DROPEFFECT_COPY);
 
 	CEditView* pcDragSourceView = GetEditWnd().GetDragSourceView();
 
@@ -2266,6 +2303,7 @@ bool CEditView::IsDragSource( void )
  */
 void CEditView::DragSelection()
 {
+	CancelImagePreview();
 	/* 選択範囲のデータを取得 */
 	CNativeW cmemCurText;
 	if (!GetSelectedData(&cmemCurText, FALSE, nullptr, FALSE, GetDllShareData().m_Common.m_sEdit.m_bAddCRLFWhenCopy)) return;

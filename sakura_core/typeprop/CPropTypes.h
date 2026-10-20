@@ -60,6 +60,7 @@ enum PropTypeSheetOrder {
 	ID_PROPTYPE_PAGENUM_SUPPORT,		//!< 支援
 	ID_PROPTYPE_PAGENUM_REGEX,			//!< 正規表現キーワード
 	ID_PROPTYPE_PAGENUM_KEYHELP,		//!< ステータスバー
+	ID_PROPTYPE_PAGENUM_KEYBIND,		//!< ショートカット
 	ID_PROPTYPE_PAGENUM_MAX,
 };
 
@@ -72,6 +73,7 @@ enum PropTypeSheetOrder {
 	@date 2002.2.17 YAZAKI CShareDataのインスタンスは、CProcessにひとつあるのみ。
 */
 class CPropTypes{
+	friend class CDlgTypeKeyBind;
 
 public:
 	//生成と破棄

@@ -16,6 +16,7 @@
 #include "view/CRuler.h"
 #include "view/colors/CColorStrategy.h"
 #include "view/colors/CColor_Found.h"
+#include "view/CMarkdownEmphasis.h"
 #include "view/figures/CFigureManager.h"
 #include "types/CTypeSupport.h"
 #include "doc/CEditDoc.h"
@@ -720,7 +721,7 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 	if( 0 > nTop - GetTextArea().GetAreaTop() ){
 		nLayoutLine = GetTextArea().GetViewTopLine(); //ビュー上部から描画
 	}else{
-		nLayoutLine = GetTextArea().GetViewTopLine() + CLayoutInt( ( nTop - GetTextArea().GetAreaTop() ) / nLineHeight ); //ビュー途中から描画
+		nLayoutLine = CLayoutInt(GetTextArea().HitClientRow(nTop).layoutLine);
 	}
 
 	// ※ ここにあった描画範囲の 260 文字ロールバック処理は GetColorIndex() に吸収	// 2009.02.11 ryoji
@@ -728,8 +729,7 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	//          描画終了レイアウト絶対行 -> nLayoutLineTo            //
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
-	CLayoutInt nLayoutLineTo = GetTextArea().GetViewTopLine()
-		+ CLayoutInt( ( pPs->rcPaint.bottom - GetTextArea().GetAreaTop() + (nLineHeight - 1) ) / nLineHeight ) - 1;	// 2007.02.17 ryoji 計算を精密化
+	CLayoutInt nLayoutLineTo = CLayoutInt(GetTextArea().HitClientRow(pPs->rcPaint.bottom - 1).layoutLine);
 
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
 	//                         描画座標                            //
@@ -741,7 +741,7 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 	);
 	sPos.InitDrawPos(CMyPoint(
 		GetTextArea().GetAreaLeft() - (Int)GetTextArea().GetViewLeftCol() * nCharDx,
-		GetTextArea().GetAreaTop() + (Int)( nLayoutLine - GetTextArea().GetViewTopLine() ) * nLineHeight
+		GetTextArea().LayoutToClientY(nLayoutLine)
 	));
 	sPos.SetLayoutLineRef(nLayoutLine);
 
@@ -773,7 +773,9 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 				sPos.GetDrawPos().y
 			);
 			//行を進める
-			sPos.ForwardDrawLine(1);		//描画Y座標＋＋
+			sPos.ForwardDrawLine(static_cast<int>(GetTextArea().GetNoteProjection().FromLayout(
+				static_cast<Int>(sPos.GetLayoutLineRef()) + 1).value - GetTextArea().GetNoteProjection().FromLayout(
+				static_cast<Int>(sPos.GetLayoutLineRef())).value));
 			sPos.ForwardLayoutLineRef(1);	//レイアウト行＋＋
 		}
 	}else{
@@ -819,6 +821,7 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 		}
 	}
 
+	if (HasNoteBlocks()) DrawNoteBlocks(gr);
 	cTextType.RewindGraphicsState(gr);
 
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- //
@@ -886,6 +889,9 @@ bool CEditView::DrawLogicLine(
 	bool bDispEOF = false;
 
 	//CColorStrategyPool初期化
+	if (CMarkdownEmphasis::IsEnabled(*m_pTypeData)) {
+		pInfo->m_markdownEmphasis.Prepare(pInfo->GetDocLine());
+	}
 	CColorStrategyPool* pool = CColorStrategyPool::getInstance();
 	pool->SetCurrentView(this);
 	pool->NotifyOnStartScanLogic();
@@ -942,7 +948,9 @@ bool CEditView::DrawLogicLine(
 
 		//行を進める
 		CLogicInt nOldLogicLineNo = CLayout::GetLogicLineNo_Safe(pInfo->m_pDispPos->GetLayoutRef());
-		pInfo->m_pDispPos->ForwardDrawLine(1);		//描画Y座標＋＋
+		pInfo->m_pDispPos->ForwardDrawLine(static_cast<int>(GetTextArea().GetNoteProjection().FromLayout(
+			static_cast<Int>(pInfo->m_pDispPos->GetLayoutLineRef()) + 1).value - GetTextArea().GetNoteProjection().FromLayout(
+			static_cast<Int>(pInfo->m_pDispPos->GetLayoutLineRef())).value));
 		pInfo->m_pDispPos->ForwardLayoutLineRef(1);	//レイアウト行＋＋
 
 		// ロジック行を描画し終わったら抜ける

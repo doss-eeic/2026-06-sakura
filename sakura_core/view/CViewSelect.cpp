@@ -282,10 +282,14 @@ void CViewSelect::DrawSelectArea(bool bDrawBracketCursorLine)
 void CViewSelect::DrawSelectArea2( HDC hdc ) const
 {
 	CEditView const * const pView = GetEditView();
-
 	if (pView->IsImeInlineDisplay()) {
 		return;
 	}
+	const int saved = pView->HasNoteBlocks() ? ::SaveDC(hdc) : 0;
+	const int savedCompat = pView->HasNoteBlocks() && pView->m_hdcCompatDC && hdc != pView->m_hdcCompatDC
+		? ::SaveDC(pView->m_hdcCompatDC) : 0;
+	if (saved) pView->ExcludeNoteBlocks(hdc);
+	if (savedCompat) pView->ExcludeNoteBlocks(pView->m_hdcCompatDC);
 
 	// 2006.10.01 Moca 重複コード統合
 	HBRUSH      hBrush = ::CreateSolidBrush( SELECTEDAREA_RGB );
@@ -483,6 +487,8 @@ void CViewSelect::DrawSelectArea2( HDC hdc ) const
 	::SetROP2( hdc, nROP_Old );
 	::SelectObject( hdc, hBrushOld );
 	::DeleteObject( hBrush );
+	if (saved) ::RestoreDC(hdc, saved);
+	if (savedCompat) ::RestoreDC(pView->m_hdcCompatDC, savedCompat);
 }
 
 /*! 選択領域の中の指定行の描画
