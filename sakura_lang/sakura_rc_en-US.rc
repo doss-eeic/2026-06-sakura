@@ -4044,6 +4044,8 @@ BEGIN
     STR_OUTLINE_TEXT        "Text"
     STR_SMART_INDENT_NONE   "None"
     STR_SMART_INDENT_C_CPP  "C/C++"
+    STR_SMART_INDENT_MARKDOWN "Markdown"
+    STR_OUTLINE_MARKDOWN    "Markdown"
     STR_IME_STATE_DEF       "Default"
     STR_IME_STATE_FULL      "Full Height"
     STR_IME_STATE_FULLHIRA  "Full Height Hiragana"

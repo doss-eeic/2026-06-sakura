@@ -1881,13 +1881,15 @@
 #define STR_TYPEKEYBIND_INHERIT         35067
 #define STR_TYPEKEYBIND_OVERRIDE        35068
 #define STR_PROPTYPE_KEYBIND            35069
+#define STR_SMART_INDENT_MARKDOWN       35072
+#define STR_OUTLINE_MARKDOWN            35073
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35072
+#define _APS_NEXT_RESOURCE_VALUE        35074
 #define _APS_NEXT_COMMAND_VALUE         101
 #define _APS_NEXT_CONTROL_VALUE         1760
 #define _APS_NEXT_SYMED_VALUE           10000

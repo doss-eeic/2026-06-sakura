@@ -25,7 +25,6 @@
 #include "_main/CCommandLine.h"
 #include "_main/CControlProcess.h"
 #include "config/app_constants.h"
-#include "config/system_constants.h"
 
 using namespace std::literals::string_literals;
 using namespace std::literals::string_view_literals;
@@ -1382,37 +1381,6 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 			pShare->m_TypeMini[index].m_encoding = type->m_encoding;
 			pShare->m_TypeMini[index].m_id = type->m_id;
 		}
-	}
-	// 旧設定への入力補助導入は一度だけ行う。保存後の解除・共通設定への復帰を尊重する。
-	bool markdownInputBindingsInitialized = cProfile.IsWritingMode();
-	cProfile.IOProfileData(L"Other", L"MarkdownInputBindingsInitialized", markdownInputBindingsInitialized);
-	if (cProfile.IsReadingMode() && !markdownInputBindingsInitialized) {
-		const struct {
-			int key;
-			int modifiers;
-			EFunctionCode previous;
-			EFunctionCode command;
-		} bindings[] = {
-			{VK_RETURN, 0, F_0, F_MARKDOWN_ENTER},
-			{VK_TAB, 0, F_INDENT_TAB, F_MARKDOWN_INDENT},
-			{VK_TAB, _SHIFT, F_UNINDENT_TAB, F_MARKDOWN_UNINDENT},
-		};
-		auto& common = pShare->m_Common.m_sKeyBind;
-		for (auto* type : types) {
-			if (!isMarkdown(type)) continue;
-			for (const auto& entry : bindings) {
-				auto& binding = type->m_typeKeyBindings[entry.key];
-				if (binding.m_bOverride[entry.modifiers]) continue;
-				const auto end = std::begin(common.m_pKeyNameArr) + common.m_nKeyNameArrNum;
-				const auto key = std::find_if(std::begin(common.m_pKeyNameArr), end,
-					[&](const auto& data) { return data.m_nKeyCode == entry.key; });
-				// 共通設定でカスタマイズされたキーも自動上書きしない。
-				if (key == end || key->m_nFuncCodeArr[entry.modifiers] != entry.previous) continue;
-				binding.m_bOverride[entry.modifiers] = true;
-				binding.m_nFuncCodeArr[entry.modifiers] = entry.command;
-			}
-		}
-		pShare->m_TypeBasis = *types[0];
 	}
 	if( cProfile.IsReadingMode() ){
 		// Id重複チェック、更新

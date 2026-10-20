@@ -114,32 +114,31 @@ void CViewCommander::ApplyMarkdownInput(const CLogicRange& range, const std::wst
 	m_pCommanderView->PostprocessCommand_hokan();
 }
 
-void CViewCommander::Command_MARKDOWN_ENTER()
+bool CViewCommander::TryMarkdownEnter()
 {
-	if (!GetDocument()->IsEditable()) return;
+	if (m_pCommanderView->m_pTypeData->m_eSmartIndent != SMARTINDENT_MARKDOWN) return false;
+	if (!GetDocument()->IsEditable()) return true;
 	auto& selection = m_pCommanderView->GetSelectionInfo();
-	if (selection.IsMouseSelecting()) { ErrorBeep(); return; }
-	if (selection.IsBoxSelecting()) { Command_WCHAR(L'\r'); return; }
+	if (selection.IsMouseSelecting()) { ErrorBeep(); return true; }
+	if (selection.IsBoxSelecting()) return false;
 	CLogicRange range(GetCaret().GetCaretLogicPos(), GetCaret().GetCaretLogicPos());
 	if (selection.IsTextSelected()) GetDocument()->m_cLayoutMgr.LayoutToLogic(selection.m_sSelect, &range);
 	const auto lines = MarkdownInputLines(GetDocument()->m_cDocLineMgr);
 	const int tabWidth = GetDocument()->m_cLayoutMgr.GetTabSpaceKetas();
 	const auto edit = Markdown::Input::Enter(lines, {MarkdownPosition(range.GetFrom()), MarkdownPosition(range.GetTo())},
 		tabWidth > 0 ? static_cast<size_t>(tabWidth) : 0, GetDocument()->m_cDocEditor.GetNewLineCode().GetValue2());
-	if (!edit) { Command_WCHAR(L'\r'); return; }
+	if (!edit) return false;
 	ApplyMarkdownInput(CLogicRange(LogicPosition(edit->range.begin), LogicPosition(edit->range.end)), edit->text, LogicPosition(edit->caret));
+	return true;
 }
 
-void CViewCommander::Command_MARKDOWN_INDENT(bool unindent)
+bool CViewCommander::TryMarkdownIndent(bool unindent)
 {
-	if (!GetDocument()->IsEditable()) return;
+	if (m_pCommanderView->m_pTypeData->m_eSmartIndent != SMARTINDENT_MARKDOWN) return false;
+	if (!GetDocument()->IsEditable()) return true;
 	auto& selection = m_pCommanderView->GetSelectionInfo();
-	if (selection.IsMouseSelecting()) { ErrorBeep(); return; }
-	const auto fallback = [&]() {
-		if (unindent) Command_UNINDENT(WCODE::TAB);
-		else Command_INDENT(WCODE::TAB, INDENT_TAB);
-	};
-	if (selection.IsBoxSelecting()) { fallback(); return; }
+	if (selection.IsMouseSelecting()) { ErrorBeep(); return true; }
+	if (selection.IsBoxSelecting()) return false;
 	const bool selected = selection.IsTextSelected();
 	const auto caret = GetCaret().GetCaretLogicPos();
 	CLogicRange range(caret, caret);
@@ -150,8 +149,8 @@ void CViewCommander::Command_MARKDOWN_INDENT(bool unindent)
 	const auto lines = MarkdownInputLines(GetDocument()->m_cDocLineMgr);
 	const int tabWidth = GetDocument()->m_cLayoutMgr.GetTabSpaceKetas();
 	const auto edits = Markdown::Input::Indent(lines, first, last, tabWidth > 0 ? static_cast<size_t>(tabWidth) : 0, unindent);
-	if (!edits) { fallback(); return; }
-	if (edits->empty()) return;
+	if (!edits) return false;
+	if (edits->empty()) return true;
 	first = edits->front().line;
 	last = edits->back().line;
 	std::wstring replacement;
@@ -179,6 +178,7 @@ void CViewCommander::Command_MARKDOWN_INDENT(bool unindent)
 	const CLogicRange mapped(map(range.GetFrom()), map(range.GetTo()));
 	ApplyMarkdownInput(CLogicRange(LogicPosition({first, 0}), LogicPosition({last, lines[last].size()})),
 		replacement, map(caret), selected ? &mapped : nullptr);
+	return true;
 }
 
 void CViewCommander::Command_MARKDOWN(EFunctionCode command)

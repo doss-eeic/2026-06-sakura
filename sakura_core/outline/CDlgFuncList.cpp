@@ -455,6 +455,11 @@ void CDlgFuncList::SetData()
 		SetTree(hInsertAfter);
 		::SetWindowText( GetHwnd(), L"TeX" );
 	}
+	else if( OUTLINE_MARKDOWN == m_nListType ){
+		m_nViewType = VIEWTYPE_TREE;
+		SetTree(hInsertAfter);
+		::SetWindowText( GetHwnd(), LS(STR_OUTLINE_MARKDOWN) );
+	}
 	else if( OUTLINE_TEXT == m_nListType ){ /* テキスト・トピックリスト */
 		m_nViewType = VIEWTYPE_TREE;
 		SetTree(hInsertAfter);	//@@@ 2002.04.01 YAZAKI テキストトピックツリーも、汎用SetTreeを呼ぶように変更。

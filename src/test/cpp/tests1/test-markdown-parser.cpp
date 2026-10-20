@@ -512,6 +512,31 @@ TEST(MarkdownBlockParser, ContextSetextNeedsParagraphInSameContainers)
 	EXPECT_TRUE(outside.containers.empty());
 }
 
+TEST(MarkdownBlockParser, ContextHeadingMetadataKeepsSourceRangesAndLiteralHashes)
+{
+	Markdown::ParseState state;
+	const auto line = CMarkdownBlockParser::ParseLine(L"> ## title ###  ", 0, 2, state);
+	ASSERT_TRUE(line.heading);
+	EXPECT_EQ(2u, line.heading->level);
+	ExpectRange(line.heading->markerRange, 0, 2, 4);
+	ExpectRange(line.heading->titleRange, 0, 5, 10);
+	state = {};
+	const auto literal = CMarkdownBlockParser::ParseLine(L"# C#", 0, 2, state);
+	ASSERT_TRUE(literal.heading);
+	ExpectRange(literal.heading->titleRange, 0, 2, 4);
+	state = {};
+	const auto empty = CMarkdownBlockParser::ParseLine(L"# ###", 0, 2, state);
+	ASSERT_TRUE(empty.heading);
+	ExpectRange(empty.heading->titleRange, 0, 2, 2);
+	state = {};
+	CMarkdownBlockParser::ParseLine(L"title", 0, 2, state);
+	const auto setext = CMarkdownBlockParser::ParseLine(L"===", 1, 2, state);
+	ASSERT_TRUE(setext.heading);
+	EXPECT_EQ(1u, setext.heading->level);
+	EXPECT_FALSE(setext.heading->titleRange);
+	ExpectRange(setext.heading->markerRange, 1, 0, 3);
+}
+
 TEST(MarkdownBlockParser, ContextEmptyBulletTakesPrecedenceOverSetext)
 {
 	Markdown::ParseState state;

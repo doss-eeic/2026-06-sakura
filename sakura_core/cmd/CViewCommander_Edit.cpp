@@ -325,6 +325,8 @@ void CViewCommander::Command_ENCLOSE(const std::wstring& opening, const std::wst
 /* wchar_t1個分の文字を入力 */
 void CViewCommander::Command_WCHAR( wchar_t wcChar, bool bConvertEOL)
 {
+	if (bConvertEOL && (wcChar == L'\r' || wcChar == L'\n') && TryMarkdownEnter()) return;
+
 	if( m_pCommanderView->GetSelectionInfo().IsMouseSelecting() ){	/* マウスによる範囲選択中 */
 		ErrorBeep();
 		return;
@@ -472,6 +474,7 @@ end_of_for:;
 	ESmartIndentType nSIndentType = m_pCommanderView->m_pTypeData->m_eSmartIndent;
 	switch( nSIndentType ){	/* スマートインデント種別 */
 	case SMARTINDENT_NONE:
+	case SMARTINDENT_MARKDOWN: // Markdownは挿入前に選択範囲・空項目を処理する。
 		break;
 	case SMARTINDENT_CPP:
 		/* C/C++スマートインデント処理 */

@@ -37,6 +37,7 @@
 void CViewCommander::Command_INDENT( wchar_t wcChar, EIndentType eIndent )
 {
 	using namespace WCODE;
+	if (wcChar == TAB && eIndent == INDENT_TAB && TryMarkdownIndent(false)) return;
 
 #if 1	// ↓ここを残せば選択幅ゼロを最大にする（従来互換挙動）。無くても Command_INDENT() ver0 が適切に動作するように変更されたので、削除しても特に不都合にはならない。
 	// From Here 2001.12.03 hor
@@ -411,6 +412,8 @@ void CViewCommander::Command_INDENT( const wchar_t* const pData, const CLogicInt
 /* 逆インデント */
 void CViewCommander::Command_UNINDENT( wchar_t wcChar )
 {
+	if (wcChar == WCODE::TAB && TryMarkdownIndent(true)) return;
+
 	//	Aug. 9, 2003 genta
 	//	選択されていない場合に逆インデントした場合に
 	//	注意メッセージを出す

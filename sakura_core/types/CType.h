@@ -46,9 +46,10 @@ enum EOutlineType{
 	OUTLINE_ERLANG,		//	2009.08.10 genta Erlangアウトライン解析
 	OUTLINE_XML,		//  2014.12.25 Moca
 	OUTLINE_CPP,		//  2015.11.13 Moca
+	OUTLINE_MARKDOWN = 21, // 既存のBOOKMARK/PLUGIN/FILETREEの保存値を維持する
 	//	新しいアウトライン解析は必ずこの直前へ挿入
 	OUTLINE_CODEMAX,
-	OUTLINE_BOOKMARK,	//	2001.12.03 hor
+	OUTLINE_BOOKMARK = 18,	//	2001.12.03 hor
 	OUTLINE_PLUGIN,		//	2009.10.29 syat プラグインによるアウトライン解析
 	OUTLINE_FILETREE,	//	2012.06.20 Moca ファイルツリー
 	OUTLINE_DEFAULT =-1,//	2001.12.03 hor
@@ -62,7 +63,8 @@ enum EOutlineType{
 //! スマートインデント種別
 enum ESmartIndentType {
 	SMARTINDENT_NONE,		//!< なし
-	SMARTINDENT_CPP			//!< C/C++
+	SMARTINDENT_CPP,			//!< C/C++
+	SMARTINDENT_MARKDOWN		//!< Markdown
 };
 
 //! ヒアドキュメント種別

@@ -363,11 +363,30 @@ Markdown::LineContext CMarkdownBlockParser::ParseLine(
 			state.fence = Markdown::FenceInfo{rest.front(), length, {lineIndex, offset}, result.containers.size(), indent};
 			return finish(Markdown::LineKind::Fence);
 		}
-		if (paragraphOpen && IsSetextUnderline(rest)) return finish(Markdown::LineKind::Heading);
+		if (paragraphOpen && IsSetextUnderline(rest)) {
+			result.heading = Markdown::HeadingInfo{rest.front() == L'=' ? 1u : 2u,
+				{{lineIndex, offset}, {lineIndex, offset + RunEnd(rest, 0)}}, std::nullopt};
+			return finish(Markdown::LineKind::Heading);
+		}
 		if (IsThematicBreak(rest)) return finish(Markdown::LineKind::ThematicBreak);
 		if (const size_t length = HeadingPrefixLength(rest)) {
+			const size_t level = RunEnd(rest, 0);
+			const auto markerRange = Markdown::SourceRange{{lineIndex, offset}, {lineIndex, offset + level}};
 			const size_t end = offset + length;
 			while (offset < end) advance();
+			// アウトライン用の本文範囲。編集用のbodyRangeは変更しない。
+			size_t titleBegin = offset;
+			size_t titleEnd = text.size();
+			while (titleBegin < titleEnd && IsIndentSpace(text[titleBegin])) ++titleBegin;
+			while (titleEnd > titleBegin && IsIndentSpace(text[titleEnd - 1])) --titleEnd;
+			size_t closing = titleEnd;
+			while (closing > titleBegin && text[closing - 1] == L'#') --closing;
+			if (closing < titleEnd && (closing == titleBegin || IsIndentSpace(text[closing - 1]))) {
+				titleEnd = closing;
+				while (titleEnd > titleBegin && IsIndentSpace(text[titleEnd - 1])) --titleEnd;
+			}
+			result.heading = Markdown::HeadingInfo{static_cast<unsigned int>(level), markerRange,
+				Markdown::SourceRange{{lineIndex, titleBegin}, {lineIndex, titleEnd}}};
 			return finish(Markdown::LineKind::Heading);
 		}
 		if (readQuote()) {

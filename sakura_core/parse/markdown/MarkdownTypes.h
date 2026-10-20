@@ -70,11 +70,18 @@ enum class LineKind {
 	Fence, FencedCode, IndentedCode, Heading, ThematicBreak
 };
 
+struct HeadingInfo {
+	unsigned int level = 1;
+	SourceRange markerRange;
+	std::optional<SourceRange> titleRange; // ATX見出しの本文。下線形式は直前の段落が本文。
+};
+
 struct LineContext {
 	LineKind kind = LineKind::Unknown;
 	std::vector<ContainerInfo> containers; // 現在行が属する引用・リスト項目
 	std::optional<SourceRange> bodyRange; // 接頭辞を除いた本文範囲
 	bool bodyEmpty = false;
+	std::optional<HeadingInfo> heading;
 };
 
 struct FenceInfo {

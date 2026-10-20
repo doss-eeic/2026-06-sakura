@@ -119,8 +119,8 @@ public:
 	void Command_WCHAR(wchar_t wcChar, bool bConvertEOL = true );			/* 文字入力 */ //2007.09.02 kobake Command_CHAR(char)→Command_WCHAR(wchar_t)に変更
 	void Command_ENCLOSE(const std::wstring& opening, const std::wstring& closing);
 	void Command_MARKDOWN(EFunctionCode command);
-	void Command_MARKDOWN_ENTER();
-	void Command_MARKDOWN_INDENT(bool unindent);
+	bool TryMarkdownEnter();
+	bool TryMarkdownIndent(bool unindent);
 	void ApplyMarkdownInput(const CLogicRange& range, const std::wstring& text,
 		const CLogicPoint& caret, const CLogicRange* selected = nullptr);
 	wchar_t GetAutoCloseBracket(wchar_t opening);	/* 現在の入力条件で補完する閉じ文字を取得 */
