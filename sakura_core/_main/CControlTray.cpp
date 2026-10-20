@@ -783,8 +783,13 @@ LRESULT CControlTray::DispatchEvent(
 		switch( (e_PM_CHANGESETTING_SELECT)lParam ){
 		case PM_CHANGESETTING_ALL:
 			/* ダークモード設定を反映する（変更時のみ適用） */
-			if( (GetDllShareData().m_Common.m_sWindow.m_bDarkMode != FALSE) != IsDarkModeActive() ){
-				ApplyDarkModeSetting(GetDllShareData().m_Common.m_sWindow.m_bDarkMode);
+			{
+				const auto& window = GetDllShareData().m_Common.m_sWindow;
+
+				if( IsDarkModeRequested(window.m_bDarkMode, window.m_bFullDarkMode)
+					!= IsDarkModeActive() ){
+					ApplyDarkModeSetting(window.m_bDarkMode, window.m_bFullDarkMode);
+				}
 			}
 			{
 				bool bChangeLang = wcscmp( GetDllShareData().m_Common.m_sWindow.m_szLanguageDll, m_szLanguageDll ) != 0;

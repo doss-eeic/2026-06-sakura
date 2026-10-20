@@ -278,6 +278,9 @@ void CPropWin::SetData( HWND hwndDlg )
 	/* ダークモード */
 	::CheckDlgButton( hwndDlg, IDC_CHECK_bDarkMode, m_Common.m_sWindow.m_bDarkMode );
 
+	/* フルダークモード */
+	::CheckDlgButton( hwndDlg, IDC_CHECK_bFullDarkMode, m_Common.m_sWindow.m_bFullDarkMode );
+
 	//	2001/06/20 Start by asa-o:	スクロールの同期
 	::CheckDlgButton( hwndDlg, IDC_CHECK_SplitterWndVScroll, m_Common.m_sWindow.m_bSplitterWndVScroll );
 	::CheckDlgButton( hwndDlg, IDC_CHECK_SplitterWndHScroll, m_Common.m_sWindow.m_bSplitterWndHScroll );
@@ -378,6 +381,9 @@ int CPropWin::GetData( HWND hwndDlg )
 
 	/* ダークモード */
 	m_Common.m_sWindow.m_bDarkMode = ::IsDlgButtonChecked( hwndDlg, IDC_CHECK_bDarkMode );
+
+	/* フルダークモード */
+	m_Common.m_sWindow.m_bFullDarkMode = ::IsDlgButtonChecked( hwndDlg, IDC_CHECK_bFullDarkMode );
 
 	//	2001/06/20 Start by asa-o:	スクロールの同期
 	m_Common.m_sWindow.m_bSplitterWndVScroll = ::IsDlgButtonChecked( hwndDlg, IDC_CHECK_SplitterWndVScroll );

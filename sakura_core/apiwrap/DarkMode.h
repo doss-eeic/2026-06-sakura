@@ -10,26 +10,31 @@
 
 #include <DarkModeSubclass.h>
 
-/*! ダークモードが有効かつ実際にダーク表示すべきかを判定する
-
-	DarkMode::isEnabled()          … ライブラリが有効化されているか (classic以外)
-	DarkMode::isExperimentalActive() … Windowsが実際にダークモードか
-
-	両方が true のときのみダーク用の描画を行う。
-*/
+//! UIを実際にダーク表示しているか
 inline bool IsDarkModeActive()
 {
 	return DarkMode::isEnabled() && DarkMode::isExperimentalActive();
 }
 
-/*! 共有データのダークモード設定をライブラリに反映する
-
-	@param bDarkMode  共有データの m_bDarkMode 値
-*/
-inline void ApplyDarkModeSetting(BOOL bDarkMode)
+//! 通常ダークまたはフルダークが指定されているか
+inline bool IsDarkModeRequested(BOOL bDarkMode, BOOL bFullDarkMode)
 {
-	const auto dmType = bDarkMode
-		? DarkMode::DarkModeType::dark : DarkMode::DarkModeType::light;
+	return bDarkMode != FALSE || bFullDarkMode != FALSE;
+}
+
+//! 本文にもダーク配色を適用するか
+inline bool IsFullDarkModeActive(BOOL bFullDarkMode)
+{
+	return bFullDarkMode != FALSE && IsDarkModeActive();
+}
+
+//! 共有設定をUI用ダークモードライブラリに反映する
+inline void ApplyDarkModeSetting(BOOL bDarkMode, BOOL bFullDarkMode)
+{
+	const auto dmType = IsDarkModeRequested(bDarkMode, bFullDarkMode)
+		? DarkMode::DarkModeType::dark
+		: DarkMode::DarkModeType::light;
+
 	DarkMode::setDarkModeConfigEx(static_cast<UINT>(dmType));
 	DarkMode::setDefaultColors(true);
 }

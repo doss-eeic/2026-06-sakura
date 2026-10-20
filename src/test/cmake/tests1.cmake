@@ -329,6 +329,14 @@ add_custom_command(TARGET tests1 PRE_LINK
   COMMAND ${CMAKE_COMMAND} -E remove -f $<TARGET_FILE:tests1>
 )
 
+if(MSVC)
+  # Embed the Common Controls v6 dependency before the loader resolves imports.
+  target_sources(tests1
+    PRIVATE
+      "${CMAKE_BINARY_DIR}/tests1.exe.manifest"
+  )
+endif(MSVC)
+
 if(MINGW)
   set(TESTS1_EXE_MANIFEST "${CMAKE_BINARY_DIR}/tests1.exe.manifest")
   set(TESTS1_MANIFEST_RC "${CMAKE_BINARY_DIR}/tests1_manifest.rc")

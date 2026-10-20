@@ -2090,21 +2090,39 @@ BOOL CDlgFuncList::OnNotify(NMHDR* pNMHDR)
 					::SetWindowLongPtr( GetHwnd(), DWLP_MSGRESULT, CDRF_NOTIFYITEMDRAW );
 					break;
 				case CDDS_ITEMPREPAINT:
-					{	// 選択アイテムを反転表示にする
-						const STypeConfig	*TypeDataPtr = &(pcEditView->m_pcEditDoc->m_cDocType.GetDocumentAttribute());
-						COLORREF clrText = TypeDataPtr->m_ColorInfoArr[COLORIDX_TEXT].m_sColorAttr.m_cTEXT;
-						COLORREF clrTextBk = TypeDataPtr->m_ColorInfoArr[COLORIDX_TEXT].m_sColorAttr.m_cBACK;
+					{
+						const ColorInfo& textInfo =
+							pcEditView->GetDisplayColorInfo(COLORIDX_TEXT);
+
+						COLORREF selectedText =
+							textInfo.m_sColorAttr.m_cTEXT ^ RGB(255, 255, 255);
+						COLORREF selectedBack =
+							textInfo.m_sColorAttr.m_cBACK ^ RGB(255, 255, 255);
+
+						if( IsFullDarkModeActive(
+							GetDllShareData().m_Common.m_sWindow.m_bFullDarkMode
+						) ){
+							const ColorInfo& selectInfo =
+								pcEditView->GetDisplayColorInfo(COLORIDX_SELECT);
+
+							selectedText = selectInfo.m_sColorAttr.m_cTEXT;
+							selectedBack = selectInfo.m_sColorAttr.m_cBACK;
+						}
+
 						if( hwndList == pNMHDR->hwndFrom ){
-							//if( lpnmcd->uItemState & CDIS_SELECTED ){	// 非選択のアイテムもすべて CDIS_SELECTED で来る？
-							if( ListView_GetItemState( hwndList, lpnmcd->dwItemSpec, LVIS_SELECTED ) ){
-								((LPNMLVCUSTOMDRAW)lpnmcd)->clrText = clrText ^ RGB(255, 255, 255);
-								((LPNMLVCUSTOMDRAW)lpnmcd)->clrTextBk = clrTextBk ^ RGB(255, 255, 255);
-								lpnmcd->uItemState = 0;	// リストビューには選択としての描画をさせないようにする？
+							if( ListView_GetItemState(
+								hwndList, lpnmcd->dwItemSpec, LVIS_SELECTED
+							) ){
+								auto* draw = reinterpret_cast<LPNMLVCUSTOMDRAW>(lpnmcd);
+								draw->clrText = selectedText;
+								draw->clrTextBk = selectedBack;
+								lpnmcd->uItemState = 0;
 							}
 						}else{
 							if( lpnmcd->uItemState & CDIS_SELECTED ){
-								((LPNMTVCUSTOMDRAW)lpnmcd)->clrText = clrText ^ RGB(255, 255, 255);
-								((LPNMTVCUSTOMDRAW)lpnmcd)->clrTextBk = clrTextBk ^ RGB(255, 255, 255);
+								auto* draw = reinterpret_cast<LPNMTVCUSTOMDRAW>(lpnmcd);
+								draw->clrText = selectedText;
+								draw->clrTextBk = selectedBack;
 							}
 						}
 					}
@@ -2620,9 +2638,9 @@ void CDlgFuncList::SyncColor( void )
 #ifdef DEFINE_SYNCCOLOR
 	// テキスト色・背景色をビューと同色にする
 	CEditView* pcEditView = (CEditView*)m_lParam;
-	const STypeConfig	*TypeDataPtr = &(pcEditView->m_pcEditDoc->m_cDocType.GetDocumentAttribute());
-	COLORREF clrText = TypeDataPtr->m_ColorInfoArr[COLORIDX_TEXT].m_sColorAttr.m_cTEXT;
-	COLORREF clrBack = TypeDataPtr->m_ColorInfoArr[COLORIDX_TEXT].m_sColorAttr.m_cBACK;
+	const ColorInfo& textInfo = pcEditView->GetDisplayColorInfo(COLORIDX_TEXT);
+	const COLORREF clrText = textInfo.m_sColorAttr.m_cTEXT;
+	const COLORREF clrBack = textInfo.m_sColorAttr.m_cBACK;
 
 	HWND hwndTree = GetItemHwnd( IDC_TREE_FL );
 	TreeView_SetTextColor( hwndTree, clrText );

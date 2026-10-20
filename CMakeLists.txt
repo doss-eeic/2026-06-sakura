@@ -23,6 +23,14 @@ add_dependencies(${PROJECT_NAME}
   generate_sakura_exe_manifest
 )
 
+if(MSVC)
+  # Embed the Common Controls v6 dependency in the executable.
+  target_sources(${PROJECT_NAME}
+    PRIVATE
+      "${CMAKE_BINARY_DIR}/sakura.exe.manifest"
+  )
+endif(MSVC)
+
 if(MINGW)
   target_sources(${PROJECT_NAME}
     PRIVATE

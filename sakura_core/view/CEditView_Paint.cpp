@@ -467,9 +467,9 @@ void CEditView::SetCurrentColor( CGraphics& gr, EColorIndexType eColorIndex,  EC
 	int		nColorIdxBg = ToColorInfoArrIndex(eColorIndexBg);
 
 	//実際に色を設定
-	const ColorInfo& info  = m_pTypeData->m_ColorInfoArr[nColorIdx];
-	const ColorInfo& info2 = m_pTypeData->m_ColorInfoArr[nColorIdx2];
-	const ColorInfo& infoBg = m_pTypeData->m_ColorInfoArr[nColorIdxBg];
+	const ColorInfo& info = GetDisplayColorInfo(nColorIdx);
+	const ColorInfo& info2 = GetDisplayColorInfo(nColorIdx2);
+	const ColorInfo& infoBg = GetDisplayColorInfo(nColorIdxBg);
 	COLORREF fgcolor = GetTextColorByColorInfo2(info, info2);
 	gr.SetTextForeColor(fgcolor);
 	// 2012.11.21 背景色がテキストとおなじなら背景色はカーソル行背景
@@ -696,13 +696,13 @@ void CEditView::OnPaint2( HDC _hdc, PAINTSTRUCT *pPs, BOOL bDrawFromComptibleBmp
 	//	From Here Sep. 7, 2001 genta
 	//	Sep. 23, 2002 genta 行番号非表示でも行番号色の帯があるので隙間を埋める
 	if( GetTextArea().GetTopYohaku() ){
-		if( bTransText && m_pTypeData->m_ColorInfoArr[COLORIDX_GYOU].m_sColorAttr.m_cBACK == cTextType.GetBackColor() ){
+		if( bTransText && GetDisplayColorInfo(COLORIDX_GYOU).m_sColorAttr.m_cBACK == cTextType.GetBackColor() ){
 		}else{
 			rc.left   = 0;
 			rc.top    = GetTextArea().GetRulerHeight();
 			rc.right  = GetTextArea().GetLineNumberWidth(); //	Sep. 23 ,2002 genta 余白はテキスト色のまま残す
 			rc.bottom = GetTextArea().GetAreaTop();
-			gr.SetTextBackColor(m_pTypeData->m_ColorInfoArr[COLORIDX_GYOU].m_sColorAttr.m_cBACK);
+			gr.SetTextBackColor( GetDisplayColorInfo(COLORIDX_GYOU).m_sColorAttr.m_cBACK );
 			gr.FillMyRectTextBackColor(rc);
 		}
 	}
