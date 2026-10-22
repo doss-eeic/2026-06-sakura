@@ -11,6 +11,7 @@
 #include "view/NoteImageGeometry.h"
 #include "dlg/CDlgInput1.h"
 #include "cmd/COpeBlk.h"
+#include <shlobj.h>
 
 namespace {
 bool FitBlock(NoteView::Block& block, int width, int height, UINT dpi)
@@ -570,6 +571,22 @@ void CEditView::OpenNoteBlockInPaint(const std::wstring& path)
 		::MessageBoxW(GetHwnd(), L"ペイントを起動できませんでした。", L"画像", MB_OK | MB_ICONWARNING);
 }
 
+void CEditView::OpenNoteBlockWith(const std::wstring& path)
+{
+	std::wstring nativePath(path);
+	std::replace(nativePath.begin(), nativePath.end(), L'/', L'\\');
+	if (!ImageLink::IsReadableFile(nativePath)) {
+		::MessageBoxW(GetHwnd(), L"画像ファイルが見つかりません。", L"画像", MB_OK | MB_ICONWARNING);
+		return;
+	}
+	// Let Windows offer registered applications and its executable picker. Pass a
+	// native filename, not a command line, and open just this file with OAIF_EXEC.
+	const OPENASINFO info{nativePath.c_str(), nullptr, OAIF_EXEC};
+	const HRESULT result = ::SHOpenWithDialog(GetEditWnd().GetHwnd(), &info);
+	if (FAILED(result) && result != HRESULT_FROM_WIN32(ERROR_CANCELLED) && result != E_ABORT)
+		::MessageBoxW(GetHwnd(), L"「プログラムから開く」を表示できませんでした。", L"画像", MB_OK | MB_ICONWARNING);
+}
+
 void CEditView::ShowNoteBlockMenu(POINT point)
 {
 	const auto* block = GetTextArea().HitClientRow(point.y).block;
@@ -581,7 +598,9 @@ void CEditView::ShowNoteBlockMenu(POINT point)
 	const bool editable = CanChangeNoteRows(logicalLine);
 	const HMENU menu = ::CreatePopupMenu();
 	if (!menu) return;
-	::AppendMenuW(menu, MF_STRING | (ImageLink::IsReadableFile(path) ? 0 : MF_GRAYED), 1, L"ペイントで開く");
+	const UINT openFlags = MF_STRING | (ImageLink::IsReadableFile(path) ? 0 : MF_GRAYED);
+	::AppendMenuW(menu, openFlags, 1, L"ペイントで開く");
+	::AppendMenuW(menu, openFlags, 5, L"プログラムから開く...");
 	::AppendMenuW(menu, MF_STRING, 2, L"画像を更新");
 	::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 	::AppendMenuW(menu, MF_STRING | (editable ? 0 : MF_GRAYED), 3, L"高さを変更...");
@@ -590,6 +609,7 @@ void CEditView::ShowNoteBlockMenu(POINT point)
 	const auto choice = ::TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, point.x, point.y, 0, GetHwnd(), nullptr);
 	::DestroyMenu(menu);
 	if (choice == 1) OpenNoteBlockInPaint(path);
+	if (choice == 5) OpenNoteBlockWith(path);
 	if (choice == 2) {
 		GetEditWnd().GetNoteImageCache().Invalidate(path);
 		for (int i = 0; i < GetEditWnd().GetAllViewCount(); ++i) GetEditWnd().GetView(i).RefreshNoteImage(path);

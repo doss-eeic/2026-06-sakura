@@ -226,6 +226,7 @@ public:
 	void RefreshNoteImage(const std::wstring& path);
 	void ShowNoteBlockMenu(POINT point);
 	void OpenNoteBlockInPaint(const std::wstring& path);
+	void OpenNoteBlockWith(const std::wstring& path);
 	bool ChangeNoteRows(std::int64_t logicalLine, const std::wstring& path, int rows);
 	bool CanChangeNoteRows(std::int64_t logicalLine) const;
 	bool IsNoteResizeHandle(POINT point) const;

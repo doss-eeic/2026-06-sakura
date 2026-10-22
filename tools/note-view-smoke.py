@@ -20,8 +20,9 @@ parser.add_argument('--bin-dir', type=Path, default=root / 'x64' / 'Debug')
 parser.add_argument('--output-dir', type=Path, default=root / 'build' / 'phase3-gui')
 parser.add_argument('--photo-regression', action='store_true', help='Test an image in a different directory, its context menu and height dialog')
 parser.add_argument('--review-regression', action='store_true', help='Check cached Undo geometry, 3/18/40 row input and backward selection after a height edit')
+parser.add_argument('--open-with-regression', action='store_true', help='Open and cancel the Windows app picker from an image context menu')
 args = parser.parse_args()
-args.photo_regression = args.photo_regression or args.review_regression
+args.photo_regression = args.photo_regression or args.review_regression or args.open_with_regression
 session = w.DWORD()
 if c.windll.kernel32.ProcessIdToSessionId(os.getpid(), c.byref(session)) and session.value == 0:
     parser.error('Run this GUI test from the Windows desktop; SSH session 0 cannot display the editor.')
@@ -215,13 +216,13 @@ try:
                                                  if name == '#32768' and pid == process.pid and user.IsWindowVisible(hwnd)), None),
                                    'photo context menu')
             menu = user.SendMessageW(menu_window, 0x01E1, 0, 0)
-            assert menu and user.GetMenuItemCount(menu) == 5
+            assert menu and user.GetMenuItemCount(menu) == 6
             labels = []
-            for position in (0, 1, 3, 4):
+            for position in (0, 1, 2, 4, 5):
                 label = c.create_unicode_buffer(128)
                 user.GetMenuStringW(menu, position, label, len(label), 0x400)
                 labels.append(label.value)
-            assert labels == ['ペイントで開く', '画像を更新', '高さを変更...', '画像のパスをコピー'], labels
+            assert labels == ['ペイントで開く', 'プログラムから開く...', '画像を更新', '高さを変更...', '画像のパスをコピー'], labels
             return menu
         def choose(menu, index):
             item = w.RECT()
@@ -229,8 +230,35 @@ try:
             user.SetCursorPos((item.left + item.right) // 2, (item.top + item.bottom) // 2)
             user.mouse_event(2, 0, 0, 0, 0)
             user.mouse_event(4, 0, 0, 0, 0)
+        if args.open_with_regression:
+            before = caret_point()
+            choose(context_menu(), 1)
+            def app_picker():
+                # Modern Windows hosts the picker outside the desktop windows
+                # returned by EnumWindows. Its foreground HWND is still accessible.
+                handles = [user.GetForegroundWindow()] + [hwnd for hwnd, _, _ in windows()]
+                for hwnd in handles:
+                    if not user.IsWindowVisible(hwnd):
+                        continue
+                    name = c.create_unicode_buffer(256)
+                    user.GetClassNameW(hwnd, name, len(name))
+                    title = c.create_unicode_buffer(256)
+                    user.GetWindowTextW(hwnd, title, len(title))
+                    if name.value == 'Open With' or title.value in ('Open With', 'プログラムから開く'):
+                        return hwnd
+                return None
+            picker = wait_for(app_picker, 'Windows Open With app picker')
+            capture(picker, 'open-with-picker')
+            user.PostMessageW(picker, 0x10, 0, 0)
+            wait_for(lambda: not user.IsWindowVisible(picker), 'app picker cancelled')
+            activate()
+            command(30103)
+            assert document.read_bytes() == original, 'Open With changed document text'
+            assert caret_point() == before, 'Open With changed the text caret'
+            print('PASS: Windows Open With picker opens and cancels without modifying text or caret')
+            raise SystemExit(0)
         def set_height(rows):
-            choose(context_menu(), 3)
+            choose(context_menu(), 4)
             dialog = wait_for(lambda: next((hwnd for hwnd, name, pid in windows()
                                             if name == '#32770' and pid == process.pid and user.IsWindowVisible(hwnd)), None),
                               'photo height dialog')
