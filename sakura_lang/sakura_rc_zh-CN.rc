@@ -2608,6 +2608,7 @@ END
 STRINGTABLE
 BEGIN
     F_INS_DATE              "插入日期"
+    F_CREATE_FREEBOARD      "创建自由画板..."
     F_INS_IMAGE_LINK        "插入图像链接..."
     STR_IMAGE_LINK_FILTER   "图像 (PNG/JPEG)"
     STR_IMAGE_LINK_ERROR    "无法插入图像链接。请检查路径是否为可读的本地PNG/JPEG文件并且包含支持的字符。"

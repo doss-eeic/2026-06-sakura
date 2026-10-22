@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <list>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -27,6 +28,11 @@ public:
 		State state;
 		std::shared_ptr<const ImageDecoder::Image> image;
 	};
+	struct SourceInfo {
+		State state = State::Loading;
+		UINT width = 0;
+		UINT height = 0;
+	};
 	static constexpr size_t MaxEntries = 16;
 	static constexpr size_t MaxBytes = 32 * 1024 * 1024;
 	ImageCache() = default;
@@ -34,7 +40,11 @@ public:
 	ImageCache(const ImageCache&) = delete;
 	ImageCache& operator=(const ImageCache&) = delete;
 	Result Get(const ImageKey& key);
+	// Memory-only lookup, retained when a thumbnail is evicted. Never starts file I/O.
+	SourceInfo GetSourceInfo(const std::wstring& path) const;
 	void Reset();
+	void Invalidate(const std::wstring& path);
+	std::vector<std::wstring> ChangedPaths() const;
 	size_t ByteCount() const;
 	size_t EntryCount() const;
 private:
@@ -44,12 +54,15 @@ private:
 		State state = State::Loading;
 		bool started = false;
 		std::shared_ptr<const ImageDecoder::Image> image;
+		WIN32_FILE_ATTRIBUTE_DATA stamp{};
 	};
 	void Work(std::stop_token stop);
 	void Erase(std::list<Entry>::iterator entry);
 	mutable std::mutex m_mutex;
 	std::condition_variable m_wake;
 	std::list<Entry> m_entries;
+	std::map<std::wstring, WIN32_FILE_ATTRIBUTE_DATA> m_stamps;
+	std::map<std::wstring, SourceInfo> m_sources;
 	size_t m_bytes = 0;
 	std::uint64_t m_nextId = 0; // IDs never reused after a document/view reset.
 	std::jthread m_worker;

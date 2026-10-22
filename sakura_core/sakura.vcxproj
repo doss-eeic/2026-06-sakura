@@ -434,8 +434,10 @@
     <ClInclude Include="..\sakura_core\util\std_macro.h" />
     <ClInclude Include="..\sakura_core\util\string_ex.h" />
     <ClInclude Include="..\sakura_core\util\ImageLink.h" />
+    <ClInclude Include="..\sakura_core\util\Freeboard.h" />
     <ClInclude Include="..\sakura_core\util\ImageDecoder.h" />
     <ClInclude Include="..\sakura_core\view\NoteProjection.h" />
+    <ClInclude Include="..\sakura_core\view\NoteImageGeometry.h" />
     <ClInclude Include="..\sakura_core\view\NoteImageCache.h" />
     <ClInclude Include="..\sakura_core\window\CImagePreviewWnd.h" />
     <ClInclude Include="..\sakura_core\util\string_ex2.h" />
@@ -864,6 +866,7 @@
     <ClCompile Include="..\sakura_core\view\NoteImageCache.cpp" />
     <ClCompile Include="..\sakura_core\util\ImageDecoder.cpp" />
     <ClCompile Include="..\sakura_core\util\ImageLink.cpp" />
+    <ClCompile Include="..\sakura_core\util\Freeboard.cpp" />
     <ClCompile Include="..\sakura_core\window\CImagePreviewWnd.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Paint.cpp" />
     <ClCompile Include="..\sakura_core\view\CEditView_Paint_Bracket.cpp" />

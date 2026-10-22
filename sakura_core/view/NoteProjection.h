@@ -25,12 +25,19 @@ struct Block {
 	std::int64_t logicalLine = 0;
 	std::int64_t lastLayoutLine = 0;
 	std::wstring path;
+	int maxRows = 12;
+	int rows = 12;
+	// Zero dimensions mean pending; failed images use rows=3.
+	unsigned sourceWidth = 0;
+	unsigned sourceHeight = 0;
+	bool failed = false;
 	auto operator<=>(const Block&) const = default;
 };
 
 class Projection {
 public:
-	static constexpr std::int64_t BlockRows = 12;
+	static constexpr std::int64_t DefaultRows = 12;
+	static constexpr std::int64_t MaxRows = 40;
 	struct Hit {
 		std::int64_t layoutLine;
 		const Block* block;
@@ -38,10 +45,34 @@ public:
 	};
 
 	const std::vector<Block>& Blocks() const { return m_blocks; }
-	void Clear() { m_blocks.clear(); }
+	void Clear() { m_blocks.clear(); m_prefix.assign(1, 0); }
 
 	// The caller supplies blocks in document order, one per standalone logical line.
-	void Reset(std::vector<Block> blocks) { m_blocks = std::move(blocks); }
+	void Reset(std::vector<Block> blocks) { m_blocks = std::move(blocks); Reindex(); }
+	void Reindex()
+	{
+		m_prefix.clear();
+		m_prefix.reserve(m_blocks.size() + 1);
+		m_prefix.push_back(0);
+		for (const auto& block : m_blocks) m_prefix.push_back(Add(m_prefix.back(), block.rows));
+	}
+	bool SetRows(size_t index, int rows)
+	{
+		if (index >= m_blocks.size() || m_blocks[index].rows == rows) return false;
+		m_blocks[index].rows = std::clamp(rows, 3, 40);
+		Reindex();
+		return true;
+	}
+	// Batch geometry changes: visit each block once and rebuild prefix sums once.
+	// The callback must preserve logical/layout anchors and document order.
+	template<class Update>
+	bool UpdateBlocks(Update&& update)
+	{
+		bool changed = false;
+		for (auto& block : m_blocks) changed = update(block) || changed;
+		if (changed) Reindex();
+		return changed;
+	}
 
 	static std::int64_t Add(std::int64_t a, std::int64_t b)
 	{
@@ -56,13 +87,12 @@ public:
 	{
 		const auto it = std::lower_bound(m_blocks.begin(), m_blocks.end(), line,
 			[](const Block& block, std::int64_t row) { return block.lastLayoutLine < row; });
-		return DisplayRow(Add(line, static_cast<std::int64_t>(it - m_blocks.begin()) * BlockRows));
+		return DisplayRow(Add(line, m_prefix[it - m_blocks.begin()]));
 	}
 
 	DisplayRow BlockStart(size_t index) const
 	{
-		return DisplayRow(Add(m_blocks[index].lastLayoutLine,
-			Add(1, static_cast<std::int64_t>(index) * BlockRows)));
+		return DisplayRow(Add(m_blocks[index].lastLayoutLine, Add(1, m_prefix[index])));
 	}
 
 	size_t FirstVisibleBlock(DisplayRow top) const
@@ -84,9 +114,9 @@ public:
 		if (first) {
 			const auto index = first - 1;
 			const auto offset = row.value - BlockStart(index).value;
-			if (offset < BlockRows) return {m_blocks[index].lastLayoutLine, &m_blocks[index], static_cast<int>(offset)};
+			if (offset < m_blocks[index].rows) return {m_blocks[index].lastLayoutLine, &m_blocks[index], static_cast<int>(offset)};
 		}
-		return {row.value - static_cast<std::int64_t>(first) * BlockRows, nullptr, 0};
+		return {row.value - m_prefix[first], nullptr, 0};
 	}
 
 	// Reparse only changed logical lines. Unchanged blocks retain their paths and move
@@ -110,10 +140,12 @@ public:
 		}
 		m_blocks.insert(m_blocks.begin() + index,
 			std::make_move_iterator(replacement.begin()), std::make_move_iterator(replacement.end()));
+		Reindex();
 		return true;
 	}
 
 private:
 	std::vector<Block> m_blocks;
+	std::vector<std::int64_t> m_prefix{0};
 };
 }

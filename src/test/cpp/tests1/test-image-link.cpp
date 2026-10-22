@@ -4,7 +4,9 @@
  */
 #include "pch.h"
 #include "util/ImageLink.h"
+#include "util/Freeboard.h"
 #include "view/NoteProjection.h"
+#include "view/NoteImageGeometry.h"
 #include "window/CImagePreviewWnd.h"
 #include "cxx/com_pointer.hpp"
 #include "window/EditorTestSuite.hpp"
@@ -99,6 +101,90 @@ TEST(ImageLink, StandaloneLogicalLines)
 	}
 	constexpr wchar_t embeddedNull[] = L"![a](C:/a.png)\0suffix";
 	EXPECT_FALSE(ImageLink::FindStandalone(std::wstring_view(embeddedNull, std::size(embeddedNull) - 1)));
+}
+
+TEST(ImageLink, StandaloneHeightAnnotationAndBrokenMetadata)
+{
+	for (int rows : {3, 12, 40}) {
+		const auto text = L" \t![図](<C:/My Notes/図 (1).png>) \t<!-- sakura:rows=" + std::to_wstring(rows) + L" -->\t";
+		const auto link = ImageLink::FindStandalone(text);
+		ASSERT_TRUE(link);
+		EXPECT_EQ(rows, link->maxRows);
+		EXPECT_TRUE(link->rowsValid);
+		EXPECT_EQ(text.find(L"<!--"), link->annotationBegin);
+		EXPECT_TRUE(ImageLink::FindAt(text, link->begin));
+	}
+	for (const auto suffix : {L"<!-- sakura:rows=02 -->", L"<!-- sakura:rows=41 -->",
+		L"<!-- sakura:rows= -->", L"<!-- sakura:rows=+4 -->", L"<!-- sakura:rows=3"}) {
+		const auto link = ImageLink::FindStandalone(std::wstring(L"![a](C:/a.png) ") + suffix);
+		ASSERT_TRUE(link);
+		EXPECT_EQ(12, link->maxRows);
+		EXPECT_FALSE(link->rowsValid);
+	}
+	for (const auto suffix : {L"<!-- unrelated -->", L"text", L"![b](C:/b.png)"})
+		EXPECT_FALSE(ImageLink::FindStandalone(std::wstring(L"![a](C:/a.png) ") + suffix));
+}
+
+TEST(ImageLink, RowLimitValidatesTheWholeInputWithoutOverflow)
+{
+	for (int rows = 3; rows <= 40; ++rows) EXPECT_EQ(rows, ImageLink::ParseRowLimit(std::to_wstring(rows)));
+	for (auto input : {L"", L"2", L"41", L"0", L"03", L"+3", L"3x", L"3.5", L" 3", L"999999999999999"})
+		EXPECT_FALSE(ImageLink::ParseRowLimit(input));
+}
+
+TEST(NoteProjection, UnequalRowsAndResizeReindex)
+{
+	NoteView::Projection p;
+	p.Reset({{0, 0, L"a", 3, 3}, {1, 1, L"b", 18, 18}, {2, 2, L"c", 40, 21}});
+	EXPECT_EQ(1, p.BlockStart(0).value);
+	EXPECT_EQ(5, p.BlockStart(1).value);
+	EXPECT_EQ(24, p.BlockStart(2).value);
+	for (int i = 0; i < 3; ++i)
+		for (int n = 0; n < p.Blocks()[i].rows; ++n)
+			EXPECT_EQ(n, p.ToLayout(NoteView::DisplayRow(p.BlockStart(i).value + n)).offset);
+	EXPECT_EQ(45, p.FromLayout(3).value);
+	ASSERT_TRUE(p.SetRows(1, 7));
+	EXPECT_EQ(13, p.BlockStart(2).value);
+	EXPECT_EQ(34, p.FromLayout(3).value);
+	p.Replace(0, 0, 0, 0, {});
+	EXPECT_EQ(31, p.FromLayout(3).value);
+}
+
+TEST(NoteProjection, FitImageStopsAtWidthAndRespectsHeightCap)
+{
+	const auto board = NoteView::FitImage(1200, 800, 600, 20, 40);
+	EXPECT_EQ(600u, board.width);
+	EXPECT_EQ(400u, board.height);
+	EXPECT_EQ(21, board.rows);
+	EXPECT_EQ(board.rows, NoteView::FitImage(1200, 800, 600, 20, 35).rows);
+	EXPECT_EQ(3, NoteView::FitImage(1200, 800, 600, 20, 3).rows);
+	EXPECT_EQ(3, NoteView::FitImage(10000, 1, 600, 20, 40).rows);
+	EXPECT_EQ(33, NoteView::FitImage(1, 10000, 600, 20, 40).rows); // 640px cap
+}
+
+TEST(NoteProjection, BatchGeometryUpdatePreservesEveryTextAndBlockBoundary)
+{
+	NoteView::Projection projection;
+	std::vector<NoteView::Block> blocks;
+	for (int i = 0; i < 20000; ++i) blocks.push_back({i, i, L"image", 40, 12});
+	projection.Reset(std::move(blocks));
+	int visited = 0;
+	ASSERT_TRUE(projection.UpdateBlocks([&](auto& block) {
+		++visited;
+		block.rows = 3 + block.logicalLine % 38;
+		return true;
+	}));
+	EXPECT_EQ(20000, visited);
+	std::int64_t total = 0;
+	for (int i = 0; i < 20000; ++i) {
+		EXPECT_EQ(i + total, projection.FromLayout(i).value);
+		const auto start = projection.BlockStart(i);
+		EXPECT_EQ(i + total + 1, start.value);
+		const auto& block = projection.Blocks()[i];
+		EXPECT_EQ(&block, projection.ToLayout(NoteView::DisplayRow(start.value + block.rows - 1)).block);
+		total += block.rows;
+		EXPECT_EQ(i + 1, projection.ToLayout(NoteView::DisplayRow(i + 1 + total)).layoutLine);
+	}
 }
 
 TEST(NoteProjection, TextAndVirtualRowsRoundTrip)
@@ -330,8 +416,10 @@ TEST_F(ImagePreviewFile, NoteCacheFailuresStayFailedUntilReset)
 	cache.Reset();
 	const auto result = WaitForImage(cache, key);
 	ASSERT_EQ(NoteView::ImageCache::State::Ready, result.state);
-	EXPECT_EQ(10u, result.image->width);
-	EXPECT_EQ(20u, result.image->height);
+	EXPECT_EQ(10u, result.image->sourceWidth);
+	EXPECT_EQ(20u, result.image->sourceHeight);
+	EXPECT_EQ(320u, result.image->width); // note blocks may upscale; popup decoding still does not
+	EXPECT_EQ(640u, result.image->height);
 }
 
 TEST_F(ImagePreviewFile, NoteCacheBoundsEntriesAndDecodedBytes)
@@ -544,6 +632,272 @@ TEST_F(ImageLinkEditor, NoteEditingAndUndoRebuildWithoutPainting)
 	EXPECT_EQ(1, view.GetTextArea().GetNoteProjection().Blocks()[0].logicalLine);
 	Command(F_UNDO);
 	EXPECT_EQ(0, view.GetTextArea().GetNoteProjection().Blocks()[0].logicalLine);
+}
+
+TEST_F(ImageLinkEditor, NoteKnownDimensionsRestoreAcrossUndoWithoutPainting)
+{
+	std::filesystem::remove(path); // Replace only this fixture's temporary file.
+	Freeboard::Creation image;
+	ASSERT_TRUE(image.Create(path.parent_path(), path.stem().wstring()));
+	image.Keep();
+	const auto link = *ImageLink::MakeLink(path.native());
+	const auto imagePath = ImageLink::FindStandalone(link)->path;
+	// Enabling note display resets the cache, so preload after enabling it.
+	pcEditWnd->SetNoteView(true);
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, WaitForImage(pcEditWnd->GetNoteImageCache(), {imagePath, 640, 640}).state);
+	Insert(link + L" <!-- sakura:rows=40 -->\r\nafter");
+	auto& view = pcEditWnd->GetActiveView();
+	const auto before = view.GetTextArea().GetNoteProjection().Blocks();
+	ASSERT_EQ(1u, before.size());
+	EXPECT_EQ(1200u, before[0].sourceWidth);
+	EXPECT_EQ(800u, before[0].sourceHeight);
+	EXPECT_LT(before[0].rows, 40);
+	Command(F_GOFILETOP);
+	Insert(L"x");
+	EXPECT_FALSE(view.HasNoteBlocks());
+	Command(F_UNDO);
+	EXPECT_EQ(before, view.GetTextArea().GetNoteProjection().Blocks());
+	// A second view width uses the same source dimensions with different actual rows.
+	view.GetTextArea().TextArea_OnSize(CMySize(160, 600), 0, 0);
+	view.RefitNoteImages();
+	EXPECT_LT(view.GetTextArea().GetNoteProjection().Blocks()[0].rows, before[0].rows);
+}
+
+TEST_F(ImagePreviewFile, FreeboardCreationProducesOpaqueWhitePngWithoutOverwriting)
+{
+	{ std::ofstream existing(path, std::ios::binary); existing << "keep original"; }
+	Freeboard::Creation creation;
+	ASSERT_TRUE(creation.Create(path.parent_path(), path.stem().wstring()));
+	const auto created = std::filesystem::path(creation.Path());
+	EXPECT_NE(path, created);
+	EXPECT_EQ(path.stem().wstring() + L"_2.png", created.filename().wstring());
+	EXPECT_EQ(ImageLink::MakeLink(created.wstring()), creation.Link());
+	creation.Keep();
+	const auto image = ImageDecoder::Decode(created.wstring(), 1200, 800);
+	ASSERT_TRUE(image);
+	EXPECT_EQ(1200u, image->sourceWidth);
+	EXPECT_EQ(800u, image->sourceHeight);
+	EXPECT_TRUE(std::all_of(image->pixels.begin(), image->pixels.end(), [](BYTE c) { return c == 255; }));
+	std::ifstream original(path, std::ios::binary);
+	EXPECT_EQ("keep original", std::string((std::istreambuf_iterator<char>(original)), {}));
+	EXPECT_TRUE(std::filesystem::remove(created));
+}
+
+TEST_F(ImagePreviewFile, FreeboardOwnershipRejectsConcurrentOverwriteDeleteAndReplacement)
+{
+	{ std::ofstream existing(path); existing << "original"; }
+	Freeboard::Creation first;
+	ASSERT_TRUE(first.Create(path.parent_path(), path.stem().wstring()));
+	bool overwritten = false, deleted = false, replaced = false;
+	std::thread concurrent([&] {
+		const auto handle = ::CreateFileW(first.Path().c_str(), GENERIC_WRITE,
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, TRUNCATE_EXISTING, 0, nullptr);
+		overwritten = handle != INVALID_HANDLE_VALUE;
+		if (overwritten) ::CloseHandle(handle);
+		deleted = ::DeleteFileW(first.Path().c_str());
+		replaced = ::MoveFileExW(path.c_str(), first.Path().c_str(), MOVEFILE_REPLACE_EXISTING);
+	});
+	concurrent.join();
+	EXPECT_FALSE(overwritten);
+	EXPECT_FALSE(deleted);
+	EXPECT_FALSE(replaced);
+	Freeboard::Creation second;
+	ASSERT_TRUE(second.Create(path.parent_path(), path.stem().wstring()));
+	EXPECT_NE(first.Path(), second.Path());
+	EXPECT_TRUE(first.Cancel());
+	EXPECT_FALSE(std::filesystem::exists(first.Path()));
+	EXPECT_TRUE(std::filesystem::exists(second.Path()));
+	EXPECT_TRUE(std::filesystem::exists(path));
+}
+
+TEST_F(ImagePreviewFile, FreeboardAbandonedCreationRollsBackAndFailedCreateLeavesExistingFiles)
+{
+	{ std::ofstream existing(path); existing << "original"; }
+	std::wstring created;
+	{
+		Freeboard::Creation operation;
+		ASSERT_TRUE(operation.Create(path.parent_path(), path.stem().wstring()));
+		created = operation.Path();
+	}
+	EXPECT_FALSE(std::filesystem::exists(created));
+	Freeboard::Creation failed;
+	EXPECT_FALSE(failed.Create(path / L"not-a-directory", L"board"));
+	EXPECT_TRUE(failed.Cancel());
+	EXPECT_TRUE(std::filesystem::exists(path));
+}
+
+TEST_F(ImagePreviewFile, NoteSourceDimensionsSurviveThumbnailEvictionButNotInvalidation)
+{
+	WriteImage(GUID_ContainerFormatPng, 320, 20);
+	NoteView::ImageCache cache;
+	EXPECT_EQ(NoteView::ImageCache::State::Loading, cache.GetSourceInfo(path.native()).state);
+	for (UINT i = 0; i <= NoteView::ImageCache::MaxEntries; ++i)
+		ASSERT_EQ(NoteView::ImageCache::State::Ready, WaitForImage(cache, {path.native(), 100 + i, 200}).state);
+	const auto source = cache.GetSourceInfo(path.native());
+	EXPECT_EQ(320u, source.width);
+	EXPECT_EQ(20u, source.height);
+	EXPECT_EQ(NoteView::ImageCache::State::Ready, source.state);
+	cache.Invalidate(path.native());
+	EXPECT_EQ(NoteView::ImageCache::State::Loading, cache.GetSourceInfo(path.native()).state);
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, WaitForImage(cache, {path.native(), 100, 200}).state);
+	cache.Reset();
+	EXPECT_EQ(0u, cache.GetSourceInfo(path.native()).width);
+}
+
+TEST_F(ImagePreviewFile, NoteCacheDetectsChangedFileAndInvalidatesOnlyItsPath)
+{
+	WriteImage(GUID_ContainerFormatPng, 800, 200);
+	NoteView::ImageCache cache;
+	const NoteView::ImageKey key{path.native(), 600, 600};
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, WaitForImage(cache, key).state);
+	EXPECT_TRUE(cache.ChangedPaths().empty());
+	WriteImage(GUID_ContainerFormatPng, 1200, 800);
+	ASSERT_EQ(std::vector<std::wstring>{path.native()}, cache.ChangedPaths());
+	cache.Invalidate(path.native());
+	const auto result = WaitForImage(cache, key);
+	ASSERT_EQ(NoteView::ImageCache::State::Ready, result.state);
+	EXPECT_EQ(1200u, result.image->sourceWidth);
+	EXPECT_EQ(800u, result.image->sourceHeight);
+	EXPECT_TRUE(cache.ChangedPaths().empty());
+}
+
+TEST_F(ImageLinkEditor, HeightAnnotationUndoRedoAndDistantCaret)
+{
+	Insert(L"before\r\n![a](C:/a.png)\r\nafter");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	const auto caret = view.GetCaret().GetCaretLogicPos();
+	ASSERT_TRUE(view.ChangeNoteRows(1, L"C:/a.png", 18));
+	EXPECT_EQ(caret, view.GetCaret().GetCaretLogicPos());
+	EXPECT_NE(std::wstring::npos, Text().find(L"![a](C:/a.png) <!-- sakura:rows=18 -->"));
+	EXPECT_EQ(18, view.GetTextArea().GetNoteProjection().Blocks()[0].maxRows);
+	Command(F_UNDO);
+	EXPECT_EQ(L"before\r\n![a](C:/a.png)\r\nafter", Text());
+	Command(F_REDO);
+	EXPECT_EQ(18, view.GetTextArea().GetNoteProjection().Blocks()[0].maxRows);
+	EXPECT_TRUE(view.ChangeNoteRows(1, L"C:/a.png", 12));
+	EXPECT_EQ(L"before\r\n![a](C:/a.png)\r\nafter", Text());
+}
+
+TEST_F(ImageLinkEditor, HeightChangePreservesUnrelatedSelectionAndRejectsAnnotationOverlap)
+{
+	Insert(L"before\r\n![a](C:/a.png) <!-- sakura:rows=18 -->\r\nafter");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	MoveTo({0, 0});
+	view.GetSelectionInfo().BeginSelectArea();
+	CLayoutPoint end;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(4, 0), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	const auto selected = view.GetSelectionInfo().m_sSelect;
+	ASSERT_TRUE(view.ChangeNoteRows(1, L"C:/a.png", 30));
+	EXPECT_EQ(selected.GetFrom(), view.GetSelectionInfo().m_sSelect.GetFrom());
+	EXPECT_EQ(selected.GetTo(), view.GetSelectionInfo().m_sSelect.GetTo());
+	EXPECT_EQ(CLogicPoint(0, 0), view.GetCaret().GetCaretLogicPos());
+	view.GetSelectionInfo().DisableSelectArea(false);
+	MoveTo({17, 1});
+	view.GetSelectionInfo().BeginSelectArea();
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(20, 1), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	const auto before = Text();
+	EXPECT_FALSE(view.ChangeNoteRows(1, L"C:/a.png", 12));
+	EXPECT_EQ(before, Text());
+}
+
+TEST_F(ImageLinkEditor, HeightChangeKeepsBackwardSelectionAnchorForSubsequentTyping)
+{
+	Insert(L"before\r\n![a](C:/a.png)\r\nafter");
+	pcEditWnd->SetNoteView(true);
+	MoveTo({4, 0});
+	for (int i = 0; i < 4; ++i) Command(F_LEFT_SEL);
+	auto& view = pcEditWnd->GetActiveView();
+	const auto origin = view.GetSelectionInfo().m_sSelectBgn;
+	ASSERT_TRUE(view.ChangeNoteRows(1, L"C:/a.png", 18));
+	EXPECT_EQ(origin, view.GetSelectionInfo().m_sSelectBgn);
+	Command(F_RIGHT_SEL);
+	Insert(L"Z");
+	EXPECT_EQ(L"bZre\r\n![a](C:/a.png) <!-- sakura:rows=18 -->\r\nafter", Text());
+}
+
+TEST_F(ImageLinkEditor, HeightSameValuePreservesWhitespaceModifiedFlagAndUndoHistory)
+{
+	const std::pair<std::wstring, int> examples[] = {
+		{L" \t![a](C:/a.png)\t<!-- sakura:rows=18 --> \t\r\nafter", 18},
+		{L"![a](C:/a.png)<!-- sakura:rows=3 -->\r\nafter", 3},
+		{L"![a](C:/a.png)  <!-- sakura:rows=12 -->  \r\nafter", 12},
+		{L"![a](C:/a.png) \t\r\nafter", 12},
+	};
+	for (const auto& [text, rows] : examples) {
+		Command(F_SELECTALL);
+		Command(F_DELETE);
+		Insert(text);
+		pcEditWnd->SetNoteView(true);
+		pcEditDoc->m_cDocEditor.SetModified(false, false);
+		const auto undo = pcEditDoc->m_cDocEditor.m_cOpeBuf.GetCurrentPointer();
+		EXPECT_FALSE(pcEditWnd->GetActiveView().ChangeNoteRows(0, L"C:/a.png", rows));
+		EXPECT_EQ(text, Text());
+		EXPECT_FALSE(pcEditDoc->m_cDocEditor.IsModified());
+		EXPECT_EQ(undo, pcEditDoc->m_cDocEditor.m_cOpeBuf.GetCurrentPointer());
+	}
+}
+
+TEST_F(ImageLinkEditor, HeightDefaultCanRepairMalformedMetadataInOneUndo)
+{
+	const std::wstring text = L"![a](C:/a.png)\t<!-- sakura:rows=oops -->  \r\nafter";
+	Insert(text);
+	pcEditWnd->SetNoteView(true);
+	ASSERT_TRUE(pcEditWnd->GetActiveView().ChangeNoteRows(0, L"C:/a.png", 12));
+	EXPECT_EQ(L"![a](C:/a.png)\r\nafter", Text());
+	Command(F_UNDO);
+	EXPECT_EQ(text, Text());
+}
+
+TEST_F(ImageLinkEditor, FreeboardInsertionBoundariesLeaveCaretAfterLinkAndUndoOnce)
+{
+	const auto link = *ImageLink::MakeLink(path.native());
+	const std::wstring eol = pcEditDoc->m_cDocEditor.GetNewLineCode().GetValue2();
+	struct Example { std::wstring before; CLogicPoint caret; std::wstring after; CLogicPoint next; };
+	const Example examples[] = {
+		{L"", {0, 0}, link + eol, {0, 1}},
+		{L"abcd", {4, 0}, L"abcd" + eol + link + eol, {0, 2}},
+		{L"abcd", {0, 0}, link + eol + L"abcd", {0, 1}},
+		{L"abcd", {2, 0}, L"ab" + eol + link + eol + L"cd", {0, 2}},
+		{L"abc\r\ndef", {3, 0}, L"abc" + eol + link + L"\r\ndef", {0, 2}},
+		{L"\r\ndef", {0, 0}, link + L"\r\ndef", {0, 1}},
+		{L" \t\r\ndef", {0, 0}, link + L" \t\r\ndef", {0, 1}},
+	};
+	for (bool enabled : {false, true}) for (const auto& example : examples) {
+		Command(F_SELECTALL);
+		Command(F_DELETE);
+		Insert(example.before);
+		pcEditWnd->SetNoteView(enabled);
+		MoveTo(example.caret);
+		auto& view = pcEditWnd->GetActiveView();
+		ASSERT_TRUE(view.InsertStandaloneNoteLink(link));
+		EXPECT_EQ(example.after, Text());
+		EXPECT_EQ(example.next, view.GetCaret().GetCaretLogicPos());
+		Command(F_UNDO);
+		EXPECT_EQ(example.before, Text());
+		Command(F_REDO);
+		EXPECT_EQ(example.after, Text());
+		EXPECT_EQ(example.next, view.GetCaret().GetCaretLogicPos());
+	}
+}
+
+TEST_F(ImageLinkEditor, FreeboardSelectedTextIsReplacedAndContinuedTypingKeepsImage)
+{
+	Insert(L"selected\r\ntext");
+	pcEditWnd->SetNoteView(true);
+	Command(F_SELECTALL);
+	auto& view = pcEditWnd->GetActiveView();
+	const auto link = *ImageLink::MakeLink(path.native());
+	ASSERT_TRUE(view.InsertStandaloneNoteLink(link));
+	EXPECT_EQ(CLogicPoint(0, 1), view.GetCaret().GetCaretLogicPos());
+	Insert(L"next text");
+	EXPECT_EQ(1u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	Command(F_UNDO);
+	Command(F_UNDO);
+	EXPECT_EQ(L"selected\r\ntext", Text());
 }
 
 TEST_F(ImageLinkEditor, NoteBlockScrollHitTestingAndCaretSkip)

@@ -538,10 +538,16 @@
     <ClInclude Include="..\sakura_core\util\ImageLink.h">
       <Filter>Cpp Source Files\util</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\util\Freeboard.h">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\util\ImageDecoder.h">
       <Filter>Cpp Source Files\util</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\view\NoteProjection.h">
+      <Filter>Cpp Source Files\view</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sakura_core\view\NoteImageGeometry.h">
       <Filter>Cpp Source Files\view</Filter>
     </ClInclude>
     <ClInclude Include="..\sakura_core\view\NoteImageCache.h">
@@ -1763,6 +1769,9 @@
       <Filter>Cpp Source Files\window</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\util\ImageLink.cpp">
+      <Filter>Cpp Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\util\Freeboard.cpp">
       <Filter>Cpp Source Files\util</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\view\CEditView_Note.cpp">

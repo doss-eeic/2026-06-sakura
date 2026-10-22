@@ -2635,6 +2635,7 @@ STRINGTABLE
 BEGIN
     F_INS_DATE              "日付挿入"
     F_INS_IMAGE_LINK        "画像リンクを挿入..."
+    F_CREATE_FREEBOARD      "フリーボードを作成..."
     STR_IMAGE_LINK_FILTER   "画像 (PNG/JPEG)"
     STR_IMAGE_LINK_ERROR    "画像リンクを挿入できません。読み取り可能なローカルのPNG/JPEGと、パスの文字を確認してください。"
     F_INS_TIME              "時刻挿入"
