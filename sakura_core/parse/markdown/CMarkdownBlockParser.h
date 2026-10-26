@@ -10,6 +10,12 @@
 
 class CMarkdownBlockParser {
 public:
+	static bool IsCodeLine(const Markdown::LineContext& context)
+	{
+		return context.kind == Markdown::LineKind::Fence || context.kind == Markdown::LineKind::FencedCode ||
+			context.kind == Markdown::LineKind::IndentedCode;
+	}
+
 	// 論理行を先頭から順に解析する。文書先頭ではstateを初期化する。
 	static Markdown::LineContext ParseLine(
 		std::wstring_view text, // 改行を除いた1行の文字列
@@ -19,11 +25,6 @@ public:
 	);
 
 	static Markdown::BlockInfo ScanBlock(std::wstring_view text, Markdown::BlockState& state);
-	static bool IsCodeLine(const Markdown::LineContext& context)
-	{
-		return context.kind == Markdown::LineKind::Fence || context.kind == Markdown::LineKind::FencedCode ||
-			context.kind == Markdown::LineKind::IndentedCode;
-	}
 
 	// Preserve the existing edit commands' marker recognition, which differs
 	// from the display scanner's block-boundary rules.
