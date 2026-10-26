@@ -1886,6 +1886,7 @@
 #define STR_SMART_INDENT_MARKDOWN       35072
 #define STR_OUTLINE_MARKDOWN            35073
 #define STR_DLGFAV_CONF_DEL_ALL         35074
+#define IDC_COMBO_SYNTAX_DISPLAY        1761
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -1894,7 +1895,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        35075
 #define _APS_NEXT_COMMAND_VALUE         101
-#define _APS_NEXT_CONTROL_VALUE         1761
+#define _APS_NEXT_CONTROL_VALUE         1762
 #define _APS_NEXT_SYMED_VALUE           10000
 #endif
 #endif

@@ -19,21 +19,8 @@ std::wstring_view LineText(const CDocLine* line)
 }
 }
 
-bool CMarkdownEmphasis::IsEnabled(const STypeConfig& type)
-{
-	if (_wcsicmp(type.m_szTypeName, L"Markdown") == 0) return true;
-	std::wstring_view extensions(type.m_szTypeExts);
-	while (!extensions.empty()) {
-		const auto end = extensions.find_first_of(L" ;,");
-		auto ext = extensions.substr(0, end);
-		if (ext.substr(0, 2) == L"*.") ext.remove_prefix(2);
-		for (const auto known : {L"md", L"markdown", L"mdown"}) {
-			if (ext.size() == wcslen(known) && _wcsnicmp(ext.data(), known, ext.size()) == 0) return true;
-		}
-		if (end == std::wstring_view::npos) break;
-		extensions.remove_prefix(end + 1);
-	}
-	return false;
+bool CMarkdownEmphasis::IsEnabled(const STypeConfig& type) {
+	return type.m_eSyntaxDisplay == SYNTAX_DISPLAY_MARKDOWN;
 }
 
 void CMarkdownEmphasis::Prepare(const CDocLine* line)

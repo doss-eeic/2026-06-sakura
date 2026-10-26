@@ -67,6 +67,12 @@ enum ESmartIndentType {
 	SMARTINDENT_MARKDOWN		//!< Markdown
 };
 
+//! 表示上の構文解析種別
+enum ESyntaxDisplayType {
+	SYNTAX_DISPLAY_NONE = 0,
+	SYNTAX_DISPLAY_MARKDOWN = 1,
+};
+
 //! ヒアドキュメント種別
 enum EHereDocType{
 	HEREDOC_PHP,			//!< PHP
@@ -150,6 +156,7 @@ struct STypeConfig{
 	int					m_nHeredocType;
 	wchar_t				m_szIndentChars[64];			//!< その他のインデント対象文字
 
+	ESyntaxDisplayType  m_eSyntaxDisplay = SYNTAX_DISPLAY_NONE;	//!< 表示上の構文解析種別
 	int					m_nColorInfoArrNum;				//!< 色設定配列の有効数
 	ColorInfo			m_ColorInfoArr[64];				//!< 色設定配列
 

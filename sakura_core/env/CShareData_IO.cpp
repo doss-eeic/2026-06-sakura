@@ -1326,21 +1326,6 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 	SetValueLimit( pShare->m_nTypesCount, 1, MAX_TYPES );
 	// 注：コントロールプロセス専用
 	std::vector<STypeConfig*>& types = CShareData::getInstance()->GetTypeSettings();
-	const auto isMarkdown = [](const STypeConfig* type) {
-		return _wcsicmp(type->m_szTypeName, L"Markdown") == 0
-			|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.md")
-			|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.markdown")
-			|| CDocTypeManager::IsFileNameMatch(type->m_szTypeExts, L"document.mdown");
-	};
-	if (cProfile.IsReadingMode()) {
-		// A saved custom type may occupy the newly added default Markdown slot.
-		// Clear that seed before reading it, so its overrides cannot leak into user types.
-		for (int index = 0; index < nCountOld; ++index) {
-			if (wcscmp(types[index]->m_szTypeName, L"Markdown") == 0) {
-				CType_Basis().InitTypeConfig(index, *types[index]);
-			}
-		}
-	}
 	for( i = GetDllShareData().m_nTypesCount; i < nCountOld; i++ ){
 		delete types[i];
 		types[i] = nullptr;
@@ -1356,6 +1341,9 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 
 	for( i = 0; i < pShare->m_nTypesCount; ++i ){
 		auto& type = *(types[i]);
+		if (cProfile.IsReadingMode()) {
+			CType_Basis().InitTypeConfig(i, type);
+		}
 		ShareData_IO_TypeConfig(cProfile, strprintf(L"Types(%d)", i), type);
 		if( cProfile.IsReadingMode() ){
 			type.m_nIdx = i;
@@ -1366,21 +1354,6 @@ void CShareData_IO::ShareData_IO_Types( CDataProfile& cProfile )
 			wcscpy(pShare->m_TypeMini[i].m_szTypeName, type.m_szTypeName);
 			pShare->m_TypeMini[i].m_id = type.m_id;
 			pShare->m_TypeMini[i].m_encoding = type.m_encoding;
-		}
-	}
-	bool markdownTypeInitialized = cProfile.IsWritingMode();
-	cProfile.IOProfileData(L"Other", L"MarkdownTypeInitialized", markdownTypeInitialized);
-	if (cProfile.IsReadingMode() && !markdownTypeInitialized && pShare->m_nTypesCount < MAX_TYPES) {
-		const bool exists = std::any_of(types.begin(), types.end(), isMarkdown);
-		if (!exists) {
-			const int index = pShare->m_nTypesCount++;
-			auto* type = new STypeConfig;
-			CType_Markdown().InitTypeConfig(index, *type);
-			types.push_back(type);
-			wcscpy(pShare->m_TypeMini[index].m_szTypeExts, type->m_szTypeExts);
-			wcscpy(pShare->m_TypeMini[index].m_szTypeName, type->m_szTypeName);
-			pShare->m_TypeMini[index].m_encoding = type->m_encoding;
-			pShare->m_TypeMini[index].m_id = type->m_id;
 		}
 	}
 	if( cProfile.IsReadingMode() ){
@@ -1886,6 +1859,7 @@ void ShareData_IO_TypeConfig(
 	ShareData_IO_FileTree(cProfile, pszSecName, types.m_sFileTree);
 
 	cProfile.IOProfileData(pszSecName, L"nSmartIndent", types.m_eSmartIndent );/* スマートインデント種別 */
+	cProfile.IOProfileData(pszSecName, L"nSyntaxDisplay", types.m_eSyntaxDisplay);
 	cProfile.IOProfileData( pszSecName, L"bIndentCppStringIgnore"		, types.m_bIndentCppStringIgnore );
 	cProfile.IOProfileData( pszSecName, L"bIndentCppCommentIgnore"	, types.m_bIndentCppCommentIgnore );
 	cProfile.IOProfileData( pszSecName, L"bIndentCppUndoSep"	, types.m_bIndentCppUndoSep );

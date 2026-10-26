@@ -26,6 +26,7 @@ void CType_Markdown::InitTypeConfigImp(STypeConfig* type)
 	type->m_encoding.m_eDefaultCodetype = CODE_UTF8;
 	type->m_eDefaultOutline = OUTLINE_MARKDOWN;
 	type->m_eSmartIndent = SMARTINDENT_MARKDOWN;
+	type->m_eSyntaxDisplay = SYNTAX_DISPLAY_MARKDOWN;
 	type->m_ColorInfoArr[COLORIDX_SSTRING].m_bDisp = false;
 	type->m_ColorInfoArr[COLORIDX_WSTRING].m_bDisp = false;
 	const auto bind = [type](int key, int modifiers, EFunctionCode command) {

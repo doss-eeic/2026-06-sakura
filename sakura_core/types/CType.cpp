@@ -236,6 +236,7 @@ void _DefaultConfig(STypeConfig* pType)
 	pType->m_nOutlineSortType = 0;					/* アウトライン解析ソート基準 */
 	CShareData::InitFileTree( &pType->m_sFileTree );
 	pType->m_eSmartIndent = SMARTINDENT_NONE;		/* スマートインデント種別 */
+	pType->m_eSyntaxDisplay = SYNTAX_DISPLAY_NONE;  /* 表示上の構文解析種別 */
 	pType->m_bIndentCppStringIgnore = true;
 	pType->m_bIndentCppCommentIgnore = true;
 	pType->m_bIndentCppUndoSep = false;
