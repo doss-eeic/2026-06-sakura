@@ -6,7 +6,9 @@
 #pragma once
 
 #include "Funccode_enum.h"
+#include "parse/markdown/CMarkdownInlineParser.h"
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,6 +18,19 @@ struct MarkdownLine {
 	std::wstring text;
 	std::wstring eol;
 };
+
+struct EmphasisEdit {
+	size_t from;
+	size_t to;
+	std::wstring text;
+	// 置換文字列内で選択し直す範囲。終了位置は含まない。
+	size_t selectionFrom;
+	size_t selectionTo;
+};
+
+std::optional<EmphasisEdit> ToggleEmphasis(std::wstring_view source,
+	const std::vector<CMarkdownInlineParser::EmphasisSpan>& spans,
+	size_t from, size_t to, Markdown::Style requested);
 
 size_t LongestRun(const std::wstring& text, wchar_t marker);
 std::wstring JoinLines(const std::vector<MarkdownLine>& lines);

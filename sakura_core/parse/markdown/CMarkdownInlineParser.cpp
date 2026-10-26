@@ -25,8 +25,14 @@ bool IsPunctuation(wchar_t c)
 }
 }
 
-std::vector<unsigned char> CMarkdownInlineParser::Parse(std::wstring_view text)
+std::vector<unsigned char> CMarkdownInlineParser::Parse(
+	std::wstring_view text,
+	std::vector<EmphasisSpan>* spans
+)
 {
+	if (spans) {
+		spans->clear();
+	}
 	struct Delimiter {
 		size_t start, length, remaining;
 		wchar_t marker;
@@ -119,6 +125,15 @@ std::vector<unsigned char> CMarkdownInlineParser::Parse(std::wstring_view text)
 			const size_t used = opener.remaining >= 2 && closer.remaining >= 2 ? 2 : 1;
 			const size_t from = opener.start + opener.remaining;
 			const size_t to = closer.start;
+			if (spans) {
+				spans->push_back({
+					from - used,
+					from,
+					to,
+					to + used,
+					strikethrough ? Strike : used == 2 ? Bold : Italic
+				});
+			}
 			auto& changes = strikethrough ? strike : used == 2 ? bold : italic;
 			++changes[from];
 			--changes[to];

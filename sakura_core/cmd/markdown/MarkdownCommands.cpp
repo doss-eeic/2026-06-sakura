@@ -5,10 +5,182 @@
  */
 #include "StdAfx.h"
 #include "cmd/markdown/MarkdownCommands.h"
+#include "parse/markdown/MarkdownParseUtil.h"
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace Markdown::Commands {
+namespace {
+constexpr std::array<Style, 3> emphasisStyles = {Bold, Italic, Strike};
+
+struct EmphasisText {
+	std::wstring text;
+	std::vector<unsigned char> styles;
+	std::vector<size_t> sourcePositions;
+};
+
+// 成立した装飾記号だけを除く。エスケープや未成立の記号は原文のまま保持する。
+EmphasisText ReadEmphasisText(std::wstring_view source,
+	const std::vector<CMarkdownInlineParser::EmphasisSpan>& spans)
+{
+	std::vector<bool> syntax(source.size(), false);
+	std::array<std::vector<int>, 3> changes;
+	for (auto& change : changes) change.resize(source.size() + 1);
+	for (const auto& span : spans) {
+		std::fill(syntax.begin() + span.openingBegin, syntax.begin() + span.contentBegin, true);
+		std::fill(syntax.begin() + span.contentEnd, syntax.begin() + span.closingEnd, true);
+		for (size_t style = 0; style < emphasisStyles.size(); ++style) {
+			if (span.style != emphasisStyles[style]) continue;
+			++changes[style][span.contentBegin];
+			--changes[style][span.contentEnd];
+		}
+	}
+
+	EmphasisText result;
+	std::array<int, 3> depth{};
+	for (size_t pos = 0; pos < source.size(); ++pos) {
+		unsigned char mask = Normal;
+		for (size_t style = 0; style < emphasisStyles.size(); ++style) {
+			depth[style] += changes[style][pos];
+			if (depth[style]) mask |= emphasisStyles[style];
+		}
+		if (syntax[pos]) continue;
+		result.text += source[pos];
+		result.styles.push_back(mask);
+		result.sourcePositions.push_back(pos);
+	}
+	return result;
+}
+
+size_t TextPosition(const EmphasisText& text, size_t sourcePosition)
+{
+	return static_cast<size_t>(std::lower_bound(text.sourcePositions.begin(),
+		text.sourcePositions.end(), sourcePosition) - text.sourcePositions.begin());
+}
+}
+
+std::optional<EmphasisEdit> ToggleEmphasis(std::wstring_view source,
+	const std::vector<CMarkdownInlineParser::EmphasisSpan>& spans,
+	size_t from, size_t to, Markdown::Style requested)
+{
+	if (from >= to || to > source.size()
+		|| (requested != Bold && requested != Italic && requested != Strike)) return std::nullopt;
+
+	auto text = ReadEmphasisText(source, spans);
+	const size_t selectedFrom = TextPosition(text, from);
+	const size_t selectedTo = TextPosition(text, to);
+	if (selectedFrom == selectedTo) return std::nullopt;
+
+	// 全部に付いていれば解除、混在していれば選択全体へ付与する。
+	bool remove = true;
+	bool hasText = false;
+	for (size_t pos = selectedFrom; pos < selectedTo; ++pos) {
+		if (Detail::IsSpace(text.text[pos])) continue;
+		hasText = true;
+		if (!(text.styles[pos] & requested)) remove = false;
+	}
+	if (!hasText) return std::nullopt;
+	for (size_t pos = selectedFrom; pos < selectedTo; ++pos) {
+		if (remove) text.styles[pos] &= static_cast<unsigned char>(~requested);
+		else text.styles[pos] |= requested;
+	}
+
+	// 選択境界と交差する装飾も、記号を配置し直せる範囲まで含める。
+	size_t editFrom = from, editTo = to;
+	bool expanded;
+	do {
+		expanded = false;
+		for (const auto& span : spans) {
+			if (span.openingBegin >= editTo || span.closingEnd <= editFrom) continue;
+			const size_t first = std::min(editFrom, span.openingBegin);
+			const size_t last = std::max(editTo, span.closingEnd);
+			if (first != editFrom || last != editTo) {
+				editFrom = first;
+				editTo = last;
+				expanded = true;
+			}
+		}
+	} while (expanded);
+	const size_t first = TextPosition(text, editFrom);
+	const size_t last = TextPosition(text, editTo);
+
+	// Markdownの開き記号直後・閉じ記号直前には空白を置けない。
+	// 分割で端に残った空白は記号の外に置き、本文内の空白は維持する。
+	for (const auto style : emphasisStyles) {
+		for (size_t pos = first; pos < last;) {
+			if (!(text.styles[pos] & style)) { ++pos; continue; }
+			const size_t start = pos;
+			while (pos < last && (text.styles[pos] & style)) ++pos;
+			size_t begin = start, end = pos;
+			while (begin < end && Detail::IsSpace(text.text[begin])) {
+				text.styles[begin++] &= static_cast<unsigned char>(~style);
+			}
+			while (end > begin && Detail::IsSpace(text.text[end - 1])) {
+				text.styles[--end] &= static_cast<unsigned char>(~style);
+			}
+		}
+	}
+
+	// 各装飾がどこまで続くか。長く続くものを外側に置いて交差を解消する。
+	std::vector<std::array<size_t, 3>> ends(last - first + 1);
+	for (size_t pos = last; pos > first;) {
+		--pos;
+		for (size_t style = 0; style < emphasisStyles.size(); ++style) {
+			if (text.styles[pos] & emphasisStyles[style]) {
+				ends[pos - first][style] = std::max(pos + 1, ends[pos - first + 1][style]);
+			}
+		}
+	}
+
+	// 連続した記号や単語内の区切りで解釈が変わるため、生成後にも解析する。
+	// 通常は * を使い、それで成立しない場合に _ の組み合わせを試す。
+	for (unsigned int spelling = 0; spelling < 4; ++spelling) {
+		const std::array<std::wstring_view, 3> markers = {
+			spelling & 1 ? L"__" : L"**",
+			spelling & 2 ? L"_" : L"*",
+			L"~~"
+		};
+		EmphasisEdit edit{editFrom, editTo, {}, 0, 0};
+		std::vector<size_t> active;
+		for (size_t pos = first; pos <= last; ++pos) {
+			std::vector<size_t> wanted;
+			if (pos < last) {
+				for (size_t style = 0; style < emphasisStyles.size(); ++style) {
+					if (text.styles[pos] & emphasisStyles[style]) wanted.push_back(style);
+				}
+				std::stable_sort(wanted.begin(), wanted.end(), [&](size_t a, size_t b) {
+					if (ends[pos - first][a] != ends[pos - first][b]) {
+						return ends[pos - first][a] > ends[pos - first][b];
+					}
+					// 終点が同じなら、既に開いている装飾の順序を維持する。
+					return std::find(active.begin(), active.end(), a)
+						< std::find(active.begin(), active.end(), b);
+				});
+			}
+			size_t common = 0;
+			while (common < active.size() && common < wanted.size()
+				&& active[common] == wanted[common]) ++common;
+			for (size_t index = active.size(); index > common; --index) edit.text += markers[active[index - 1]];
+			for (size_t index = common; index < wanted.size(); ++index) edit.text += markers[wanted[index]];
+			active = std::move(wanted);
+			if (pos == last) break;
+			if (pos == selectedFrom) edit.selectionFrom = edit.text.size();
+			edit.text += text.text[pos];
+			if (pos + 1 == selectedTo) edit.selectionTo = edit.text.size();
+		}
+
+		std::wstring candidate(source.substr(0, editFrom));
+		candidate += edit.text;
+		candidate += source.substr(editTo);
+		std::vector<CMarkdownInlineParser::EmphasisSpan> candidateSpans;
+		CMarkdownInlineParser::Parse(candidate, &candidateSpans);
+		const auto actual = ReadEmphasisText(candidate, candidateSpans);
+		if (actual.text == text.text && actual.styles == text.styles) return edit;
+	}
+	return std::nullopt;
+}
+
 size_t LongestRun(const std::wstring& text, wchar_t marker)
 {
 	size_t longest = 0, run = 0;

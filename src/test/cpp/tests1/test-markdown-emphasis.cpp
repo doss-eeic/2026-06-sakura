@@ -9,6 +9,71 @@
 #include "doc/logic/CDocLine.h"
 #include "doc/logic/CDocLineMgr.h"
 #include "types/CType.h"
+#include "cmd/markdown/MarkdownCommands.h"
+
+TEST(MarkdownEmphasisEditing, SplitsFormattingAtSelectionBoundaries)
+{
+	struct Case {
+		const wchar_t* source;
+		const wchar_t* selection;
+		Markdown::Style command;
+		const wchar_t* expected;
+		const wchar_t* selectedAfter;
+	};
+	const Case cases[] = {
+		{L"**abc**", L"*abc**", Markdown::Strike, L"**~~abc~~**", L"abc"},
+		{L"**abc** def", L"c** d", Markdown::Strike, L"**ab**~~**c** d~~ef", L"c** d"},
+		{L"**abc**", L"ab", Markdown::Bold, L"ab**c**", L"ab"},
+		{L"**abc**", L"b", Markdown::Bold, L"**a**b**c**", L"b"},
+		{L"**abc**", L"bc", Markdown::Bold, L"**a**bc", L"bc"},
+		{L"*abc*", L"b", Markdown::Italic, L"*a*b*c*", L"b"},
+		{L"~~abc~~", L"b", Markdown::Strike, L"~~a~~b~~c~~", L"b"},
+		{L"***abc***", L"ab", Markdown::Bold, L"*ab**c***", L"ab"},
+		{L"**abc**", L"b", Markdown::Italic, L"**a*b*c**", L"b"},
+		{L"**ab** cd", L"**ab** cd", Markdown::Bold, L"**ab cd**", L"ab cd"},
+		{L"__abc__", L"b", Markdown::Bold, L"**a**b**c**", L"b"},
+		{L"**abc def**", L"abc", Markdown::Bold, L"abc **def**", L"abc"},
+		{L"**abc** and *tail*", L"b", Markdown::Bold, L"**a**b**c** and *tail*", L"b"},
+	};
+	for (const auto& test : cases) {
+		SCOPED_TRACE(test.source);
+		SCOPED_TRACE(test.selection);
+		const std::wstring source(test.source);
+		const size_t from = source.find(test.selection);
+		ASSERT_NE(std::wstring::npos, from);
+		std::vector<CMarkdownInlineParser::EmphasisSpan> spans;
+		CMarkdownInlineParser::Parse(source, &spans);
+		const auto edit = Markdown::Commands::ToggleEmphasis(source, spans,
+			from, from + std::wstring_view(test.selection).size(), test.command);
+		ASSERT_TRUE(edit.has_value());
+		const auto actual = source.substr(0, edit->from) + edit->text + source.substr(edit->to);
+		EXPECT_EQ(test.expected, actual);
+		ASSERT_LE(edit->selectionFrom, edit->selectionTo);
+		ASSERT_LE(edit->selectionTo, edit->text.size());
+		EXPECT_EQ(test.selectedAfter, edit->text.substr(edit->selectionFrom,
+			edit->selectionTo - edit->selectionFrom));
+	}
+}
+
+TEST(MarkdownEmphasisEditing, EscapedAndUnpairedMarkersRemainText)
+{
+	const std::wstring source = L"\\*abc\\* + *";
+	std::vector<CMarkdownInlineParser::EmphasisSpan> spans;
+	CMarkdownInlineParser::Parse(source, &spans);
+	ASSERT_TRUE(spans.empty());
+	const auto edit = Markdown::Commands::ToggleEmphasis(source, spans, 0, 7, Markdown::Bold);
+	ASSERT_TRUE(edit.has_value());
+	EXPECT_EQ(L"**\\*abc\\*** + *", source.substr(0, edit->from) + edit->text + source.substr(edit->to));
+	EXPECT_EQ(L"\\*abc\\*", edit->text.substr(edit->selectionFrom, edit->selectionTo - edit->selectionFrom));
+}
+
+TEST(MarkdownEmphasisEditing, MarkerOnlySelectionDoesNotCreateAnEmptyPair)
+{
+	const std::wstring source = L"**abc**";
+	std::vector<CMarkdownInlineParser::EmphasisSpan> spans;
+	CMarkdownInlineParser::Parse(source, &spans);
+	EXPECT_FALSE(Markdown::Commands::ToggleEmphasis(source, spans, 0, 2, Markdown::Strike));
+}
 
 TEST(MarkdownEmphasis, StrikeUsesParagraphAndFenceContext)
 {
