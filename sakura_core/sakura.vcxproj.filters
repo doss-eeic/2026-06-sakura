@@ -442,6 +442,9 @@
     <ClInclude Include="..\sakura_core\cmd\markdown\MarkdownInput.h">
       <Filter>Cpp Source Files\cmd</Filter>
     </ClInclude>
+    <ClInclude Include="..\sakura_core\cmd\markdown\MarkdownCommands.h">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClInclude>
     <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.h">
       <Filter>Cpp Source Files\parse</Filter>
     </ClInclude>
@@ -2320,7 +2323,13 @@
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Markdown.cpp">
       <Filter>Cpp Source Files\cmd</Filter>
     </ClCompile>
+    <ClCompile Include="..\sakura_core\cmd\CViewCommander_MarkdownInput.cpp">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClCompile>
     <ClCompile Include="..\sakura_core\cmd\markdown\MarkdownInput.cpp">
+      <Filter>Cpp Source Files\cmd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sakura_core\cmd\markdown\MarkdownCommands.cpp">
       <Filter>Cpp Source Files\cmd</Filter>
     </ClCompile>
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_advanced.cpp">

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Zlib
  */
 #include "pch.h"
+#include "cmd/markdown/MarkdownCommands.h"
 #include "parse/markdown/CMarkdownBlockParser.h"
 #include "parse/markdown/CMarkdownInlineParser.h"
 #include <limits>
@@ -102,15 +103,15 @@ TEST(MarkdownBlockParser, FenceLengthMarkerAndIndentation)
 	EXPECT_EQ(0, state.fence);
 }
 
-TEST(MarkdownBlockParser, EditIndentCountsSourceCharacters)
+TEST(MarkdownCommands, EditIndentCountsSourceCharacters)
 {
-	EXPECT_EQ(0u, CMarkdownBlockParser::IndentLength(L""));
-	EXPECT_EQ(3u, CMarkdownBlockParser::IndentLength(L" \t "));
-	EXPECT_EQ(2u, CMarkdownBlockParser::IndentLength(L"\t - item"));
-	EXPECT_EQ(0u, CMarkdownBlockParser::IndentLength(L"　item"));
+	EXPECT_EQ(0u, Markdown::Commands::IndentLength(L""));
+	EXPECT_EQ(3u, Markdown::Commands::IndentLength(L" \t "));
+	EXPECT_EQ(2u, Markdown::Commands::IndentLength(L"\t - item"));
+	EXPECT_EQ(0u, Markdown::Commands::IndentLength(L"　item"));
 }
 
-TEST(MarkdownBlockParser, EditListMarkersKeepExistingBoundariesAndFlags)
+TEST(MarkdownCommands, EditListMarkersKeepExistingBoundariesAndFlags)
 {
 	struct Example {
 		const wchar_t* text;
@@ -131,30 +132,30 @@ TEST(MarkdownBlockParser, EditListMarkersKeepExistingBoundariesAndFlags)
 		Example{L"> - text", 0, false, false},
 		Example{L"-", 0, false, false}}) {
 		bool ordered = true, task = true;
-		const auto indent = CMarkdownBlockParser::IndentLength(example.text);
-		EXPECT_EQ(example.length, CMarkdownBlockParser::ListMarkerLength(example.text, indent, ordered, task));
+		const auto indent = Markdown::Commands::IndentLength(example.text);
+		EXPECT_EQ(example.length, Markdown::Commands::ListMarkerLength(example.text, indent, ordered, task));
 		EXPECT_EQ(example.ordered, ordered);
 		EXPECT_EQ(example.task, task);
 	}
 }
 
-TEST(MarkdownBlockParser, EditHeadingRequiresSpaceAndAtMostSixHashes)
+TEST(MarkdownCommands, EditHeadingRequiresSpaceAndAtMostSixHashes)
 {
-	EXPECT_EQ(3u, CMarkdownBlockParser::HeadingMarkerLength(L"  ## title", 2));
-	EXPECT_EQ(7u, CMarkdownBlockParser::HeadingMarkerLength(L"###### title", 0));
-	EXPECT_EQ(0u, CMarkdownBlockParser::HeadingMarkerLength(L"####### title", 0));
-	EXPECT_EQ(0u, CMarkdownBlockParser::HeadingMarkerLength(L"#\ttitle", 0));
-	EXPECT_EQ(0u, CMarkdownBlockParser::HeadingMarkerLength(L"#", 0));
+	EXPECT_EQ(3u, Markdown::Commands::HeadingMarkerLength(L"  ## title", 2));
+	EXPECT_EQ(7u, Markdown::Commands::HeadingMarkerLength(L"###### title", 0));
+	EXPECT_EQ(0u, Markdown::Commands::HeadingMarkerLength(L"####### title", 0));
+	EXPECT_EQ(0u, Markdown::Commands::HeadingMarkerLength(L"#\ttitle", 0));
+	EXPECT_EQ(0u, Markdown::Commands::HeadingMarkerLength(L"#", 0));
 }
 
-TEST(MarkdownBlockParser, EditFenceRecognitionRemainsDistinctFromDisplayScan)
+TEST(MarkdownCommands, EditFenceRecognitionRemainsDistinctFromDisplayScan)
 {
-	EXPECT_TRUE(CMarkdownBlockParser::IsBacktickFence(L"```cpp", L"````"));
-	EXPECT_TRUE(CMarkdownBlockParser::IsBacktickFence(L"```", L"```"));
-	EXPECT_FALSE(CMarkdownBlockParser::IsBacktickFence(L"````", L"```"));
-	EXPECT_FALSE(CMarkdownBlockParser::IsBacktickFence(L"```", L"``` "));
-	EXPECT_FALSE(CMarkdownBlockParser::IsBacktickFence(L" ```", L"```"));
-	EXPECT_FALSE(CMarkdownBlockParser::IsBacktickFence(L"~~~", L"~~~"));
+	EXPECT_TRUE(Markdown::Commands::IsBacktickFence(L"```cpp", L"````"));
+	EXPECT_TRUE(Markdown::Commands::IsBacktickFence(L"```", L"```"));
+	EXPECT_FALSE(Markdown::Commands::IsBacktickFence(L"````", L"```"));
+	EXPECT_FALSE(Markdown::Commands::IsBacktickFence(L"```", L"``` "));
+	EXPECT_FALSE(Markdown::Commands::IsBacktickFence(L" ```", L"```"));
+	EXPECT_FALSE(Markdown::Commands::IsBacktickFence(L"~~~", L"~~~"));
 	Markdown::BlockState state;
 	EXPECT_TRUE(CMarkdownBlockParser::ScanBlock(L"~~~", state).code);
 	EXPECT_EQ(L'~', state.fence);
