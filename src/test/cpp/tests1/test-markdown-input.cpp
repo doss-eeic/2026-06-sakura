@@ -577,7 +577,7 @@ TEST_F(MarkdownOutline, SettingsPageOffersMarkdownAlongsideOtherLanguages)
 			[](HWND, UINT, WPARAM, LPARAM) -> INT_PTR { return FALSE; }, 0), destroy);
 	ASSERT_NE(nullptr, dialog.get());
 	page->SetData(dialog.get());
-	for (int control : {IDC_COMBO_OUTLINES, IDC_COMBO_SMARTINDENT}) {
+	for (int control : {IDC_COMBO_OUTLINES, IDC_COMBO_SMARTINDENT, IDC_COMBO_SYNTAX_DISPLAY}) {
 		const auto combo = ::GetDlgItem(dialog.get(), control);
 		const auto markdown = ::SendMessageW(combo, CB_FINDSTRINGEXACT, -1, reinterpret_cast<LPARAM>(L"Markdown"));
 		ASSERT_NE(CB_ERR, markdown);
@@ -586,6 +586,15 @@ TEST_F(MarkdownOutline, SettingsPageOffersMarkdownAlongsideOtherLanguages)
 	}
 	page->GetData(dialog.get());
 	page->GetTypeData(*type);
+	EXPECT_EQ(OUTLINE_C_CPP, type->m_eDefaultOutline);
+	EXPECT_EQ(SMARTINDENT_NONE, type->m_eSmartIndent);
+	EXPECT_EQ(SYNTAX_DISPLAY_NONE, type->m_eSyntaxDisplay);
+	const auto display = ::GetDlgItem(dialog.get(), IDC_COMBO_SYNTAX_DISPLAY);
+	const auto markdown = ::SendMessageW(display, CB_FINDSTRINGEXACT, -1, reinterpret_cast<LPARAM>(L"Markdown"));
+	::SendMessageW(display, CB_SETCURSEL, markdown, 0);
+	page->GetData(dialog.get());
+	page->GetTypeData(*type);
+	EXPECT_EQ(SYNTAX_DISPLAY_MARKDOWN, type->m_eSyntaxDisplay);
 	EXPECT_EQ(OUTLINE_C_CPP, type->m_eDefaultOutline);
 	EXPECT_EQ(SMARTINDENT_NONE, type->m_eSmartIndent);
 	page->DispatchEvent(dialog.get(), WM_DESTROY, 0, 0);
@@ -719,4 +728,27 @@ TEST_F(MarkdownInputSettings, OutlineSelectionRoundTripsIndependentlyOfInputAssi
 	Load();
 	EXPECT_EQ(OUTLINE_TEXT, Type(1).m_eDefaultOutline);
 	EXPECT_EQ(SMARTINDENT_MARKDOWN, Type(1).m_eSmartIndent);
+}
+
+TEST_F(MarkdownInputSettings, DisplaySelectionRoundTripsIndependentlyOfNameAndOtherModes)
+{
+	Configure(1, L"Notes", L"txt");
+	Type(1).m_eSyntaxDisplay = SYNTAX_DISPLAY_MARKDOWN;
+	Save();
+	Type(1).m_eSyntaxDisplay = SYNTAX_DISPLAY_NONE;
+	Load();
+	EXPECT_EQ(SYNTAX_DISPLAY_MARKDOWN, Type(1).m_eSyntaxDisplay);
+	EXPECT_EQ(SMARTINDENT_NONE, Type(1).m_eSmartIndent);
+	EXPECT_EQ(OUTLINE_TEXT, Type(1).m_eDefaultOutline);
+
+	Configure(1, L"Markdown", L"md,markdown,mdown");
+	Type(1).m_eSmartIndent = SMARTINDENT_MARKDOWN;
+	Type(1).m_eDefaultOutline = OUTLINE_MARKDOWN;
+	Type(1).m_eSyntaxDisplay = SYNTAX_DISPLAY_NONE;
+	Save();
+	Type(1).m_eSyntaxDisplay = SYNTAX_DISPLAY_MARKDOWN;
+	Load();
+	EXPECT_EQ(SYNTAX_DISPLAY_NONE, Type(1).m_eSyntaxDisplay);
+	EXPECT_EQ(SMARTINDENT_MARKDOWN, Type(1).m_eSmartIndent);
+	EXPECT_EQ(OUTLINE_MARKDOWN, Type(1).m_eDefaultOutline);
 }

@@ -131,6 +131,11 @@ TYPE_NAME_ID<ESmartIndentType> SmartIndentArr[] = {
 	{ SMARTINDENT_MARKDOWN, STR_SMART_INDENT_MARKDOWN },
 };
 
+TYPE_NAME_ID<ESyntaxDisplayType> SyntaxDisplayArr[] = {
+	{ SYNTAX_DISPLAY_NONE, STR_SMART_INDENT_NONE },
+	{ SYNTAX_DISPLAY_MARKDOWN, STR_SMART_INDENT_MARKDOWN },
+};
+
 /*!	2行目以降のインデント方法
 
 	@sa CLayoutMgr::SetLayoutInfo()
@@ -415,6 +420,20 @@ void CPropTypesScreen::SetData( HWND hwndDlg )
 	ApiWrap::DlgItem_SetText( hwndDlg, IDC_EDIT_TYPENAME, m_Types.m_szTypeName );	//設定の名前
 	ApiWrap::DlgItem_SetText( hwndDlg, IDC_EDIT_TYPEEXTS, m_Types.m_szTypeExts );	//ファイル拡張子
 
+	// 表示用の構文解析種別
+	{
+		HWND hwndCombo = ::GetDlgItem(hwndDlg, IDC_COMBO_SYNTAX_DISPLAY);
+		ApiWrap::Combo_ResetContent(hwndCombo);
+		int nSelPos = 0;
+		for (int i = 0; i < int(std::size(SyntaxDisplayArr)); ++i) {
+			ApiWrap::Combo_InsertString(hwndCombo, i, LS(SyntaxDisplayArr[i].nNameId));
+			if (SyntaxDisplayArr[i].nMethod == m_Types.m_eSyntaxDisplay) {
+				nSelPos = i;
+			}
+		}
+		ApiWrap::Combo_SetCurSel(hwndCombo, nSelPos);
+	}
+
 	//レイアウト
 	{
 		// 2008.05.30 nasukoji	テキストの折り返し方法
@@ -590,6 +609,15 @@ int CPropTypesScreen::GetData( HWND hwndDlg )
 {
 	ApiWrap::DlgItem_GetText( hwndDlg, IDC_EDIT_TYPENAME, m_Types.m_szTypeName, int(std::size(m_Types.m_szTypeName)) );	// 設定の名前
 	ApiWrap::DlgItem_GetText( hwndDlg, IDC_EDIT_TYPEEXTS, m_Types.m_szTypeExts, int(std::size(m_Types.m_szTypeExts)) );	// ファイル拡張子
+
+	// 表示用の構文解析種別
+	{
+		HWND hwndCombo = ::GetDlgItem(hwndDlg, IDC_COMBO_SYNTAX_DISPLAY);
+		int nSelPos = ApiWrap::Combo_GetCurSel(hwndCombo);
+		if (nSelPos >= 0 && nSelPos < int(std::size(SyntaxDisplayArr))) {
+			m_Types.m_eSyntaxDisplay = SyntaxDisplayArr[nSelPos].nMethod;
+		}
+	}
 
 	//レイアウト
 	{

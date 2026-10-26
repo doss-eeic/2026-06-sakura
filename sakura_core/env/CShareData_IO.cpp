@@ -1886,6 +1886,7 @@ void ShareData_IO_TypeConfig(
 	ShareData_IO_FileTree(cProfile, pszSecName, types.m_sFileTree);
 
 	cProfile.IOProfileData(pszSecName, L"nSmartIndent", types.m_eSmartIndent );/* スマートインデント種別 */
+	cProfile.IOProfileData(pszSecName, L"nSyntaxDisplay", types.m_eSyntaxDisplay);
 	cProfile.IOProfileData( pszSecName, L"bIndentCppStringIgnore"		, types.m_bIndentCppStringIgnore );
 	cProfile.IOProfileData( pszSecName, L"bIndentCppCommentIgnore"	, types.m_bIndentCppCommentIgnore );
 	cProfile.IOProfileData( pszSecName, L"bIndentCppUndoSep"	, types.m_bIndentCppUndoSep );

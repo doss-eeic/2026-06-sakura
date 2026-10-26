@@ -61,17 +61,21 @@ TEST(MarkdownEmphasis, OffscreenParagraphAndFenceContext)
 	EXPECT_EQ(Markdown::Normal, editedPaint.GetStyle(0));
 }
 
-TEST(MarkdownEmphasis, AppliesToMarkdownTypesIncludingExistingCustomTypes)
+TEST(MarkdownEmphasis, UsesDisplaySettingInsteadOfNameOrExtension)
 {
 	auto type = std::make_unique<STypeConfig>();
 	wcscpy(type->m_szTypeName, L"Markdown");
-	EXPECT_TRUE(CMarkdownEmphasis::IsEnabled(*type));
+	wcscpy(type->m_szTypeExts, L"md,markdown,mdown");
+	EXPECT_FALSE(CMarkdownEmphasis::IsEnabled(*type));
 	wcscpy(type->m_szTypeName, L"Custom");
 	wcscpy(type->m_szTypeExts, L"txt;MD,markdown");
-	EXPECT_TRUE(CMarkdownEmphasis::IsEnabled(*type));
+	EXPECT_FALSE(CMarkdownEmphasis::IsEnabled(*type));
 	wcscpy(type->m_szTypeExts, L"*.mdown");
-	EXPECT_TRUE(CMarkdownEmphasis::IsEnabled(*type));
+	EXPECT_FALSE(CMarkdownEmphasis::IsEnabled(*type));
 	wcscpy(type->m_szTypeExts, L"txt,cmd,*");
+	type->m_eSyntaxDisplay = SYNTAX_DISPLAY_MARKDOWN;
+	EXPECT_TRUE(CMarkdownEmphasis::IsEnabled(*type));
+	type->m_eSyntaxDisplay = SYNTAX_DISPLAY_NONE;
 	EXPECT_FALSE(CMarkdownEmphasis::IsEnabled(*type));
 }
 
