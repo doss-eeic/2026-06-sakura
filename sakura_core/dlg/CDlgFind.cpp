@@ -28,6 +28,8 @@
 #include "CSelectLang.h"
 #include "sakura_rc.h"
 #include "sakura.hh"
+#include "recent/CRecentSearch.h"
+#include "util/MessageBoxF.h"
 
 //検索 CDlgFind.cpp	//@@@ 2002.01.07 add start MIK
 const DWORD p_helpids[] = {	//11800
@@ -382,6 +384,23 @@ BOOL CDlgFind::OnBnClicked( int wID )
 		return TRUE;
 	case IDCANCEL:
 		CloseDialog( 0 );
+		return TRUE;
+	case IDC_BUTTON_DELETE_ALL:
+		{
+			CRecentSearch m_cRecentSearch;
+			CRecent	*pRecent =  &m_cRecentSearch;
+			if( pRecent ){
+				const int nRet = ConfirmMessage( GetHwnd(), LS( STR_DLGFAV_CONF_DEL_ALL ) ); // "検索の履歴を全て削除します。\nよろしいですか？\n"
+				if( IDYES == nRet ){
+					pRecent->DeleteAllItem();
+					// 検索文字列の強調表示を解除して再描画
+					pcEditView->m_bCurSrchKeyMark = false;
+					pcEditView->RedrawAll();
+					m_strText.clear();        // 保持している検索文字列をクリア
+					SetCombosList();          // 画面の履歴一覧と入力欄を更新
+				}
+			}
+		}
 		return TRUE;
 	default:
 		break;
