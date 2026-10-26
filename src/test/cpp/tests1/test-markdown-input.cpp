@@ -752,3 +752,49 @@ TEST_F(MarkdownInputSettings, DisplaySelectionRoundTripsIndependentlyOfNameAndOt
 	EXPECT_EQ(SMARTINDENT_MARKDOWN, Type(1).m_eSmartIndent);
 	EXPECT_EQ(OUTLINE_MARKDOWN, Type(1).m_eDefaultOutline);
 }
+
+TEST_F(MarkdownInputSettings, MissingSettingsUseCommonDefaultsRegardlessOfName)
+{
+	Configure(1, L"Notes", L"txt");
+	Configure(2, L"Markdown", L"md");
+	for (int index = 1; index <= 2; ++index) {
+		Type(index).m_eSyntaxDisplay = SYNTAX_DISPLAY_MARKDOWN;
+		Type(index).m_eSmartIndent = SMARTINDENT_MARKDOWN;
+		Type(index).m_eDefaultOutline = OUTLINE_MARKDOWN;
+		Type(index).m_bAutoCloseBrackets = true;
+		Type(index).m_typeKeyBindings[VK_RETURN].m_bOverride[0] = true;
+		Type(index).m_typeKeyBindings[VK_RETURN].m_nFuncCodeArr[0] = F_COPY;
+	}
+	profile.SetProfileData(L"Other", L"nTypesCount", L"3");
+	profile.SetProfileData(L"Types(1)", L"szTypeName", L"Notes");
+	profile.SetProfileData(L"Types(1)", L"szTypeExts", L"txt");
+	profile.SetProfileData(L"Types(2)", L"szTypeName", L"Markdown");
+	profile.SetProfileData(L"Types(2)", L"szTypeExts", L"md");
+	Load();
+	for (int index = 1; index <= 2; ++index) {
+		EXPECT_EQ(SYNTAX_DISPLAY_NONE, Type(index).m_eSyntaxDisplay);
+		EXPECT_EQ(SMARTINDENT_NONE, Type(index).m_eSmartIndent);
+		EXPECT_EQ(OUTLINE_TEXT, Type(index).m_eDefaultOutline);
+		EXPECT_FALSE(Type(index).m_bAutoCloseBrackets);
+		EXPECT_FALSE(Type(index).m_typeKeyBindings[VK_RETURN].m_bOverride[0]);
+	}
+	EXPECT_STREQ(L"Notes", Type(1).m_szTypeName);
+	EXPECT_STREQ(L"txt", Type(1).m_szTypeExts);
+	EXPECT_STREQ(L"Markdown", Type(2).m_szTypeName);
+	EXPECT_STREQ(L"md", Type(2).m_szTypeExts);
+}
+
+TEST_F(MarkdownInputSettings, LoadingSavedTypesDoesNotAddMarkdownPreset)
+{
+	profile.SetProfileData(L"Other", L"nTypesCount", L"2");
+	profile.SetProfileData(L"Types(0)", L"szTypeName", L"Base");
+	profile.SetProfileData(L"Types(0)", L"szTypeExts", L"");
+	profile.SetProfileData(L"Types(1)", L"szTypeName", L"Notes");
+	profile.SetProfileData(L"Types(1)", L"szTypeExts", L"txt");
+	Load();
+	EXPECT_EQ(2, GetDllShareData().m_nTypesCount);
+	ASSERT_EQ(2u, pcShareData->GetTypeSettings().size());
+	EXPECT_STREQ(L"Base", Type(0).m_szTypeName);
+	EXPECT_STREQ(L"Notes", Type(1).m_szTypeName);
+	EXPECT_STREQ(L"txt", Type(1).m_szTypeExts);
+}
