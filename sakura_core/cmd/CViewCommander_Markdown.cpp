@@ -6,62 +6,16 @@
 #include "StdAfx.h"
 #include "cmd/CViewCommander.h"
 #include "cmd/CViewCommander_inline.h"
-#include "cmd/markdown/MarkdownInput.h"
+#include "cmd/markdown/MarkdownCommands.h"
 #include "doc/logic/CDocLine.h"
-#include "parse/markdown/CMarkdownBlockParser.h"
 #include "dlg/CDlgInput1.h"
 #include "env/DLLSHAREDATA.h"
 #include "CSelectLang.h"
 #include <algorithm>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace {
-struct MarkdownLine {
-	std::wstring text;
-	std::wstring eol;
-};
-
-std::vector<std::wstring_view> MarkdownInputLines(const CDocLineMgr& manager)
-{
-	std::vector<std::wstring_view> lines;
-	const CDocLine* last = nullptr;
-	for (CLogicInt y(0); y < manager.GetLineCount(); ++y) {
-		last = manager.GetLine(y);
-		lines.emplace_back(last->GetPtr(), static_cast<int>(last->GetLengthWithoutEOL()));
-	}
-	if (!last || last->GetEol().GetLen() != 0) lines.emplace_back();
-	return lines;
-}
-
-Markdown::SourcePosition MarkdownPosition(const CLogicPoint& point)
-{
-	return {static_cast<size_t>(point.GetY2()), static_cast<size_t>(point.GetX2())};
-}
-
-CLogicPoint LogicPosition(Markdown::SourcePosition point)
-{
-	return CLogicPoint(CLogicInt(static_cast<int>(point.offset)), CLogicInt(static_cast<int>(point.line)));
-}
-
-size_t LongestRun(const std::wstring& text, wchar_t marker)
-{
-	size_t longest = 0, run = 0;
-	for (wchar_t c : text) {
-		run = c == marker ? run + 1 : 0;
-		longest = std::max(longest, run);
-	}
-	return longest;
-}
-
-std::wstring JoinLines(const std::vector<MarkdownLine>& lines)
-{
-	std::wstring result;
-	for (const auto& line : lines) result += line.text + line.eol;
-	return result;
-}
-
 std::wstring EscapeLabel(const std::wstring& text)
 {
 	std::wstring result;
@@ -85,100 +39,6 @@ std::wstring EscapeDestination(const std::wstring& text)
 	}
 	return result;
 }
-}
-
-void CViewCommander::ApplyMarkdownInput(const CLogicRange& range, const std::wstring& text,
-	const CLogicPoint& caret, const CLogicRange* selected)
-{
-	auto& selection = m_pCommanderView->GetSelectionInfo();
-	auto& layout = GetDocument()->m_cLayoutMgr;
-	selection.DisableSelectArea(true);
-	COpeBlk* const opeBlk = m_pCommanderView->m_bDoing_UndoRedo ? nullptr : GetOpeBlk();
-	m_pCommanderView->ReplaceData_CEditView2(range, text.c_str(), CLogicInt(static_cast<int>(text.size())), true, opeBlk);
-	const auto afterReplace = GetCaret().GetCaretLogicPos();
-	CLayoutPoint target;
-	layout.LogicToLayout(caret, &target);
-	GetCaret().MoveCursor(target, true);
-	if (selected) {
-		CLayoutPoint anchor;
-		layout.LogicToLayout(caret == selected->GetFrom() ? selected->GetTo() : selected->GetFrom(), &anchor);
-		selection.BeginSelectArea(&anchor);
-		selection.ChangeSelectAreaByCurrentCursor(target);
-	}
-	const auto finalCaret = GetCaret().GetCaretLogicPos();
-	if (opeBlk && finalCaret != afterReplace) {
-		opeBlk->AppendOpe(new CMoveCaretOpe(afterReplace, finalCaret));
-		GetDocument()->m_cDocEditor.m_nOpeBlkRedawCount++;
-	}
-	GetCaret().m_nCaretPosX_Prev = GetCaret().GetCaretLayoutPos().GetX2();
-	m_pCommanderView->PostprocessCommand_hokan();
-}
-
-bool CViewCommander::TryMarkdownEnter()
-{
-	if (m_pCommanderView->m_pTypeData->m_eSmartIndent != SMARTINDENT_MARKDOWN) return false;
-	if (!GetDocument()->IsEditable()) return true;
-	auto& selection = m_pCommanderView->GetSelectionInfo();
-	if (selection.IsMouseSelecting()) { ErrorBeep(); return true; }
-	if (selection.IsBoxSelecting()) return false;
-	CLogicRange range(GetCaret().GetCaretLogicPos(), GetCaret().GetCaretLogicPos());
-	if (selection.IsTextSelected()) GetDocument()->m_cLayoutMgr.LayoutToLogic(selection.m_sSelect, &range);
-	const auto lines = MarkdownInputLines(GetDocument()->m_cDocLineMgr);
-	const int tabWidth = GetDocument()->m_cLayoutMgr.GetTabSpaceKetas();
-	const auto edit = Markdown::Input::Enter(lines, {MarkdownPosition(range.GetFrom()), MarkdownPosition(range.GetTo())},
-		tabWidth > 0 ? static_cast<size_t>(tabWidth) : 0, GetDocument()->m_cDocEditor.GetNewLineCode().GetValue2());
-	if (!edit) return false;
-	ApplyMarkdownInput(CLogicRange(LogicPosition(edit->range.begin), LogicPosition(edit->range.end)), edit->text, LogicPosition(edit->caret));
-	return true;
-}
-
-bool CViewCommander::TryMarkdownIndent(bool unindent)
-{
-	if (m_pCommanderView->m_pTypeData->m_eSmartIndent != SMARTINDENT_MARKDOWN) return false;
-	if (!GetDocument()->IsEditable()) return true;
-	auto& selection = m_pCommanderView->GetSelectionInfo();
-	if (selection.IsMouseSelecting()) { ErrorBeep(); return true; }
-	if (selection.IsBoxSelecting()) return false;
-	const bool selected = selection.IsTextSelected();
-	const auto caret = GetCaret().GetCaretLogicPos();
-	CLogicRange range(caret, caret);
-	if (selected) GetDocument()->m_cLayoutMgr.LayoutToLogic(selection.m_sSelect, &range);
-	size_t first = static_cast<size_t>(range.GetFrom().GetY2());
-	size_t last = static_cast<size_t>(range.GetTo().GetY2());
-	if (selected && last > first && range.GetTo().GetX2() == 0) --last;
-	const auto lines = MarkdownInputLines(GetDocument()->m_cDocLineMgr);
-	const int tabWidth = GetDocument()->m_cLayoutMgr.GetTabSpaceKetas();
-	const auto edits = Markdown::Input::Indent(lines, first, last, tabWidth > 0 ? static_cast<size_t>(tabWidth) : 0, unindent);
-	if (!edits) return false;
-	if (edits->empty()) return true;
-	first = edits->front().line;
-	last = edits->back().line;
-	std::wstring replacement;
-	size_t index = 0;
-	for (size_t y = first; y <= last; ++y) {
-		if (index < edits->size() && (*edits)[index].line == y) {
-			const auto& edit = (*edits)[index++];
-			replacement += edit.text;
-			replacement += lines[y].substr(edit.oldLength);
-		} else replacement += lines[y];
-		if (y < last) replacement += GetDocument()->m_cDocLineMgr.GetLine(CLogicInt(static_cast<int>(y)))->GetEol().GetValue2();
-	}
-	const auto map = [&](CLogicPoint point) {
-		for (const auto& edit : *edits) {
-			if (static_cast<size_t>(point.GetY2()) != edit.line) continue;
-			const size_t oldX = static_cast<size_t>(point.GetX2());
-			// 本文内は文字位置を保持。行頭の選択端は行頭のままにする。
-			const size_t x = selected && oldX == 0 ? 0 : oldX >= edit.oldLength
-				? oldX - edit.oldLength + edit.text.size() : std::min(oldX, edit.text.size());
-			point.SetX(CLogicInt(static_cast<int>(x)));
-			break;
-		}
-		return point;
-	};
-	const CLogicRange mapped(map(range.GetFrom()), map(range.GetTo()));
-	ApplyMarkdownInput(CLogicRange(LogicPosition({first, 0}), LogicPosition({last, lines[last].size()})),
-		replacement, map(caret), selected ? &mapped : nullptr);
-	return true;
 }
 
 void CViewCommander::Command_MARKDOWN(EFunctionCode command)
@@ -233,7 +93,7 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 		case F_MARKDOWN_ITALIC: opening = closing = L"*"; break;
 		case F_MARKDOWN_STRIKE: opening = closing = L"~~"; break;
 		case F_MARKDOWN_CODE:
-			opening = closing = std::wstring(LongestRun(text, L'`') + 1, L'`');
+			opening = closing = std::wstring(Markdown::Commands::LongestRun(text, L'`') + 1, L'`');
 			if (!text.empty() && (text.front() == L'`' || text.back() == L'`'
 				|| (text.front() == L' ' && text.back() == L' ' && text.find_first_not_of(L' ') != std::wstring::npos))) {
 				opening += L' ';
@@ -303,7 +163,7 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 		CLogicInt first = range.GetFrom().GetY2(), last = range.GetTo().GetY2();
 		if (selected && !selection.IsBoxSelecting() && last > first && range.GetTo().GetX2() == 0) --last;
 		range.SetFrom(CLogicPoint(CLogicInt(0), first));
-		std::vector<MarkdownLine> lines;
+		std::vector<Markdown::Commands::MarkdownLine> lines;
 		for (CLogicInt y = first; y <= last; ++y) {
 			const auto* line = GetDocument()->m_cDocLineMgr.GetLine(y);
 			const CLogicInt length = line ? line->GetLengthWithoutEOL() : CLogicInt(0);
@@ -312,103 +172,22 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 			if (y == last) range.SetTo(CLogicPoint(length, y));
 		}
 		const std::wstring eol = GetDocument()->m_cDocEditor.GetNewLineCode().GetValue2();
-		const std::wstring original = JoinLines(lines);
+		const std::wstring original = Markdown::Commands::JoinLines(lines);
 		if (command == F_MARKDOWN_FENCE) {
-			const auto& firstLine = lines.front().text;
-			const auto& lastLine = lines.back().text;
-			if (lines.size() >= 3 && CMarkdownBlockParser::IsBacktickFence(firstLine, lastLine)) {
-				lines.erase(lines.begin());
-				lines.pop_back();
-				lines.back().eol.clear();
-				result = JoinLines(lines);
-			} else {
-				const std::wstring fence(std::max<size_t>(3, LongestRun(original, L'`') + 1), L'`');
-				result = fence + eol + original + eol + fence;
-				caretOffset = fence.size() + eol.size();
-			}
+			result = Markdown::Commands::ToggleFence(lines, original, eol, caretOffset);
 		} else if (command == F_MARKDOWN_HR) {
 			result = original;
 			if (!result.empty()) result += eol + eol;
 			result += L"---" + eol + eol;
 			caretOffset = result.size();
 		} else if (command == F_MARKDOWN_TABLE) {
-			std::vector<std::vector<std::wstring>> rows;
-			size_t columns = 2;
-			for (const auto& line : lines) {
-				std::vector<std::wstring> cells(1);
-				for (wchar_t c : line.text) {
-					if (c == L'\t') cells.emplace_back();
-					else {
-						if (c == L'|' || c == L'\\') cells.back() += L'\\';
-						cells.back() += c;
-					}
-				}
-				columns = std::max(columns, cells.size());
-				rows.push_back(std::move(cells));
-			}
-			if (rows.size() == 1) rows.emplace_back();
-			for (size_t row = 0; row < rows.size(); ++row) {
-				rows[row].resize(columns);
-				result += L"|";
-				for (const auto& cell : rows[row]) result += L" " + cell + L" |";
-				if (row + 1 < rows.size()) result += eol;
-				if (row == 0) {
-					result += L"|";
-					for (size_t col = 0; col < columns; ++col) result += L" --- |";
-					result += eol;
-				}
-			}
+			result = Markdown::Commands::MakeTable(lines, eol);
 			caretOffset = 2;
 		} else if (command == F_MARKDOWN_TASKCHECK) {
-			bool allChecked = true;
-			for (const auto& line : lines) {
-				bool ordered, task;
-				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
-				CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
-				const size_t box = line.text.find(L'[', indent);
-				allChecked &= task && box != std::wstring::npos && line.text[box + 1] != L' ';
-			}
-			for (auto& line : lines) {
-				bool ordered, task;
-				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
-				const size_t length = CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
-				if (task) line.text[line.text.find(L'[', indent) + 1] = allChecked ? L' ' : L'x';
-				else line.text.replace(indent, length, L"- [x] ");
-			}
-			result = JoinLines(lines);
+			result = Markdown::Commands::ToggleTaskChecks(lines);
 			caretOffset = lines.front().text.size();
 		} else {
-			const bool heading = F_MARKDOWN_H1 <= command && command <= F_MARKDOWN_H6;
-			const std::wstring prefix = heading ? std::wstring(command - F_MARKDOWN_H1 + 1, L'#') + L" "
-				: command == F_MARKDOWN_QUOTE ? L"> " : command == F_MARKDOWN_TASK ? L"- [ ] " : L"- ";
-			bool remove = true;
-			for (const auto& line : lines) {
-				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
-				if (heading || command == F_MARKDOWN_QUOTE) remove &= line.text.compare(indent, prefix.size(), prefix) == 0;
-				else {
-					bool ordered, task;
-					const size_t length = CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
-					remove &= length > 0 && (command == F_MARKDOWN_TASK ? task : command == F_MARKDOWN_ORDERED ? ordered && !task : !ordered && !task);
-				}
-			}
-			int number = 1;
-			for (auto& line : lines) {
-				const size_t indent = CMarkdownBlockParser::IndentLength(line.text);
-				size_t length = 0;
-				if (heading) {
-					length = CMarkdownBlockParser::HeadingMarkerLength(line.text, indent);
-				} else if (command == F_MARKDOWN_QUOTE) {
-					if (remove) length = prefix.size();
-				} else {
-					bool ordered, task;
-					length = CMarkdownBlockParser::ListMarkerLength(line.text, indent, ordered, task);
-				}
-				const std::wstring marker = remove ? L"" : command == F_MARKDOWN_ORDERED ? std::to_wstring(number++) + L". " : prefix;
-				line.text.replace(indent, length, marker);
-			}
-			result = JoinLines(lines);
-			caretOffset = CMarkdownBlockParser::IndentLength(lines.front().text);
-			if (!remove) caretOffset += command == F_MARKDOWN_ORDERED ? 3 : prefix.size();
+			result = Markdown::Commands::ToggleLinePrefixes(command, lines, caretOffset);
 		}
 		// Tables and thematic breaks need a paragraph boundary before the block.
 		if ((command == F_MARKDOWN_TABLE || command == F_MARKDOWN_HR) && first > 0) {

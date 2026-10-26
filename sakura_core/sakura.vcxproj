@@ -357,6 +357,7 @@
     <ClInclude Include="..\sakura_core\parse\DetectIndentationStyle.h" />
     <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownBlockParser.h" />
     <ClInclude Include="..\sakura_core\cmd\markdown\MarkdownInput.h" />
+    <ClInclude Include="..\sakura_core\cmd\markdown\MarkdownCommands.h" />
     <ClInclude Include="..\sakura_core\parse\markdown\CMarkdownInlineParser.h" />
     <ClInclude Include="..\sakura_core\parse\markdown\MarkdownParseUtil.h" />
     <ClInclude Include="..\sakura_core\parse\markdown\MarkdownTypes.h" />
@@ -584,7 +585,9 @@
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Diff.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Markdown.cpp" />
+    <ClCompile Include="..\sakura_core\cmd\CViewCommander_MarkdownInput.cpp" />
     <ClCompile Include="..\sakura_core\cmd\markdown\MarkdownInput.cpp" />
+    <ClCompile Include="..\sakura_core\cmd\markdown\MarkdownCommands.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_advanced.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_Edit_word_line.cpp" />
     <ClCompile Include="..\sakura_core\cmd\CViewCommander_File.cpp" />
