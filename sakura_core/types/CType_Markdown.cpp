@@ -11,6 +11,8 @@
 #include "doc/CDocOutline.h"
 #include "doc/logic/CDocLine.h"
 #include "outline/CFuncInfoArr.h"
+#include "outline/CFuncInfo.h"
+#include "util/ImageLink.h"
 #include "parse/markdown/CMarkdownBlockParser.h"
 #include "CSelectLang.h"
 #include <algorithm>
@@ -55,6 +57,13 @@ void CDocOutline::MakeTopicList_markdown(CFuncInfoArr* pcFuncInfoArr)
 	if (tabWidth <= 0) return;
 	Markdown::ParseState state;
 	std::vector<unsigned int> levels;
+	struct Item {
+		Markdown::SourcePosition position;
+		std::wstring title;
+		unsigned int level; // zero denotes a figure
+	};
+	std::vector<Item> items;
+	int figureNumber = 0;
 	std::wstring paragraph;
 	Markdown::SourcePosition paragraphStart;
 	for (CLogicInt y(0); y < m_pcDocRef->m_cDocLineMgr.GetLineCount(); ++y) {
@@ -62,6 +71,12 @@ void CDocOutline::MakeTopicList_markdown(CFuncInfoArr* pcFuncInfoArr)
 		const std::wstring_view text(line->GetPtr(), static_cast<size_t>(line->GetLengthWithoutEOL()));
 		const auto before = state;
 		const auto context = CMarkdownBlockParser::ParseLine(text, static_cast<size_t>(y), tabWidth, state);
+		if (!CMarkdownBlockParser::IsCodeLine(context)) {
+			if (const auto link = ImageLink::FindStandalone(text)) {
+				items.push_back({{static_cast<size_t>(y), link->begin},
+					L"図" + std::to_wstring(++figureNumber) + L": " + ImageLink::DisplayName(text, *link), 0});
+			}
+		}
 		if (context.heading) {
 			const auto& heading = *context.heading;
 			std::wstring title;
@@ -76,13 +91,7 @@ void CDocOutline::MakeTopicList_markdown(CFuncInfoArr* pcFuncInfoArr)
 				position = paragraphStart;
 			}
 			if (title.empty()) title = LS(STR_NO_TITLE1);
-			while (!levels.empty() && levels.back() >= heading.level) levels.pop_back();
-			const CLogicPoint logic(CLogicInt(static_cast<int>(position.offset)), CLogicInt(static_cast<int>(position.line)));
-			CLayoutPoint layout;
-			m_pcDocRef->m_cLayoutMgr.LogicToLayout(logic, &layout);
-			pcFuncInfoArr->AppendData(logic.GetY2() + 1, logic.GetX2() + 1,
-				layout.GetY2() + 1, layout.GetX2() + 1, title.c_str(), nullptr, 0, static_cast<int>(levels.size()));
-			levels.push_back(heading.level);
+			items.push_back({position, std::move(title), heading.level});
 			paragraph.clear();
 		} else if (state.paragraphOpen && context.bodyRange) {
 			const bool sameContainers = std::equal(before.containers.begin(), before.containers.end(),
@@ -101,5 +110,21 @@ void CDocOutline::MakeTopicList_markdown(CFuncInfoArr* pcFuncInfoArr)
 		} else {
 			paragraph.clear();
 		}
+	}
+	// Setext headings are discovered after their paragraph, which may contain figures.
+	// Place the heading before its children, retaining the existing heading title and position.
+	std::stable_sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
+		if (a.position.line != b.position.line) return a.position.line < b.position.line;
+		if (bool(a.level) != bool(b.level)) return bool(a.level);
+		return a.position.offset < b.position.offset;
+	});
+	for (const auto& item : items) {
+		if (item.level) while (!levels.empty() && levels.back() >= item.level) levels.pop_back();
+		const CLogicPoint logic(CLogicInt(static_cast<int>(item.position.offset)), CLogicInt(static_cast<int>(item.position.line)));
+		CLayoutPoint layout;
+		m_pcDocRef->m_cLayoutMgr.LogicToLayout(logic, &layout);
+		pcFuncInfoArr->AppendData(logic.y + 1, logic.x + 1, layout.y + 1, layout.x + 1,
+			item.title.c_str(), nullptr, item.level ? 0 : FUNCINFO_MARKDOWN_FIGURE, static_cast<int>(levels.size()));
+		if (item.level) levels.push_back(item.level);
 	}
 }

@@ -75,7 +75,7 @@ BOOL CViewCommander::Command_FUNCLIST(
 		case SHOW_NORMAL: // アクティブにする
 			//	開いているものと種別が同じならActiveにするだけ．異なれば再解析
 			GetEditWindow()->m_cDlgFuncList.SyncColor();
-			if( GetEditWindow()->m_cDlgFuncList.CheckListType( nOutlineType )){
+			if( nOutlineType != OUTLINE_MARKDOWN && GetEditWindow()->m_cDlgFuncList.CheckListType( nOutlineType )){
 				if( bForeground ){
 					::SetFocus( GetEditWindow()->m_cDlgFuncList.GetHwnd() );
 				}
@@ -99,6 +99,7 @@ BOOL CViewCommander::Command_FUNCLIST(
 		}
 	}
 
+	GetEditWindow()->m_cDlgFuncList.BeginMarkdownRefresh(nOutlineType);
 	/* 解析結果データを空にする */
 	cFuncInfoArr.Empty();
 	int		nListType = nOutlineType;			//2011.06.25 syat
@@ -184,7 +185,7 @@ BOOL CViewCommander::Command_FUNCLIST(
 	}else{
 		/* アクティブにする */
 		GetEditWindow()->m_cDlgFuncList.Redraw( nOutlineType, nListType, &cFuncInfoArr, poCaret.GetY2() + 1, poCaret.GetX2() + 1 );
-		if( bForeground ){
+		if( bForeground && !GetEditWindow()->m_cDlgFuncList.IsBackgroundRefresh() ){
 			::SetFocus( GetEditWindow()->m_cDlgFuncList.GetHwnd() );
 		}
 	}

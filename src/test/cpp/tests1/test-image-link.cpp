@@ -132,6 +132,23 @@ TEST(ImageLink, RowLimitValidatesTheWholeInputWithoutOverflow)
 		EXPECT_FALSE(ImageLink::ParseRowLimit(input));
 }
 
+TEST(ImageLink, FigureDisplayNameRestoresEscapesAndFallsBackToFilename)
+{
+	const std::pair<std::wstring_view, std::wstring_view> examples[] = {
+		{LR"(![説明](C:/missing.png))", L"説明"},
+		{LR"(![a\]b\\c](C:/missing.png) <!-- sakura:rows=40 -->)", LR"(a]b\c)"},
+		{LR"(![](C:\dir\photo.name.JPG))", L"photo.name"},
+		{LR"(![]( <bad> ))", L""},
+		{LR"(![\*x\*\q](C:/a.png))", LR"(*x*\q)"},
+	};
+	for (const auto& [text, expected] : examples) {
+		const auto link = ImageLink::FindStandalone(text);
+		if (expected.empty()) { EXPECT_FALSE(link); continue; }
+		ASSERT_TRUE(link);
+		EXPECT_EQ(expected, ImageLink::DisplayName(text, *link));
+	}
+}
+
 TEST(NoteProjection, UnequalRowsAndResizeReindex)
 {
 	NoteView::Projection p;

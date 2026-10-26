@@ -1871,6 +1871,13 @@ void CEditView::OnChangeSetting()
 
 	// 文書種別更新
 	m_pTypeData = &m_pcEditDoc->m_cDocType.GetDocumentAttribute();
+	if (!m_bMiniMap) {
+		GetEditWnd().m_cDlgFuncList.NotifyMarkdownSetting();
+		if (IsNoteView() && (m_pTypeData->m_eDefaultOutline == OUTLINE_MARKDOWN || !m_noteMarkdownStates.empty())) {
+			OnBeforeViewLayout();
+			OnAfterViewLayout({});
+		}
+	}
 	UpdateDisplayColors();
 
 	/* ルーラー表示 */

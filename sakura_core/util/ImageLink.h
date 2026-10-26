@@ -26,6 +26,8 @@ std::optional<std::wstring> MakeLink(std::wstring_view path);
 std::optional<Link> FindAt(std::wstring_view line, size_t position);
 // A standalone logical line, excluding its line delimiter. No file I/O is performed.
 std::optional<Link> FindStandalone(std::wstring_view line);
+// Display-only description (Markdown escapes restored), or the path's filename stem.
+std::wstring DisplayName(std::wstring_view line, const Link& link);
 // Checks access to a local regular file, without decoding or modifying it.
 bool IsReadableFile(const std::wstring& path);
 

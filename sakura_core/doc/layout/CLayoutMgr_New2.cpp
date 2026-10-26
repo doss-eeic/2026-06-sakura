@@ -156,6 +156,7 @@ void CLayoutMgr::ReplaceData_CLayoutMgr(
 	LogicToLayout(DLRArg.ptNewPos, &pArg->ptLayoutNew); // 挿入された部分の次の位置
 	if (m_pcEditDoc && this == &m_pcEditDoc->m_cLayoutMgr) {
 		m_pcEditDoc->NotifyAfterViewLayout({ptFrom.y, ptTo.y, DLRArg.ptNewPos.y,
-			m_pcDocLineMgr->GetLineCount() - oldLogicalCount, m_nLines - nWork_nLines});
+			m_pcDocLineMgr->GetLineCount() - oldLogicalCount, m_nLines - nWork_nLines,
+			ptFrom.x, ptTo.x, DLRArg.ptNewPos.x});
 	}
 }
