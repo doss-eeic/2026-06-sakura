@@ -813,6 +813,7 @@
 #define IDC_BUTTON_KEYBIND_INHERIT      1757
 #define IDC_EDIT_TYPEKEYBIND_COMMON     1758
 #define IDC_STATIC_TYPEKEYBIND_SOURCE   1759
+#define IDC_BUTTON_DELETE_ALL           1760
 #define IDS_AUTHOR_PAGE                 4054
 #define IDS_ABOUT_DESCRIPTION           4056
 #define IDD_TYPELIST                    5000
@@ -1884,15 +1885,16 @@
 #define STR_PROPTYPE_KEYBIND            35069
 #define STR_SMART_INDENT_MARKDOWN       35072
 #define STR_OUTLINE_MARKDOWN            35073
+#define STR_DLGFAV_CONF_DEL_ALL         35074
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        35074
+#define _APS_NEXT_RESOURCE_VALUE        35075
 #define _APS_NEXT_COMMAND_VALUE         101
-#define _APS_NEXT_CONTROL_VALUE         1760
+#define _APS_NEXT_CONTROL_VALUE         1761
 #define _APS_NEXT_SYMED_VALUE           10000
 #endif
 #endif
