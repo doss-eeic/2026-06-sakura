@@ -104,6 +104,12 @@ public:
 	void LoadFileTreeSetting( CFileTreeSetting& data, SFilePath& IniDirPath );
 	void NotifyCaretMovement( CLayoutInt nCurLine, CLayoutInt nCurCol );
 	void NotifyDocModification();
+	void NotifyMarkdownLayout(const SViewLayoutChange& change);
+	void NotifyMarkdownSetting();
+	void ResetMarkdownDocument();
+	void FinishMarkdownLoad();
+	void BeginMarkdownRefresh(int outlineType);
+	bool IsBackgroundRefresh() const { return m_markdownRefreshing; }
 
 protected:
 	bool m_bInChangeLayout;
@@ -231,5 +237,21 @@ private:
 	RECT				m_rcItems[12];
 
 	bool		m_bFuncInfoArrIsUpToDate;
+	struct MarkdownAnchor {
+		CLogicPoint position;
+		bool figure = false;
+		bool selected = false;
+		bool expanded = false;
+	};
+	std::vector<MarkdownAnchor> m_markdownAnchors;
+	std::vector<MarkdownAnchor> m_markdownSaved;
+	bool m_markdownRestore = false;
+	bool m_markdownRefreshing = false;
+	bool m_markdownSettingChanged = false;
+	bool m_markdownLoading = false;
+	EOutlineType m_markdownDefault = OUTLINE_DEFAULT;
+	static constexpr UINT_PTR MarkdownTimer = 5;
+	void FinishMarkdownRefresh();
+	void RefreshMarkdownNow();
 };
 #endif /* SAKURA_CDLGFUNCLIST_B22A3877_572A_49B7_B683_50ECA451A6F8_H_ */

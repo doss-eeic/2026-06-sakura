@@ -11,6 +11,7 @@
 #include "view/NoteImageGeometry.h"
 #include "dlg/CDlgInput1.h"
 #include "cmd/COpeBlk.h"
+#include "parse/markdown/CMarkdownBlockParser.h"
 #include <shlobj.h>
 
 namespace {
@@ -21,18 +22,42 @@ bool FitBlock(NoteView::Block& block, int width, int height, UINT dpi)
 	return std::exchange(block.rows, rows) != rows;
 }
 
-std::vector<NoteView::Block> ScanBlocks(CEditDoc& doc, CLogicInt first, CLogicInt last,
-	const NoteView::ImageCache& cache)
+std::vector<NoteView::Block> ScanBlocks(CEditDoc& doc, CLogicInt first, CLogicInt& last,
+	const NoteView::ImageCache& cache, std::vector<Markdown::ParseState>& states)
 {
 	std::vector<NoteView::Block> blocks;
+	const bool markdown = doc.m_cDocType.GetDocumentAttribute().m_eDefaultOutline == OUTLINE_MARKDOWN;
+	const int tabWidth = doc.m_cLayoutMgr.GetTabSpaceKetas();
+	Markdown::ParseState state;
+	if (markdown) {
+		if (states.empty()) states.emplace_back();
+		for (size_t y = states.size() - 1; y < static_cast<size_t>(first); ++y) {
+			const auto* line = doc.m_cDocLineMgr.GetLine(CLogicInt(y));
+			state = states.back();
+			CMarkdownBlockParser::ParseLine({line->GetPtr(), static_cast<size_t>(line->GetLengthWithoutEOL())}, y, tabWidth, state);
+			states.push_back(state);
+		}
+		state = states[static_cast<size_t>(first)];
+	} else states.clear();
 	CLayoutPoint position;
 	doc.m_cLayoutMgr.LogicToLayout(CLogicPoint(0, first), &position);
 	const CLayout* layout = doc.m_cLayoutMgr.SearchLineByLayoutY(position.y);
 	auto row = static_cast<Int>(position.y);
-	while (layout && layout->GetLogicLineNo() <= last) {
+	while (layout) {
 		const auto line = layout->GetDocLineRef();
 		const auto logical = layout->GetLogicLineNo();
-		auto link = ImageLink::FindStandalone(std::wstring_view(line->GetPtr(), static_cast<size_t>(line->GetLengthWithoutEOL())));
+		const std::wstring_view text(line->GetPtr(), static_cast<size_t>(line->GetLengthWithoutEOL()));
+		bool code = false;
+		bool converged = true;
+		if (markdown) {
+			code = CMarkdownBlockParser::IsCodeLine(CMarkdownBlockParser::ParseLine(text, logical, tabWidth, state));
+			const auto next = static_cast<size_t>(logical) + 1;
+			// Stop only after the edited range AND the downstream parser state agree.
+			converged = next < states.size() && states[next] == state;
+			if (states.size() <= next) states.resize(next + 1);
+			states[next] = state;
+		}
+		auto link = code ? std::nullopt : ImageLink::FindStandalone(text);
 		do {
 			layout = layout->GetNextLayout();
 			++row;
@@ -42,6 +67,8 @@ std::vector<NoteView::Block> ScanBlocks(CEditDoc& doc, CLogicInt first, CLogicIn
 			blocks.push_back({static_cast<Int>(logical), row - 1, std::move(link->path), link->maxRows, link->maxRows,
 				source.width, source.height, source.state == NoteView::ImageCache::State::Failed});
 		}
+		if (logical >= last && converged) { last = logical; break; }
+		if (!layout) last = logical;
 	}
 	return blocks;
 }
@@ -123,11 +150,13 @@ void CEditView::RebuildNoteProjection()
 	m_noteImeBaseProjection.reset();
 	auto& projection = GetTextArea().GetNoteProjection();
 	if (IsNoteView()) {
-		auto blocks = ScanBlocks(*GetDocument(), CLogicInt(0), GetDocument()->m_cDocLineMgr.GetLineCount(), GetEditWnd().GetNoteImageCache());
+		m_noteMarkdownStates.clear();
+		auto last = GetDocument()->m_cDocLineMgr.GetLineCount();
+		auto blocks = ScanBlocks(*GetDocument(), CLogicInt(0), last, GetEditWnd().GetNoteImageCache(), m_noteMarkdownStates);
 		PrepareNoteBlocks(blocks);
 		projection.Reset(std::move(blocks));
 	}
-	else projection.Clear();
+	else { projection.Clear(); m_noteMarkdownStates.clear(); }
 	RefreshNoteImeProjection();
 }
 
@@ -147,19 +176,45 @@ void CEditView::RefreshNoteImeProjection()
 	auto& projection = GetTextArea().GetNoteProjection();
 	m_noteImeBaseProjection = projection;
 	std::vector<NoteView::Block> replacement;
-	const auto link = ImageLink::FindStandalone(std::wstring_view(m_imeLine->GetPtr(),
+	auto link = ImageLink::FindStandalone(std::wstring_view(m_imeLine->GetPtr(),
 		static_cast<size_t>(m_imeLine->GetLengthWithoutEOL())));
 	const auto count = m_imeLayout->GetLineCount();
+	const bool markdown = m_pTypeData->m_eDefaultOutline == OUTLINE_MARKDOWN;
+	Markdown::ParseState state;
+	if (markdown) {
+		const auto first = static_cast<size_t>(m_ime.begin.y);
+		if (first < m_noteMarkdownStates.size()) state = m_noteMarkdownStates[first];
+		const auto context = CMarkdownBlockParser::ParseLine({m_imeLine->GetPtr(),
+			static_cast<size_t>(m_imeLine->GetLengthWithoutEOL())}, first, GetDocument()->m_cLayoutMgr.GetTabSpaceKetas(), state);
+		if (CMarkdownBlockParser::IsCodeLine(context)) link.reset();
+	}
 	if (link && count > 0) {
 		const auto source = GetEditWnd().GetNoteImageCache().GetSourceInfo(link->path);
 		replacement.push_back({static_cast<int>(m_ime.begin.y),
 			static_cast<std::int64_t>(static_cast<int>(m_ime.firstLayoutLine)) + static_cast<int>(count) - 1, link->path,
 			link->maxRows, link->maxRows, source.width, source.height, source.state == NoteView::ImageCache::State::Failed});
 	}
+	if (markdown) {
+		// Preedit may change a fence. Re-evaluate the suffix in display coordinates,
+		// leaving the committed parser cache and document untouched.
+		for (auto y = m_ime.end.y + 1; y < GetDocument()->m_cDocLineMgr.GetLineCount(); ++y) {
+			const auto* line = GetDocument()->m_cDocLineMgr.GetLine(y);
+			const std::wstring_view text(line->GetPtr(), static_cast<size_t>(line->GetLengthWithoutEOL()));
+			if (CMarkdownBlockParser::IsCodeLine(CMarkdownBlockParser::ParseLine(text, y,
+				GetDocument()->m_cLayoutMgr.GetTabSpaceKetas(), state))) continue;
+			if (const auto image = ImageLink::FindStandalone(text)) {
+				CLayoutPoint end;
+				GetDocument()->m_cLayoutMgr.LogicToLayout(CLogicPoint(line->GetLengthWithoutEOL(), y), &end);
+				const auto source = GetEditWnd().GetNoteImageCache().GetSourceInfo(image->path);
+				replacement.push_back({static_cast<int>(y), static_cast<int>(DocumentToDisplayLayoutLine(end.y)), image->path,
+					image->maxRows, image->maxRows, source.width, source.height, source.state == NoteView::ImageCache::State::Failed});
+			}
+		}
+	}
 	// Logical anchors remain document positions; only the displayed text rows are replaced.
 	// This hides links covered by an IME replacement selection and shifts subsequent blocks.
 	PrepareNoteBlocks(replacement);
-	projection.Replace(m_ime.begin.y, m_ime.end.y, 0,
+	projection.Replace(m_ime.begin.y, markdown ? GetDocument()->m_cDocLineMgr.GetLineCount() : m_ime.end.y, 0,
 		static_cast<int>(count) - static_cast<int>(m_ime.originalLayoutLines), std::move(replacement));
 	InvalidateNoteRequests();
 }
@@ -167,15 +222,20 @@ void CEditView::RefreshNoteImeProjection()
 void CEditView::OnAfterViewLayout(const SViewLayoutChange& change)
 {
 	if (m_bMiniMap) return;
+	if (this == &GetEditWnd().GetActiveView()) GetEditWnd().m_cDlgFuncList.NotifyMarkdownLayout(change);
 	if (m_noteResize) CancelNoteResize();
 	auto& area = GetTextArea();
 	bool changed;
 	if (IsNoteView() && change.firstLine >= 0) {
 		const bool hadImeProjection = m_noteImeBaseProjection.has_value();
 		RestoreNoteDocumentProjection();
-		auto replacement = ScanBlocks(*GetDocument(), change.firstLine, change.newLastLine, GetEditWnd().GetNoteImageCache());
+		// A line count change invalidates the source positions in suffix states.
+		if (change.logicalDelta != 0 && m_noteMarkdownStates.size() > static_cast<size_t>(change.firstLine) + 1)
+			m_noteMarkdownStates.resize(static_cast<size_t>(change.firstLine) + 1);
+		auto last = change.newLastLine;
+		auto replacement = ScanBlocks(*GetDocument(), change.firstLine, last, GetEditWnd().GetNoteImageCache(), m_noteMarkdownStates);
 		PrepareNoteBlocks(replacement);
-		changed = area.GetNoteProjection().Replace(change.firstLine, change.oldLastLine, change.logicalDelta,
+		changed = area.GetNoteProjection().Replace(change.firstLine, last - change.logicalDelta, change.logicalDelta,
 			static_cast<Int>(change.layoutDelta), std::move(replacement));
 		RefreshNoteImeProjection();
 		changed = changed || hadImeProjection || m_noteImeBaseProjection.has_value();
@@ -451,11 +511,18 @@ void CEditView::InvalidateNoteRequests()
 
 void CEditView::BeginNoteLoad()
 {
+	GetEditWnd().m_cDlgFuncList.ResetMarkdownDocument();
 	CancelNoteResize();
 	m_noteLoading = true;
 	m_noteAnchor.valid = false;
 	InvalidateNoteRequests();
 	GetEditWnd().GetNoteImageCache().Reset();
+}
+
+void CEditView::OnFinalLoad(ELoadResult)
+{
+	m_noteLoading = false;
+	GetEditWnd().m_cDlgFuncList.FinishMarkdownLoad();
 }
 
 void CEditView::PollNoteImages()

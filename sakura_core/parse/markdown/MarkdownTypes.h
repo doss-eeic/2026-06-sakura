@@ -24,11 +24,13 @@ struct BlockInfo {
 
 // 原文上の位置。0origin
 struct SourcePosition {
+	bool operator==(const SourcePosition&) const = default;
 	size_t line = 0;
 	size_t offset = 0;
 };
 
 struct SourceRange {
+	bool operator==(const SourceRange&) const = default;
 	SourcePosition begin;
 	SourcePosition end;
 };
@@ -39,11 +41,13 @@ enum class ListKind {
 };
 
 struct TaskMarkerInfo {
+	bool operator==(const TaskMarkerInfo&) const = default;
 	SourceRange range;
 	bool checked = false;
 };
 
 struct ListMarkerInfo {
+	bool operator==(const ListMarkerInfo&) const = default;
 	ListKind kind = ListKind::Bullet;
 	wchar_t marker = L'-';
 	unsigned int number = 1; // Orderedの原文の番号
@@ -57,6 +61,7 @@ enum class ContainerKind {
 };
 
 struct ContainerInfo {
+	bool operator==(const ContainerInfo&) const = default;
 	ContainerKind kind = ContainerKind::Quote;
 	SourcePosition start; // コンテナの原文での開始位置
 	std::optional<SourcePosition> parentItem; //所属する親リスト項目
@@ -85,6 +90,7 @@ struct LineContext {
 };
 
 struct FenceInfo {
+	bool operator==(const FenceInfo&) const = default;
 	wchar_t marker = L'`';
 	size_t length = 0;
 	SourcePosition start;
@@ -93,6 +99,7 @@ struct FenceInfo {
 };
 
 struct ParseState {
+	bool operator==(const ParseState&) const = default;
 	std::vector<ContainerInfo> containers;
 	std::optional<FenceInfo> fence;
 	bool paragraphOpen = false;

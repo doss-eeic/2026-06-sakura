@@ -24,6 +24,7 @@
 */
 
 #include "StdAfx.h"
+#include <map>
 #include <limits.h>
 #include "outline/CDlgFuncList.h"
 #include "outline/CFuncInfo.h"
@@ -457,7 +458,7 @@ void CDlgFuncList::SetData()
 	}
 	else if( OUTLINE_MARKDOWN == m_nListType ){
 		m_nViewType = VIEWTYPE_TREE;
-		SetTree(hInsertAfter);
+		SetTree(TVI_LAST);
 		::SetWindowText( GetHwnd(), LS(STR_OUTLINE_MARKDOWN) );
 	}
 	else if( OUTLINE_TEXT == m_nListType ){ /* テキスト・トピックリスト */
@@ -722,7 +723,7 @@ void CDlgFuncList::SetData()
 	}
 	if( m_nViewType == VIEWTYPE_TREE && m_nListType != OUTLINE_FILETREE ){
 		HWND hWnd_Combo_Sort = GetItemHwnd( IDC_COMBO_nSortType );
-		if( m_nListType == OUTLINE_FILETREE ){
+		if( m_nListType == OUTLINE_FILETREE || m_nListType == OUTLINE_MARKDOWN ){
 			::EnableWindow( hWnd_Combo_Sort , FALSE );
 		}else{
 			::EnableWindow( hWnd_Combo_Sort , TRUE );
@@ -733,9 +734,9 @@ void CDlgFuncList::SetData()
 		ApiWrap::Combo_AddString( hWnd_Combo_Sort , LS(STR_DLGFNCLST_SORTTYPE1_2));	// SORTTYPE_DEFAULT_DESC
 		ApiWrap::Combo_AddString( hWnd_Combo_Sort , LS(STR_DLGFNCLST_SORTTYPE2));    // SORTTYPE_ATOZ
 		ApiWrap::Combo_AddString( hWnd_Combo_Sort , LS(STR_DLGFNCLST_SORTTYPE2_2));  // SORTTYPE_ZTOA
-		ApiWrap::Combo_SetCurSel( hWnd_Combo_Sort , m_nSortType );
+		ApiWrap::Combo_SetCurSel( hWnd_Combo_Sort , m_nListType == OUTLINE_MARKDOWN ? SORTTYPE_DEFAULT : m_nSortType );
 		::ShowWindow( GetItemHwnd( IDC_STATIC_nSortType ), SW_SHOW );
-		if (m_nSortType != SORTTYPE_DEFAULT && m_nSortType != SORTTYPE_DEFAULT_DESC)
+		if (m_nListType != OUTLINE_MARKDOWN && m_nSortType != SORTTYPE_DEFAULT && m_nSortType != SORTTYPE_DEFAULT_DESC)
 			SortTree(hwndTree, TVI_ROOT);
 	}else if( m_nListType == OUTLINE_FILETREE ){
 		::ShowWindow( GetItemHwnd(IDC_COMBO_nSortType), SW_HIDE );
@@ -759,10 +760,12 @@ void CDlgFuncList::SetData()
 	::SendMessage(hwndTree, WM_SETREDRAW, (WPARAM)TRUE, 0);
 	// 選択状態更新
 	int nFuncInfoIndex = -1;
-	if (GetFuncInfoIndex(m_nCurLine, m_nCurCol, &nFuncInfoIndex)) {
+	if (!m_markdownRestore && GetFuncInfoIndex(m_nCurLine, m_nCurCol, &nFuncInfoIndex)) {
 		SetItemSelection(nFuncInfoIndex, true);
 	}
-	if (::GetForegroundWindow() == MyGetAncestor(GetHwnd(), GA_ROOT) && IsChild(GetHwnd(), GetFocus()))
+	FinishMarkdownRefresh();
+	if (m_nOutlineType == OUTLINE_MARKDOWN) ::InvalidateRect(hwndTree, nullptr, TRUE);
+	if (!m_markdownRefreshing && ::GetForegroundWindow() == MyGetAncestor(GetHwnd(), GA_ROOT) && IsChild(GetHwnd(), GetFocus()))
 		::SetFocus(hwndShow);
 }
 
@@ -2007,6 +2010,10 @@ BOOL CDlgFuncList::OnNotify(NMHDR* pNMHDR)
 				TreeView_HitTest( hwndTree, &tvht );
 				if( (tvht.flags & TVHT_ONITEM) && tvht.hItem ){
 					TreeView_SelectItem( hwndTree, tvht.hItem );
+					if (m_nOutlineType == OUTLINE_MARKDOWN) {
+						GetData();
+						if (m_cFuncInfo && (m_cFuncInfo->m_nInfo & FUNCINFO_MARKDOWN_FIGURE)) return TRUE;
+					}
 					OnJump( false, false );
 					return TRUE;
 				}
@@ -2020,6 +2027,10 @@ BOOL CDlgFuncList::OnNotify(NMHDR* pNMHDR)
 			return TRUE;
 			//return OnJump();
 		case TVN_KEYDOWN:
+			if (m_nOutlineType == OUTLINE_MARKDOWN && ((TV_KEYDOWN*)pNMHDR)->wVKey == VK_RETURN) {
+				OnJump();
+				return TRUE;
+			}
 			if( ((TV_KEYDOWN *)pNMHDR)->wVKey == VK_SPACE ){
 				OnJump( false );
 				return TRUE;
@@ -2443,6 +2454,7 @@ static void SortTree_Sub(HWND hWndTree,HTREEITEM htiParent, STreeViewSortData& d
 
 void CDlgFuncList::SortTree(HWND hWndTree,HTREEITEM htiParent)
 {
+	if (m_nListType == OUTLINE_MARKDOWN) return;
 	STreeViewSortData data;
 	int size = m_pcFuncInfoArr->GetNum();
 	if( m_bDummyLParamMode ){
@@ -2482,6 +2494,14 @@ bool CDlgFuncList::TagJumpTimer( const WCHAR* pFile, CMyPoint point, bool bCheck
 
 BOOL CDlgFuncList::OnJump( bool bCheckAutoClose, bool bFileJump )	//2002.02.08 hor 引数追加
 {
+	if (m_nOutlineType == OUTLINE_MARKDOWN) {
+		if (m_markdownLoading) return TRUE;
+		// Selection is captured by logical position/kind before rebuilding. Never
+		// use an old array pointer or jump to an item deleted during the debounce.
+		NotifyMarkdownSetting();
+		RefreshMarkdownNow();
+		if (m_nOutlineType != OUTLINE_MARKDOWN) return TRUE;
+	}
 	int				nLineTo;
 	int				nColTo;
 	/* ダイアログデータの取得 */
@@ -2527,6 +2547,18 @@ BOOL CDlgFuncList::OnJump( bool bCheckAutoClose, bool bFileJump )	//2002.02.08 h
 				//	2006.07.09 genta 移動時に選択状態を保持するように
 				::SendMessageAny( GetEditWnd().GetHwnd(),
 					MYWM_SETCARETPOS, 0, PM_SETCARETPOS_KEEPSELECT );
+				if (m_nOutlineType == OUTLINE_MARKDOWN && (m_cFuncInfo->m_nInfo & FUNCINFO_MARKDOWN_FIGURE)) {
+					auto& view = GetEditWnd().GetActiveView();
+					if (view.IsNoteView()) {
+						const auto& projection = view.GetTextArea().GetNoteProjection();
+						for (size_t i = 0; i < projection.Blocks().size(); ++i) {
+							if (projection.Blocks()[i].logicalLine == nLineTo - 1) {
+								view.ScrollDisplayAtV(projection.BlockStart(i));
+								break;
+							}
+						}
+					}
+				}
 			}
 			if( bCheckAutoClose && bFileJumpSelf ){
 				/* アウトライン ダイアログを自動的に閉じる */
@@ -2842,6 +2874,11 @@ INT_PTR CDlgFuncList::OnNcHitTest( [[maybe_unused]] HWND hwnd, [[maybe_unused]] 
 */
 BOOL CDlgFuncList::OnTimer( HWND hwnd, [[maybe_unused]] UINT uMsg, WPARAM wParam, [[maybe_unused]] LPARAM lParam )
 {
+	if (wParam == MarkdownTimer) {
+		::KillTimer(hwnd, MarkdownTimer);
+		RefreshMarkdownNow();
+		return FALSE;
+	}
 	if( wParam == 2 ){
 		CEditView* pcView = reinterpret_cast<CEditView*>(m_lParam);
 		if( m_pszTimerJumpFile ){
@@ -4016,8 +4053,139 @@ void CDlgFuncList::NotifyDocModification()
 {
 	// もう最新ではなくなりました
 	m_bFuncInfoArrIsUpToDate = false;
+	if (GetHwnd() && !m_markdownLoading && (m_nOutlineType == OUTLINE_MARKDOWN || m_markdownSettingChanged))
+		::SetTimer(GetHwnd(), MarkdownTimer, 300, nullptr);
 
 	return;
+}
+
+namespace {
+std::vector<HTREEITEM> MarkdownTreeItems(HWND tree)
+{
+	std::vector<HTREEITEM> items;
+	for (auto item = TreeView_GetRoot(tree); item; item = TreeView_GetNextSibling(tree, item)) items.push_back(item);
+	for (size_t i = 0; i < items.size(); ++i)
+		for (auto child = TreeView_GetChild(tree, items[i]); child; child = TreeView_GetNextSibling(tree, child)) items.push_back(child);
+	return items;
+}
+}
+
+void CDlgFuncList::BeginMarkdownRefresh(int outlineType)
+{
+	m_markdownSaved.clear();
+	m_markdownRestore = GetHwnd() && m_markdownRefreshing && m_nOutlineType == OUTLINE_MARKDOWN && outlineType == OUTLINE_MARKDOWN;
+	if (!m_markdownRestore) return;
+	const auto tree = GetItemHwnd(IDC_TREE_FL);
+	const auto selected = TreeView_GetSelection(tree);
+	for (auto item : MarkdownTreeItems(tree)) {
+		TVITEM info{};
+		info.mask = TVIF_PARAM;
+		info.hItem = item;
+		if (!TreeView_GetItem(tree, &info) || info.lParam < 0 || static_cast<size_t>(info.lParam) >= m_markdownAnchors.size()) continue;
+		auto anchor = m_markdownAnchors[info.lParam];
+		if (anchor.position.y < 0) continue;
+		anchor.selected = item == selected;
+		anchor.expanded = (TreeView_GetItemState(tree, item, TVIS_EXPANDED) & TVIS_EXPANDED) != 0;
+		m_markdownSaved.push_back(anchor);
+	}
+}
+
+void CDlgFuncList::FinishMarkdownRefresh()
+{
+	::KillTimer(GetHwnd(), MarkdownTimer);
+	m_markdownSettingChanged = false;
+	m_markdownDefault = reinterpret_cast<CEditView*>(m_lParam)->GetDocument()->m_cDocType.GetDocumentAttribute().m_eDefaultOutline;
+	m_markdownAnchors.clear();
+	if (m_nOutlineType == OUTLINE_MARKDOWN) {
+		for (int i = 0; i < m_pcFuncInfoArr->GetNum(); ++i) {
+			const auto* info = m_pcFuncInfoArr->GetAt(i);
+			m_markdownAnchors.push_back({CLogicPoint(info->m_nFuncColCRLF - 1, info->m_nFuncLineCRLF - 1),
+				(info->m_nInfo & FUNCINFO_MARKDOWN_FIGURE) != 0});
+		}
+		if (m_markdownRestore) {
+			std::map<std::pair<int, bool>, MarkdownAnchor> saved;
+			for (const auto& anchor : m_markdownSaved) saved[{anchor.position.y, anchor.figure}] = anchor;
+			const auto tree = GetItemHwnd(IDC_TREE_FL);
+			HTREEITEM selected = nullptr;
+			std::vector<std::pair<HTREEITEM, bool>> expansion;
+			for (auto item : MarkdownTreeItems(tree)) {
+				TVITEM info{};
+				info.mask = TVIF_PARAM;
+				info.hItem = item;
+				if (!TreeView_GetItem(tree, &info) || info.lParam < 0 || static_cast<size_t>(info.lParam) >= m_markdownAnchors.size()) continue;
+				const auto& anchor = m_markdownAnchors[info.lParam];
+				const auto found = saved.find({anchor.position.y, anchor.figure});
+				if (found == saved.end()) continue;
+				if (found->second.selected) selected = item;
+				if (!anchor.figure) expansion.emplace_back(item, found->second.expanded);
+			}
+			TreeView_SelectItem(tree, selected);
+			for (const auto& [item, expanded] : expansion) TreeView_Expand(tree, item, expanded ? TVE_EXPAND : TVE_COLLAPSE);
+		}
+	}
+	m_markdownRestore = false;
+	m_markdownSaved.clear();
+	m_cFuncInfo = nullptr;
+}
+
+void CDlgFuncList::NotifyMarkdownLayout(const SViewLayoutChange& change)
+{
+	if (!GetHwnd()) return;
+	NotifyMarkdownSetting();
+	if (m_nOutlineType != OUTLINE_MARKDOWN) return;
+	if (change.firstLine >= 0) {
+		const CLogicPoint first(change.firstColumn, change.firstLine), last(change.oldLastColumn, change.oldLastLine);
+		const auto before = [](const auto& a, const auto& b) { return a.y < b.y || (a.y == b.y && a.x < b.x); };
+		for (auto& anchor : m_markdownAnchors) {
+			auto& point = anchor.position;
+			if (point.y < 0 || before(point, first)) continue;
+			if (before(point, last)) point.y = -1; // deleted source anchor
+			else {
+				if (point.y == last.y) point.x += change.newLastColumn - change.oldLastColumn;
+				point.y += change.logicalDelta;
+			}
+		}
+	}
+	NotifyDocModification();
+}
+
+void CDlgFuncList::NotifyMarkdownSetting()
+{
+	if (!GetHwnd() || !m_lParam) return;
+	const auto current = reinterpret_cast<CEditView*>(m_lParam)->GetDocument()->m_cDocType.GetDocumentAttribute().m_eDefaultOutline;
+	if (current != m_markdownDefault && (current == OUTLINE_MARKDOWN || m_markdownDefault == OUTLINE_MARKDOWN) &&
+		m_nOutlineType != OUTLINE_BOOKMARK && m_nOutlineType != OUTLINE_FILETREE) {
+		m_markdownSettingChanged = true;
+		NotifyDocModification();
+	}
+}
+
+void CDlgFuncList::ResetMarkdownDocument()
+{
+	m_markdownLoading = true;
+	m_markdownAnchors.clear();
+	m_markdownSaved.clear();
+	if (GetHwnd()) {
+		::KillTimer(GetHwnd(), MarkdownTimer);
+		NotifyDocModification();
+	}
+}
+
+void CDlgFuncList::FinishMarkdownLoad()
+{
+	m_markdownLoading = false;
+	NotifyMarkdownSetting();
+	if (GetHwnd() && m_nOutlineType == OUTLINE_MARKDOWN) NotifyDocModification();
+}
+
+void CDlgFuncList::RefreshMarkdownNow()
+{
+	if (!GetHwnd() || m_markdownLoading || m_markdownRefreshing || (m_nOutlineType != OUTLINE_MARKDOWN && !m_markdownSettingChanged)) return;
+	::KillTimer(GetHwnd(), MarkdownTimer);
+	m_markdownRefreshing = true;
+	reinterpret_cast<CEditView*>(m_lParam)->GetCommander().Command_FUNCLIST(SHOW_RELOAD,
+		m_markdownSettingChanged ? OUTLINE_DEFAULT : OUTLINE_MARKDOWN);
+	m_markdownRefreshing = false;
 }
 
 /*!

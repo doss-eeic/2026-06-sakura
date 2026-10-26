@@ -27,6 +27,8 @@ class CFuncInfo;
 #define FUNCINFO_INFOMASK	0xFFFF
 //	2003.06.27 Moca
 #define FUNCINFO_NOCLIPTEXT 0x10000
+// Markdown item kind, independent of its tree depth and display numbering.
+#define FUNCINFO_MARKDOWN_FIGURE 0x20000
 
 //! アウトライン解析  データ要素
 //@date 2002.04.01 YAZAKI 深さ導入

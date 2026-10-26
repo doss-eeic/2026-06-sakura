@@ -19,6 +19,11 @@ public:
 	);
 
 	static Markdown::BlockInfo ScanBlock(std::wstring_view text, Markdown::BlockState& state);
+	static bool IsCodeLine(const Markdown::LineContext& context)
+	{
+		return context.kind == Markdown::LineKind::Fence || context.kind == Markdown::LineKind::FencedCode ||
+			context.kind == Markdown::LineKind::IndentedCode;
+	}
 
 	// Preserve the existing edit commands' marker recognition, which differs
 	// from the display scanner's block-boundary rules.

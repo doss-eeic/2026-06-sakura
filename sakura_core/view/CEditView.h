@@ -24,6 +24,7 @@
 #ifndef SAKURA_CEDITVIEW_54DE503F_6F97_4A16_8165_27F5F0D232E2_H_
 #define SAKURA_CEDITVIEW_54DE503F_6F97_4A16_8165_27F5F0D232E2_H_
 #pragma once
+#include "parse/markdown/MarkdownTypes.h"
 
 #include <Windows.h>
 #include <ObjIdl.h>  // LPDATAOBJECT
@@ -191,7 +192,7 @@ public:
 	//ドキュメントイベント
 	void OnAfterLoad(const SLoadInfo& sLoadInfo) override;
 	void OnBeforeLoad(SLoadInfo*) override { CancelImagePreview(); BeginNoteLoad(); }
-	void OnFinalLoad(ELoadResult) override { m_noteLoading = false; }
+	void OnFinalLoad(ELoadResult) override;
 	ECallbackResult OnBeforeClose() override { CancelImagePreview(); return CALLBACK_CONTINUE; }
 	/* メッセージディスパッチャ */
 	LRESULT DispatchEvent(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -862,6 +863,7 @@ public:
 	};
 	std::optional<NoteResize> m_noteResize;
 	bool m_noteLoading = false;
+	std::vector<Markdown::ParseState> m_noteMarkdownStates; // state before each logical line
 	std::optional<ImageLink::Link> m_imageHover;
 	CLogicInt m_imageHoverLine = CLogicInt(-1);
 	DWORD m_imageHoverStarted = 0;

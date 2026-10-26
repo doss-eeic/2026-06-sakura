@@ -14,6 +14,7 @@
 #include "outline/CFuncInfo.h"
 #include "outline/CFuncInfoArr.h"
 #include "typeprop/CPropTypes.h"
+#include "sakura_rc.h"
 #include <limits>
 
 namespace {
@@ -555,6 +556,343 @@ TEST_F(MarkdownOutline, ContainerHeadingsRespectTabWidthAndLayoutPositions)
 	EXPECT_EQ(target.GetY2() + 1, result.GetAt(2)->m_nFuncLineLAYOUT);
 	EXPECT_EQ(target.GetX2() + 1, result.GetAt(2)->m_nFuncColLAYOUT);
 	pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(tabWidth, 0, width);
+}
+
+class MarkdownFigures : public MarkdownInputEditor {
+protected:
+	EOutlineType oldOutline;
+	int oldWidth, oldTab;
+	CommonSetting_OutLine oldCommon;
+	void SetUp() override
+	{
+		MarkdownInputEditor::SetUp();
+		oldOutline = pcEditDoc->m_cDocType.GetDocumentAttribute().m_eDefaultOutline;
+		pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = OUTLINE_MARKDOWN;
+		oldWidth = pcEditDoc->m_cLayoutMgr.GetMaxLineKetas();
+		oldTab = pcEditDoc->m_cLayoutMgr.GetTabSpaceKetas();
+		oldCommon = GetDllShareData().m_Common.m_sOutline;
+		GetDllShareData().m_Common.m_sOutline.m_nOutlineDockSet = 0;
+		GetDllShareData().m_Common.m_sOutline.m_eOutlineDockSide = DOCKSIDE_FLOAT;
+		GetDllShareData().m_Common.m_sOutline.m_bAutoCloseDlgFuncList = false;
+	}
+	void TearDown() override
+	{
+		if (pcEditWnd->m_cDlgFuncList.GetHwnd()) ::DestroyWindow(pcEditWnd->m_cDlgFuncList.GetHwnd());
+		pcEditWnd->SetNoteView(false);
+		pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = oldOutline;
+		pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(oldTab, 0, oldWidth);
+		GetDllShareData().m_Common.m_sOutline = oldCommon;
+		MarkdownInputEditor::TearDown();
+	}
+	void Open()
+	{
+		ASSERT_TRUE(pcEditWnd->GetActiveView().GetCommander().Command_FUNCLIST(SHOW_RELOAD, OUTLINE_DEFAULT));
+		ASSERT_NE(nullptr, pcEditWnd->m_cDlgFuncList.GetHwnd());
+	}
+	HWND Tree() { return ::GetDlgItem(pcEditWnd->m_cDlgFuncList.GetHwnd(), IDC_TREE_FL); }
+	std::wstring Label(HTREEITEM item)
+	{
+		wchar_t text[1024]{};
+		TVITEM info{};
+		info.mask = TVIF_TEXT;
+		info.hItem = item;
+		info.pszText = text;
+		info.cchTextMax = static_cast<int>(std::size(text));
+		TreeView_GetItem(Tree(), &info);
+		return text;
+	}
+	void WaitForUpdate()
+	{
+		const auto end = ::GetTickCount64() + 450;
+		while (::GetTickCount64() < end) {
+			MSG message{};
+			while (::PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
+				::TranslateMessage(&message);
+				::DispatchMessageW(&message);
+			}
+			::Sleep(5);
+		}
+	}
+};
+
+TEST_F(MarkdownFigures, FiguresUseDeepestHeadingAndKeepDuplicatesInDocumentOrder)
+{
+	Insert(L"![](C:/before.png)\r\n# aaa\r\n![one](C:/same.png)\r\n![two](C:/same.png)\r\n"
+		L"## bbb\r\n![three](C:/same.png)\r\n# ccc\r\n![four](C:/same.png)");
+	const auto text = Text();
+	const auto modified = pcEditDoc->m_cDocEditor.IsModified();
+	CFuncInfoArr result;
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&result);
+	ASSERT_EQ(8, result.GetNum());
+	const int depths[] = {0, 0, 1, 1, 1, 2, 0, 1};
+	const wchar_t* names[] = {L"図1: before", L"aaa", L"図2: one", L"図3: two", L"bbb", L"図4: three", L"ccc", L"図5: four"};
+	for (int i = 0; i < 8; ++i) {
+		EXPECT_EQ(depths[i], result.GetAt(i)->m_nDepth);
+		EXPECT_STREQ(names[i], result.GetAt(i)->m_cmemFuncName.GetStringPtr());
+		EXPECT_EQ(CLogicInt(i + 1), result.GetAt(i)->m_nFuncLineCRLF);
+	}
+	EXPECT_EQ(text, Text());
+	EXPECT_EQ(modified, pcEditDoc->m_cDocEditor.IsModified());
+	Command(F_UNDO);
+	EXPECT_EQ(L"", Text()); // parsing did not add an undo record
+}
+
+TEST_F(MarkdownFigures, SetextParagraphContainingFigureKeepsHeadingBeforeItsChild)
+{
+	Insert(L"title\r\n![caption](C:/missing.png)\r\n===\r\n# next");
+	CFuncInfoArr result;
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&result);
+	ASSERT_EQ(3, result.GetNum());
+	EXPECT_STREQ(L"title ![caption](C:/missing.png)", result.GetAt(0)->m_cmemFuncName.GetStringPtr());
+	EXPECT_EQ(CLogicInt(1), result.GetAt(0)->m_nFuncLineCRLF);
+	EXPECT_EQ(1, result.GetAt(1)->m_nDepth);
+	EXPECT_EQ(0, result.GetAt(2)->m_nDepth);
+}
+
+TEST_F(MarkdownFigures, OutlineAndNoteShareCodeContextAndLogicalPositions)
+{
+	pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(4, 0, 12);
+	Insert(L"# long heading abcdefghijklmnop\r\n![yes](C:/missing.png) <!-- sakura:rows=20 -->\r\n"
+		L"```\r\n![no](C:/a.png)\r\n```\r\n\r\n    ![no](C:/a.png)\r\n\r\n"
+		L"- ```\r\n  ![no](C:/a.png)\r\n  ```\r\n\r\n> ```\r\n> ![no](C:/a.png)\r\n> ```\r\n"
+		L"![yes2](C:/a.png)\r\ninline ![no](C:/a.png)\r\n![no](https://a/a.png)");
+	CFuncInfoArr off, on;
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&off);
+	pcEditWnd->SetNoteView(true);
+	pcEditDoc->m_cDocOutline.MakeTopicList_markdown(&on);
+	ASSERT_EQ(3, off.GetNum());
+	ASSERT_EQ(off.GetNum(), on.GetNum());
+	const auto& blocks = pcEditWnd->GetActiveView().GetTextArea().GetNoteProjection().Blocks();
+	ASSERT_EQ(2u, blocks.size());
+	EXPECT_EQ(20, blocks[0].maxRows);
+	for (int i = 0; i < on.GetNum(); ++i) {
+		EXPECT_STREQ(off.GetAt(i)->m_cmemFuncName.GetStringPtr(), on.GetAt(i)->m_cmemFuncName.GetStringPtr());
+		CLayoutPoint expected;
+		pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(on.GetAt(i)->m_nFuncColCRLF - 1,
+			on.GetAt(i)->m_nFuncLineCRLF - 1), &expected);
+		EXPECT_EQ(expected.y + 1, on.GetAt(i)->m_nFuncLineLAYOUT);
+		if (i) EXPECT_EQ(blocks[i - 1].logicalLine + 1, static_cast<int>(on.GetAt(i)->m_nFuncLineCRLF));
+	}
+}
+
+TEST_F(MarkdownFigures, NoteFenceEditsPropagateBeyondChangedLineAndUndoRedo)
+{
+	Insert(L"text\r\n![a](C:/a.png)\r\n![b](C:/b.png)\r\n```");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	ASSERT_EQ(2u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	Select(CLogicPoint(0, 0), CLogicPoint(4, 0));
+	Insert(L"```");
+	EXPECT_TRUE(view.GetTextArea().GetNoteProjection().Blocks().empty());
+	Command(F_UNDO);
+	EXPECT_EQ(2u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	Command(F_REDO);
+	EXPECT_TRUE(view.GetTextArea().GetNoteProjection().Blocks().empty());
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = OUTLINE_TEXT;
+	view.ApplyNoteView();
+	EXPECT_EQ(2u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = OUTLINE_MARKDOWN;
+	view.ApplyNoteView();
+	EXPECT_TRUE(view.GetTextArea().GetNoteProjection().Blocks().empty());
+}
+
+TEST_F(MarkdownFigures, NativeTreeKeepsDocumentOrderAndDelayedSelectionAndExpansion)
+{
+	Insert(L"# zzz\r\n![a](C:/a.png)\r\n# aaa");
+	Open();
+	auto root = TreeView_GetRoot(Tree());
+	ASSERT_EQ(L"zzz", Label(root));
+	EXPECT_EQ(L"aaa", Label(TreeView_GetNextSibling(Tree(), root)));
+	auto figure = TreeView_GetChild(Tree(), root);
+	ASSERT_EQ(L"図1: a", Label(figure));
+	TreeView_Expand(Tree(), root, TVE_EXPAND);
+	MoveTo(CLogicPoint(0, 0));
+	TreeView_SelectItem(Tree(), figure);
+	Insert(L"intro\r\n");
+	EXPECT_EQ(L"図1: a", Label(TreeView_GetSelection(Tree())));
+	WaitForUpdate();
+	EXPECT_EQ(L"図1: a", Label(TreeView_GetSelection(Tree())));
+	root = TreeView_GetRoot(Tree());
+	EXPECT_NE(0u, TreeView_GetItemState(Tree(), root, TVIS_EXPANDED) & TVIS_EXPANDED);
+	Select(CLogicPoint(0, 2), CLogicPoint(0, 3));
+	TreeView_SelectItem(Tree(), TreeView_GetChild(Tree(), root));
+	Command(F_DELETE);
+	EXPECT_EQ(L"図1: a", Label(TreeView_GetSelection(Tree())));
+	WaitForUpdate();
+	EXPECT_EQ(nullptr, TreeView_GetSelection(Tree()));
+	EXPECT_EQ(2u, TreeView_GetCount(Tree()));
+}
+
+TEST_F(MarkdownFigures, NativeTreeIgnoresAllSavedSortModesAndKeepsHeadingSiblings)
+{
+	Insert(L"# zzz\r\n![z](C:/z.png)\r\n## aaa\r\n![b](C:/b.png)\r\n# aaa");
+	const auto typeIndex = pcEditDoc->m_cDocType.GetDocumentType();
+	auto type = std::make_unique<STypeConfig>();
+	ASSERT_TRUE(CDocTypeManager().GetTypeConfig(typeIndex, *type));
+	const auto oldSort = type->m_nOutlineSortType;
+	for (int sort = SORTTYPE_DEFAULT; sort <= SORTTYPE_ZTOA; ++sort) {
+		type->m_nOutlineSortType = sort;
+		CDocTypeManager().SetTypeConfig(typeIndex, *type);
+		Open();
+		const auto root = TreeView_GetRoot(Tree());
+		EXPECT_EQ(L"zzz", Label(root));
+		EXPECT_EQ(L"aaa", Label(TreeView_GetNextSibling(Tree(), root)));
+		const auto figure = TreeView_GetChild(Tree(), root);
+		EXPECT_EQ(L"図1: z", Label(figure));
+		EXPECT_EQ(L"aaa", Label(TreeView_GetNextSibling(Tree(), figure)));
+		EXPECT_FALSE(::IsWindowEnabled(::GetDlgItem(pcEditWnd->m_cDlgFuncList.GetHwnd(), IDC_COMBO_nSortType)));
+		::DestroyWindow(pcEditWnd->m_cDlgFuncList.GetHwnd());
+	}
+	type->m_nOutlineSortType = oldSort;
+	CDocTypeManager().SetTypeConfig(typeIndex, *type);
+}
+
+TEST_F(MarkdownFigures, JumpBeforeTimerUsesUpdatedLogicalAnchorAndClearsDeletedTarget)
+{
+	Insert(L"# root\r\n![a](C:/a.png)\r\n# next");
+	Open();
+	MoveTo(CLogicPoint(0, 0));
+	TreeView_SelectItem(Tree(), TreeView_GetChild(Tree(), TreeView_GetRoot(Tree())));
+	Insert(L"intro\r\n");
+	GetDllShareData().m_sWorkBuffer.m_LogicPoint = CLogicPoint(99, 99);
+	::SendMessageW(pcEditWnd->m_cDlgFuncList.GetHwnd(), WM_COMMAND, IDOK, 0);
+	EXPECT_EQ(CLogicPoint(0, 2), GetDllShareData().m_sWorkBuffer.m_LogicPoint);
+	Select(CLogicPoint(0, 2), CLogicPoint(0, 3));
+	TreeView_SelectItem(Tree(), TreeView_GetChild(Tree(), TreeView_GetRoot(Tree())));
+	Command(F_DELETE);
+	GetDllShareData().m_sWorkBuffer.m_LogicPoint = CLogicPoint(99, 99);
+	::SendMessageW(pcEditWnd->m_cDlgFuncList.GetHwnd(), WM_COMMAND, IDOK, 0);
+	EXPECT_EQ(CLogicPoint(99, 99), GetDllShareData().m_sWorkBuffer.m_LogicPoint);
+	EXPECT_EQ(nullptr, TreeView_GetSelection(Tree()));
+}
+
+TEST_F(MarkdownFigures, EnterJumpScrollsToNoteBlockWithoutTogglingMode)
+{
+	pcEditDoc->m_cLayoutMgr.ChangeLayoutParam(4, 0, 12);
+	Insert(L"# heading\r\n![a](C:/missing-a.png)\r\n![b](C:/missing-b.png)\r\ntail");
+	Open();
+	auto& view = pcEditWnd->GetActiveView();
+	for (bool note : {false, true}) {
+		pcEditWnd->SetNoteView(note);
+		const auto first = TreeView_GetChild(Tree(), TreeView_GetRoot(Tree()));
+		TreeView_SelectItem(Tree(), TreeView_GetNextSibling(Tree(), first));
+		NMTVKEYDOWN key{};
+		key.hdr.hwndFrom = Tree();
+		key.hdr.code = TVN_KEYDOWN;
+		key.wVKey = VK_RETURN;
+		::SendMessageW(pcEditWnd->m_cDlgFuncList.GetHwnd(), WM_NOTIFY, IDC_TREE_FL, reinterpret_cast<LPARAM>(&key));
+		EXPECT_EQ(CLogicPoint(0, 2), GetDllShareData().m_sWorkBuffer.m_LogicPoint);
+		EXPECT_EQ(note, view.IsNoteView());
+		if (note) {
+			const auto& area = view.GetTextArea();
+			const auto top = area.GetDisplayTop().value;
+			const auto block = area.GetNoteProjection().BlockStart(1).value;
+			EXPECT_GE(block, top);
+			EXPECT_LT(block, top + static_cast<int>(area.m_nViewRowNum));
+		}
+	}
+}
+
+TEST_F(MarkdownFigures, DelayedRenameUndoRedoAndOutlineSettingSwitch)
+{
+	Insert(L"# heading\r\n![a](C:/a.png)");
+	Open();
+	Select(CLogicPoint(2, 1), CLogicPoint(3, 1));
+	TreeView_SelectItem(Tree(), TreeView_GetChild(Tree(), TreeView_GetRoot(Tree())));
+	Insert(L"renamed");
+	EXPECT_EQ(L"図1: a", Label(TreeView_GetSelection(Tree())));
+	WaitForUpdate();
+	EXPECT_EQ(L"図1: renamed", Label(TreeView_GetSelection(Tree())));
+	Command(F_UNDO);
+	WaitForUpdate();
+	EXPECT_EQ(L"図1: a", Label(TreeView_GetSelection(Tree())));
+	Command(F_REDO);
+	WaitForUpdate();
+	EXPECT_EQ(L"図1: renamed", Label(TreeView_GetSelection(Tree())));
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = OUTLINE_TEXT;
+	pcEditWnd->m_cDlgFuncList.NotifyMarkdownSetting();
+	WaitForUpdate();
+	EXPECT_TRUE(pcEditWnd->m_cDlgFuncList.CheckListType(OUTLINE_TEXT));
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = OUTLINE_MARKDOWN;
+	pcEditWnd->m_cDlgFuncList.NotifyMarkdownSetting();
+	WaitForUpdate();
+	EXPECT_TRUE(pcEditWnd->m_cDlgFuncList.CheckListType(OUTLINE_MARKDOWN));
+	EXPECT_EQ(2u, TreeView_GetCount(Tree()));
+	pcEditWnd->GetActiveView().GetCommander().Command_FUNCLIST(SHOW_RELOAD, OUTLINE_BOOKMARK);
+	pcEditDoc->m_cDocType.GetDocumentAttributeWrite().m_eDefaultOutline = OUTLINE_TEXT;
+	pcEditWnd->m_cDlgFuncList.NotifyMarkdownSetting();
+	WaitForUpdate();
+	EXPECT_TRUE(pcEditWnd->m_cDlgFuncList.CheckListType(OUTLINE_BOOKMARK));
+}
+
+TEST_F(MarkdownFigures, ImeFencePreeditExcludesSuffixAndCancellationRestoresImages)
+{
+	Insert(L"\r\n![a](C:/a.png)\r\n```");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	ASSERT_EQ(1u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	MoveTo(CLogicPoint(0, 0));
+	view.BeginImeComposition();
+	view.m_ime.text = L"```";
+	view.m_ime.cursor = 3;
+	view.RebuildImeDisplayLayout();
+	EXPECT_TRUE(view.GetTextArea().GetNoteProjection().Blocks().empty());
+	view.EndImeComposition();
+	EXPECT_EQ(1u, view.GetTextArea().GetNoteProjection().Blocks().size());
+	EXPECT_EQ(L"\r\n![a](C:/a.png)\r\n```", Text());
+}
+
+TEST_F(MarkdownFigures, IncrementalNoteParsingMatchesFullParsingAcrossLineInsertDeleteAndUndo)
+{
+	Insert(L"# top\r\n![a](C:/a.png)\r\n\r\n- ```\r\n  ![b](C:/b.png)\r\n  ```\r\n![c](C:/c.png)");
+	pcEditWnd->SetNoteView(true);
+	auto& view = pcEditWnd->GetActiveView();
+	const auto check = [&] {
+		const auto incremental = view.GetTextArea().GetNoteProjection().Blocks();
+		view.RebuildNoteProjection();
+		EXPECT_EQ(incremental, view.GetTextArea().GetNoteProjection().Blocks());
+	};
+	MoveTo(CLogicPoint(0, 0));
+	Insert(L"```\r\n");
+	check();
+	Command(F_UNDO);
+	check();
+	Select(CLogicPoint(0, 3), CLogicPoint(0, 4));
+	Command(F_DELETE);
+	check();
+	Command(F_UNDO);
+	check();
+	Select(CLogicPoint(0, 5), CLogicPoint(5, 5));
+	Command(F_DELETE);
+	check();
+	Command(F_UNDO);
+	check();
+	Command(F_SELECTALL);
+	Command(F_DELETE);
+	check();
+	Command(F_UNDO);
+	check();
+}
+
+TEST_F(MarkdownFigures, DocumentLoadDefersRefreshAndDoesNotReusePreviousSelection)
+{
+	Insert(L"# old\r\n![old](C:/old.png)");
+	Open();
+	TreeView_SelectItem(Tree(), TreeView_GetChild(Tree(), TreeView_GetRoot(Tree())));
+	auto& dialog = pcEditWnd->m_cDlgFuncList;
+	dialog.ResetMarkdownDocument();
+	Command(F_SELECTALL);
+	Insert(L"# new\r\n![new](C:/new.png)");
+	WaitForUpdate();
+	EXPECT_EQ(L"old", Label(TreeView_GetRoot(Tree())));
+	GetDllShareData().m_sWorkBuffer.m_LogicPoint = CLogicPoint(99, 99);
+	::SendMessageW(dialog.GetHwnd(), WM_COMMAND, IDOK, 0);
+	EXPECT_EQ(CLogicPoint(99, 99), GetDllShareData().m_sWorkBuffer.m_LogicPoint);
+	dialog.FinishMarkdownLoad();
+	WaitForUpdate();
+	EXPECT_EQ(L"new", Label(TreeView_GetRoot(Tree())));
+	EXPECT_EQ(L"図1: new", Label(TreeView_GetChild(Tree(), TreeView_GetRoot(Tree()))));
+	EXPECT_EQ(nullptr, TreeView_GetSelection(Tree()));
 }
 
 namespace {

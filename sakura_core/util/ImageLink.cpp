@@ -129,6 +129,24 @@ std::optional<Link> FindStandalone(std::wstring_view line)
 	return link;
 }
 
+std::wstring DisplayName(std::wstring_view line, const Link& link)
+{
+	std::wstring name;
+	for (size_t i = link.begin + 2; i < line.size() && line[i] != L']'; ++i) {
+		if (line[i] == L'\\' && i + 1 < line.size() &&
+			((line[i + 1] >= L'!' && line[i + 1] <= L'/') ||
+			 (line[i + 1] >= L':' && line[i + 1] <= L'@') ||
+			 (line[i + 1] >= L'[' && line[i + 1] <= L'`') ||
+			 (line[i + 1] >= L'{' && line[i + 1] <= L'~'))) ++i;
+		name += line[i];
+	}
+	if (name.empty()) {
+		const auto filename = std::wstring_view(link.path).substr(link.path.find_last_of(L"/\\") + 1);
+		name = filename.substr(0, filename.find_last_of(L'.'));
+	}
+	return name;
+}
+
 bool IsReadableFile(const std::wstring& path)
 {
 	if (!IsSupportedPath(path)) return false;

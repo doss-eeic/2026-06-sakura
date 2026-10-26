@@ -35,6 +35,10 @@ struct SViewLayoutChange {
 	CLogicInt newLastLine{0};
 	CLogicInt logicalDelta{0};
 	CLayoutInt layoutDelta{0};
+	// Source columns allow consumers to distinguish shifted anchors from deleted ones.
+	CLogicInt firstColumn{0};
+	CLogicInt oldLastColumn{0};
+	CLogicInt newLastColumn{0};
 };
 
 //###
