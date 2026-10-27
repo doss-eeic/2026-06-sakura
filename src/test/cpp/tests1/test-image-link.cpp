@@ -1452,3 +1452,72 @@ TEST_F(ImageLinkEditor, MarkdownPartialRemovalPreservesReverseSelectionAndUndo)
 	EXPECT_EQ(L"ab**c**", Text());
 	EXPECT_EQ(CLogicPoint(0, 0), view.GetCaret().GetCaretLogicPos());
 }
+
+TEST_F(ImageLinkEditor, MarkdownMultilineCrossingSelectionUsesParsedFormatting)
+{
+	const std::wstring original = L"**ab\r\ncd** ef";
+	Insert(original);
+	MoveTo({3, 0});
+	auto& view = pcEditWnd->GetActiveView();
+	view.GetSelectionInfo().BeginSelectArea();
+	CLayoutPoint end;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(6, 1), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	view.GetCaret().MoveCursor(end, false);
+	Command(F_MARKDOWN_STRIKE);
+	EXPECT_EQ(L"**a**~~**b\r\ncd** e~~f", Text());
+	EXPECT_EQ(CLogicPoint(6, 1), view.GetCaret().GetCaretLogicPos());
+	CNativeW selected;
+	ASSERT_TRUE(view.GetSelectedDataSimple(selected));
+	EXPECT_STREQ(L"b\r\ncd** e", selected.GetStringPtr());
+	Command(F_UNDO);
+	EXPECT_EQ(original, Text());
+	EXPECT_EQ(CLogicPoint(6, 1), view.GetCaret().GetCaretLogicPos());
+	Command(F_REDO);
+	EXPECT_EQ(L"**a**~~**b\r\ncd** e~~f", Text());
+}
+
+TEST_F(ImageLinkEditor, MarkdownMultilinePartialRemovalPreservesReverseSelection)
+{
+	const std::wstring original = L"**ab\r\ncd**";
+	Insert(original);
+	MoveTo({1, 1});
+	auto& view = pcEditWnd->GetActiveView();
+	view.GetSelectionInfo().BeginSelectArea();
+	CLayoutPoint end;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(3, 0), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	view.GetCaret().MoveCursor(end, false);
+	Command(F_MARKDOWN_BOLD);
+	EXPECT_EQ(L"**a**b\r\nc**d**", Text());
+	EXPECT_EQ(CLogicPoint(5, 0), view.GetCaret().GetCaretLogicPos());
+	CNativeW selected;
+	ASSERT_TRUE(view.GetSelectedDataSimple(selected));
+	EXPECT_STREQ(L"b\r\nc", selected.GetStringPtr());
+	Command(F_UNDO);
+	EXPECT_EQ(original, Text());
+	EXPECT_EQ(CLogicPoint(3, 0), view.GetCaret().GetCaretLogicPos());
+	Command(F_REDO);
+	EXPECT_EQ(L"**a**b\r\nc**d**", Text());
+	EXPECT_EQ(CLogicPoint(5, 0), view.GetCaret().GetCaretLogicPos());
+}
+
+TEST_F(ImageLinkEditor, MarkdownSelectionThroughTrailingNewlineUsesParsedFormatting)
+{
+	const std::wstring original = L"**ab**\r\n";
+	Insert(original);
+	MoveTo({1, 0});
+	auto& view = pcEditWnd->GetActiveView();
+	view.GetSelectionInfo().BeginSelectArea();
+	CLayoutPoint end;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(0, 1), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	view.GetCaret().MoveCursor(end, false);
+	Command(F_MARKDOWN_BOLD);
+	EXPECT_EQ(L"ab\r\n", Text());
+	EXPECT_EQ(CLogicPoint(0, 1), view.GetCaret().GetCaretLogicPos());
+	Command(F_UNDO);
+	EXPECT_EQ(original, Text());
+	Command(F_REDO);
+	EXPECT_EQ(L"ab\r\n", Text());
+}
