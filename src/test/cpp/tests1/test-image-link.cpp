@@ -1404,3 +1404,51 @@ TEST_F(ImageLinkEditor, MarkdownCommandsAndTypeShortcutsCoexistWithNoteView)
 	EXPECT_EQ(F_COPY, CKeyBind::GetFuncCodeAt(common, _CTRL, TRUE, &binding));
 	EXPECT_EQ(F_COPY, common.m_nFuncCodeArr[_CTRL]);
 }
+
+TEST_F(ImageLinkEditor, MarkdownCrossingSelectionPreservesOtherFormattingAndUndo)
+{
+	const std::wstring original = L"**abc** def";
+	Insert(original);
+	MoveTo({4, 0});
+	auto& view = pcEditWnd->GetActiveView();
+	view.GetSelectionInfo().BeginSelectArea();
+	CLayoutPoint end;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(9, 0), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	view.GetCaret().MoveCursor(end, false);
+	Command(F_MARKDOWN_STRIKE);
+	EXPECT_EQ(L"**ab**~~**c** d~~ef", Text());
+	CNativeW selected;
+	ASSERT_TRUE(view.GetSelectedDataSimple(selected));
+	EXPECT_STREQ(L"c** d", selected.GetStringPtr());
+	Command(F_UNDO);
+	EXPECT_EQ(original, Text());
+	EXPECT_EQ(CLogicPoint(9, 0), view.GetCaret().GetCaretLogicPos());
+	Command(F_REDO);
+	EXPECT_EQ(L"**ab**~~**c** d~~ef", Text());
+}
+
+TEST_F(ImageLinkEditor, MarkdownPartialRemovalPreservesReverseSelectionAndUndo)
+{
+	const std::wstring original = L"**abc**";
+	Insert(original);
+	MoveTo({4, 0});
+	auto& view = pcEditWnd->GetActiveView();
+	view.GetSelectionInfo().BeginSelectArea();
+	CLayoutPoint end;
+	pcEditDoc->m_cLayoutMgr.LogicToLayout(CLogicPoint(2, 0), &end);
+	view.GetSelectionInfo().ChangeSelectAreaByCurrentCursor(end);
+	view.GetCaret().MoveCursor(end, false);
+	Command(F_MARKDOWN_BOLD);
+	EXPECT_EQ(L"ab**c**", Text());
+	EXPECT_EQ(CLogicPoint(0, 0), view.GetCaret().GetCaretLogicPos());
+	CNativeW selected;
+	ASSERT_TRUE(view.GetSelectedDataSimple(selected));
+	EXPECT_STREQ(L"ab", selected.GetStringPtr());
+	Command(F_UNDO);
+	EXPECT_EQ(original, Text());
+	EXPECT_EQ(CLogicPoint(2, 0), view.GetCaret().GetCaretLogicPos());
+	Command(F_REDO);
+	EXPECT_EQ(L"ab**c**", Text());
+	EXPECT_EQ(CLogicPoint(0, 0), view.GetCaret().GetCaretLogicPos());
+}

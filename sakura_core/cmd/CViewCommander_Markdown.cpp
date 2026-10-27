@@ -7,6 +7,7 @@
 #include "cmd/CViewCommander.h"
 #include "cmd/CViewCommander_inline.h"
 #include "cmd/markdown/MarkdownCommands.h"
+#include "parse/markdown/CMarkdownInlineParser.h"
 #include "doc/logic/CDocLine.h"
 #include "dlg/CDlgInput1.h"
 #include "env/DLLSHAREDATA.h"
@@ -38,6 +39,43 @@ std::wstring EscapeDestination(const std::wstring& text)
 		} else result += c;
 	}
 	return result;
+}
+bool GetEmphasisContentRange(
+	const std::vector<CMarkdownInlineParser::EmphasisSpan>& spans,
+	size_t& from,
+	size_t& to
+) {
+	if (from >= to) {
+		return false;
+	}
+
+	bool changed;
+	do {
+		changed = false;
+
+		for (const auto& span : spans) {
+			// 選択部分から外側の記号を除く
+			if (from < span.openingBegin || to > span.closingEnd) {
+				continue;
+			}
+
+
+			const size_t innerFrom = std::max(from, span.contentBegin);
+			const size_t innerTo = std::min(to, span.contentEnd);
+
+			if (innerFrom >= innerTo) {
+				return false;
+			}
+
+			if (innerFrom != from || innerTo != to) {
+				from = innerFrom;
+				to = innerTo;
+				changed = true;
+			}
+		}
+	} while (changed);
+
+	return true;
 }
 }
 
@@ -77,6 +115,10 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 
 	std::wstring result;
 	size_t caretOffset = 0;
+	bool emphasisPrepared = false;
+	size_t selectionPrefix = 0;
+	size_t selectionSuffix = 0;
+	const bool caretAtStart = selected && GetCaret().GetCaretLogicPos() == range.GetFrom();
 	if (inlineCommand) {
 		CNativeW data;
 		if (selected && !m_pCommanderView->GetSelectedDataSimple(data)) {
@@ -120,7 +162,45 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 		// Toggle emphasis when the selection includes the delimiters, or is inside them.
 		const bool emphasis = command == F_MARKDOWN_BOLD || command == F_MARKDOWN_ITALIC || command == F_MARKDOWN_STRIKE;
 		bool removed = false;
-		if (emphasis && text.size() >= opening.size() + closing.size()
+		if (emphasis && selected
+			&& range.GetFrom().GetY2() == range.GetTo().GetY2()) {
+			const auto y = range.GetFrom().GetY2();
+			const auto* line = GetDocument()->m_cDocLineMgr.GetLine(y);
+			if (!line) {
+				return;
+			}
+
+			const std::wstring body(
+				line->GetPtr(),
+				static_cast<int>(line->GetLengthWithoutEOL()));
+
+			size_t from = static_cast<int>(range.GetFrom().GetX2());
+			size_t to = static_cast<int>(range.GetTo().GetX2());
+
+			if (to <= body.size()) {
+				std::vector<CMarkdownInlineParser::EmphasisSpan> spans;
+				CMarkdownInlineParser::Parse(body, &spans);
+
+				if (!GetEmphasisContentRange(spans, from, to)) {
+					return;
+				}
+
+				const Markdown::Style requested =
+					command == F_MARKDOWN_BOLD ? Markdown::Bold
+					: command == F_MARKDOWN_ITALIC ? Markdown::Italic
+					: Markdown::Strike;
+
+				const auto edit = Markdown::Commands::ToggleEmphasis(body, spans, from, to, requested);
+				if (!edit) return;
+				result = edit->text;
+				selectionPrefix = edit->selectionFrom;
+				selectionSuffix = result.size() - edit->selectionTo;
+				range.SetFrom(CLogicPoint(CLogicInt(static_cast<int>(edit->from)), y));
+				range.SetTo(CLogicPoint(CLogicInt(static_cast<int>(edit->to)), y));
+
+				emphasisPrepared = true;
+			}
+		} else if (emphasis && text.size() >= opening.size() + closing.size()
 			&& text.compare(0, opening.size(), opening) == 0
 			&& text.compare(text.size() - closing.size(), closing.size(), closing) == 0
 			&& (command != F_MARKDOWN_ITALIC || text.size() < 4 || text[1] != L'*' || text[text.size() - 2] != L'*')) {
@@ -146,7 +226,7 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 				}
 			}
 		}
-		if (!removed) {
+		if (!emphasisPrepared && !removed) {
 			// Single-line delimiters share the bracket insertion/wrapping path.
 			if (command != F_MARKDOWN_LINK && command != F_MARKDOWN_IMAGE) {
 #ifdef _DEBUG
@@ -210,13 +290,27 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 			target.Set(CLogicInt(0), target.GetY2() + CLogicInt(1));
 		} else target.Offset(1, 0);
 	}
+	CLogicPoint targetPoint = selected ? afterReplace : target;
+	CLogicPoint anchorPoint = range.GetFrom();
+
+	if (emphasisPrepared) {
+		CLogicPoint innerFrom = range.GetFrom();
+		innerFrom.Offset(static_cast<int>(selectionPrefix), 0);
+
+		CLogicPoint innerTo = afterReplace;
+		innerTo.Offset(-static_cast<int>(selectionSuffix), 0);
+
+		anchorPoint = caretAtStart ? innerTo : innerFrom;
+		targetPoint = caretAtStart ? innerFrom : innerTo;
+	}
+
 	CLayoutPoint targetLayout;
-	layoutMgr.LogicToLayout(selected ? afterReplace : target, &targetLayout);
+	layoutMgr.LogicToLayout(targetPoint, &targetLayout);
 	GetCaret().MoveCursor(targetLayout, true);
 	if (selected) {
-		CLayoutPoint startLayout;
-		layoutMgr.LogicToLayout(range.GetFrom(), &startLayout);
-		selection.BeginSelectArea(&startLayout);
+		CLayoutPoint anchorLayout;
+		layoutMgr.LogicToLayout(anchorPoint, &anchorLayout);
+		selection.BeginSelectArea(&anchorLayout);
 		selection.ChangeSelectAreaByCurrentCursor(targetLayout);
 	}
 	const auto finalCaret = GetCaret().GetCaretLogicPos();
