@@ -77,6 +77,22 @@ bool GetEmphasisContentRange(
 
 	return true;
 }
+
+// 原文・置換文字列内のUTF-16位置を、改行を含めて論理位置へ戻す。
+CLogicPoint PositionInText(CLogicPoint start, std::wstring_view text,
+	size_t offset, bool enableExtEol)
+{
+	const size_t end = std::min(offset, text.size());
+	for (size_t pos = 0; pos < end; ++pos) {
+		if (WCODE::IsLineDelimiter(text[pos], enableExtEol)) {
+			if (text[pos] == L'\r' && pos + 1 < end && text[pos + 1] == L'\n') ++pos;
+			start.Set(CLogicInt(0), start.GetY2() + CLogicInt(1));
+		} else {
+			start.Offset(1, 0);
+		}
+	}
+	return start;
+}
 }
 
 void CViewCommander::Command_MARKDOWN(EFunctionCode command)
@@ -119,6 +135,7 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 	size_t selectionPrefix = 0;
 	size_t selectionSuffix = 0;
 	const bool caretAtStart = selected && GetCaret().GetCaretLogicPos() == range.GetFrom();
+	const bool enableExtEol = GetDllShareData().m_Common.m_sEdit.m_bEnableExtEol;
 	if (inlineCommand) {
 		CNativeW data;
 		if (selected && !m_pCommanderView->GetSelectedDataSimple(data)) {
@@ -162,51 +179,54 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 		// Toggle emphasis when the selection includes the delimiters, or is inside them.
 		const bool emphasis = command == F_MARKDOWN_BOLD || command == F_MARKDOWN_ITALIC || command == F_MARKDOWN_STRIKE;
 		bool removed = false;
-		if (emphasis && selected
-			&& range.GetFrom().GetY2() == range.GetTo().GetY2()) {
-			const auto y = range.GetFrom().GetY2();
-			const auto* line = GetDocument()->m_cDocLineMgr.GetLine(y);
-			if (!line) {
-				return;
-			}
-
-			const std::wstring body(
-				line->GetPtr(),
-				static_cast<int>(line->GetLengthWithoutEOL()));
-
+		if (emphasis && selected) {
+			const auto first = range.GetFrom().GetY2();
+			const auto last = range.GetTo().GetY2();
+			const CLogicPoint origin(CLogicInt(0), first);
+			std::wstring body;
 			size_t from = static_cast<int>(range.GetFrom().GetX2());
-			size_t to = static_cast<int>(range.GetTo().GetX2());
-
-			if (to <= body.size()) {
-				std::vector<CMarkdownInlineParser::EmphasisSpan> spans;
-				CMarkdownInlineParser::Parse(body, &spans);
-
-				if (!GetEmphasisContentRange(spans, from, to)) {
+			size_t to = 0;
+			// 選択がかかる各原文行を、元の改行コードでつなぐ。
+			// 最初と最後の行も全文を含め、選択外にある記号を解析する。
+			for (auto y = first; y <= last; ++y) {
+				const auto* line = GetDocument()->m_cDocLineMgr.GetLine(y);
+				if (!line) {
+					// 末尾改行の直後の空行は、CDocLineが存在しないことがある。
+					if (y == last && y > first && range.GetTo().GetX2() == 0) {
+						to = body.size();
+						break;
+					}
 					return;
 				}
-
-				const Markdown::Style requested =
-					command == F_MARKDOWN_BOLD ? Markdown::Bold
-					: command == F_MARKDOWN_ITALIC ? Markdown::Italic
-					: Markdown::Strike;
-
-				const auto edit = Markdown::Commands::ToggleEmphasis(body, spans, from, to, requested);
-				if (!edit) return;
-				result = edit->text;
-				selectionPrefix = edit->selectionFrom;
-				selectionSuffix = result.size() - edit->selectionTo;
-				range.SetFrom(CLogicPoint(CLogicInt(static_cast<int>(edit->from)), y));
-				range.SetTo(CLogicPoint(CLogicInt(static_cast<int>(edit->to)), y));
-
-				emphasisPrepared = true;
+				const size_t length = static_cast<int>(line->GetLengthWithoutEOL());
+				if (y == first && from > length) return;
+				if (y == last) {
+					const size_t endOffset = static_cast<int>(range.GetTo().GetX2());
+					if (endOffset > length) return;
+					to = body.size() + endOffset;
+				}
+				if (length) body.append(line->GetPtr(), length);
+				if (y < last) body += line->GetEol().GetValue2();
 			}
-		} else if (emphasis && text.size() >= opening.size() + closing.size()
-			&& text.compare(0, opening.size(), opening) == 0
-			&& text.compare(text.size() - closing.size(), closing.size(), closing) == 0
-			&& (command != F_MARKDOWN_ITALIC || text.size() < 4 || text[1] != L'*' || text[text.size() - 2] != L'*')) {
-			result = text.substr(opening.size(), text.size() - opening.size() - closing.size());
-			removed = true;
-		} else if (emphasis && range.GetFrom().GetY2() == range.GetTo().GetY2()) {
+
+			std::vector<CMarkdownInlineParser::EmphasisSpan> spans;
+			CMarkdownInlineParser::Parse(body, &spans);
+			if (!GetEmphasisContentRange(spans, from, to)) return;
+
+			const Markdown::Style requested =
+				command == F_MARKDOWN_BOLD ? Markdown::Bold
+				: command == F_MARKDOWN_ITALIC ? Markdown::Italic
+				: Markdown::Strike;
+
+			const auto edit = Markdown::Commands::ToggleEmphasis(body, spans, from, to, requested);
+			if (!edit) return;
+			result = edit->text;
+			selectionPrefix = edit->selectionFrom;
+			selectionSuffix = result.size() - edit->selectionTo;
+			range.SetFrom(PositionInText(origin, body, edit->from, enableExtEol));
+			range.SetTo(PositionInText(origin, body, edit->to, enableExtEol));
+			emphasisPrepared = true;
+		} else if (emphasis) {
 			const auto* line = GetDocument()->m_cDocLineMgr.GetLine(range.GetFrom().GetY2());
 			if (line) {
 				const std::wstring body(line->GetPtr(), static_cast<int>(line->GetLengthWithoutEOL()));
@@ -283,22 +303,14 @@ void CViewCommander::Command_MARKDOWN(EFunctionCode command)
 	COpeBlk* const opeBlk = m_pCommanderView->m_bDoing_UndoRedo ? nullptr : GetOpeBlk();
 	m_pCommanderView->ReplaceData_CEditView2(range, result.c_str(), CLogicInt(static_cast<int>(result.size())), true, opeBlk);
 	const CLogicPoint afterReplace = GetCaret().GetCaretLogicPos();
-	CLogicPoint target = range.GetFrom();
-	for (size_t i = 0; i < std::min(caretOffset, result.size()); ++i) {
-		if (WCODE::IsLineDelimiter(result[i], GetDllShareData().m_Common.m_sEdit.m_bEnableExtEol)) {
-			if (result[i] == L'\r' && i + 1 < caretOffset && result[i + 1] == L'\n') ++i;
-			target.Set(CLogicInt(0), target.GetY2() + CLogicInt(1));
-		} else target.Offset(1, 0);
-	}
+	const CLogicPoint target = PositionInText(range.GetFrom(), result, caretOffset, enableExtEol);
 	CLogicPoint targetPoint = selected ? afterReplace : target;
 	CLogicPoint anchorPoint = range.GetFrom();
 
 	if (emphasisPrepared) {
-		CLogicPoint innerFrom = range.GetFrom();
-		innerFrom.Offset(static_cast<int>(selectionPrefix), 0);
-
-		CLogicPoint innerTo = afterReplace;
-		innerTo.Offset(-static_cast<int>(selectionSuffix), 0);
+		const CLogicPoint innerFrom = PositionInText(range.GetFrom(), result, selectionPrefix, enableExtEol);
+		const CLogicPoint innerTo = PositionInText(range.GetFrom(), result,
+			result.size() - selectionSuffix, enableExtEol);
 
 		anchorPoint = caretAtStart ? innerTo : innerFrom;
 		targetPoint = caretAtStart ? innerFrom : innerTo;

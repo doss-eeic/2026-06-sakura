@@ -34,6 +34,12 @@ TEST(MarkdownEmphasisEditing, SplitsFormattingAtSelectionBoundaries)
 		{L"__abc__", L"b", Markdown::Bold, L"**a**b**c**", L"b"},
 		{L"**abc def**", L"abc", Markdown::Bold, L"abc **def**", L"abc"},
 		{L"**abc** and *tail*", L"b", Markdown::Bold, L"**a**b**c** and *tail*", L"b"},
+		{L"**ab\r\ncd** ef", L"b\r\ncd** e", Markdown::Strike,
+			L"**a**~~**b\r\ncd** e~~f", L"b\r\ncd** e"},
+		{L"**ab\r\ncd**", L"b\r\nc", Markdown::Bold, L"**a**b\r\nc**d**", L"b\r\nc"},
+		{L"ab\ncd", L"ab\ncd", Markdown::Bold, L"**ab\ncd**", L"ab\ncd"},
+		{L"ab\rcd", L"ab\rcd", Markdown::Bold, L"**ab\rcd**", L"ab\rcd"},
+		{L"**ab**\r\n", L"*ab**\r\n", Markdown::Bold, L"ab\r\n", L"ab\r\n"},
 	};
 	for (const auto& test : cases) {
 		SCOPED_TRACE(test.source);
